@@ -42,27 +42,32 @@ class LaserComponent:
     def _read_cpu8000_power(self):
         self.serial.write(b"/{0}/{1}/{2}\r".decode('ascii').format(self.CPU8000.name,self.CPU8000.id, "Power").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.CPU8000.power = reply
 
     def _read_cpu8000_current(self):
         self.serial.write(b"/{0}/{1}/{2}\r".decode('ascii').format(self.CPU8000.name,self.CPU8000.id, "Display Current").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.CPU8000.current = reply
 
     def _read_m_cpu800_power(self):
         self.serial.write(b"/{0}/{1}/{2}\r".decode('ascii').format(self.M_CPU800.name,self.M_CPU800.id,"Power").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.M_CPU800.power = reply
 
     def _read_m_cpu800_current(self):
         self.serial.write(b"/{0}/{1}/{2}\r".decode('ascii').format(self.M_CPU800.name,self.M_CPU800.id,"Display Current").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.M_CPU800.current = reply
 
     def _read_m_cpu800_configuration(self):
         self.serial.write(b"/{0}/{1}/{2}\r".decode('ascii').format(self.M_CPU800.name,self.M_CPU800.id,
                                                 "Continuous / Burst mode / Trigger burst").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.M_CPU800.configuration = reply
 
     def _set_m_cpu800_configuration(self,configuration):
@@ -70,16 +75,19 @@ class LaserComponent:
             self.serial.write(b"/{0}/{1}/{2}/{3}\r".decode('ascii').format(self.M_CPU800.name, self.M_CPU800.id,
                                                 "Continuous / Burst mode / Trigger burst", configuration).encode('ascii'))
             reply = self.serial.read_until(b"\x03")
+            reply = self._check_errors(reply)
         else:
             raise ValueError("Value not in accepted values list")
     def _read_m_cpu800_energy(self):
         self.serial.write(b"/{0}/{1}/{2}\r".decode('ascii').format(self.M_CPU800.name,self.M_CPU800.id,"Output Energy Level").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.M_CPU800.energy = reply
 
     def _read_m_cpu800_frequency_divider(self):
         self.serial.write(b"/{0}/{1}/{2}\r".decode('ascii').format(self.M_CPU800.name, self.M_CPU800.id, "Frequency divider").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.M_CPU800.frequency_divider = reply
 
     def _set_m_cpu800_frequency_divider(self, frequency_divider):
@@ -92,36 +100,43 @@ class LaserComponent:
     def _read_m_cpu800_burst_pulse_left(self):
         self.serial.write(b"/{0}/{1}/{2}\r".decode('ascii').format(self.M_CPU800.name, self.M_CPU800.id, "Burst pulses to go").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.M_CPU800.burst_pulse_left = reply
 
     def _read_m_cpu800_qsw_adjustment_output_delay(self):
         self.serial.write(b"/{0}/{1}/{2}\r".decode('ascii').format(self.M_CPU800.name, self.M_CPU800.id, "QSW Adjustment output delay").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.M_CPU800.qsw_adjustment_output_delay = reply
 
     def _read_m_cpu800_repetition_rate(self):
         self.serial.write((b"/{0}/{1}/{2}\r".decode('ascii').format(self.M_CPU800.name, self.M_CPU800.id, "Repetition rate").encode('ascii')))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.M_CPU800.repetition_rate = reply
 
     def _read_m_cpu800_synchronization_mode(self):
         self.serial.write(b"/{0}/{1}/{2}\r".decode('ascii').format(self.M_CPU800.name, self.M_CPU800.id, "Synchronization mode").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.M_CPU800.synchronization_mode = reply
 
     def _read_m_cpu800_burst_mode(self):
         self.serial.write(b"/{0}/{1}/{2}\r".decode('ascii').format(self.M_CPU800.name, self.M_CPU800.id, "Burst length").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.M_CPU800.burst_length = reply
 
     def _read_11pkmu_power(self):
         self.serial.write(b"/{0}/{1}/{2}\r".decode('ascii').format(self.llPKMu.name, self.llPKMu.id, "Power").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.llPKMu.power = reply
 
     def _read_maxiopg_wavelength(self):
         self.serial.write(b"/{0}/{1}/{2}".decode('ascii').format(self.MaxiOPG.name, self.MaxiOPG.id, "Wavelength").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.MaxiOPG.wavelength = reply
 
     def _set_maxiopg_wavelength(self, wavelength):
@@ -133,6 +148,7 @@ class LaserComponent:
     def _read_maxiopg_configuration(self):
         self.serial.write(b"/{0}/{1}/{2}".decode('ascii').format(self.MaxiOPG.name, self.MaxiOPG.id, "Configuration").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.MaxiOPG.configuration = reply
 
     def _set_maxiopg_configuration(self, configuration):
@@ -144,11 +160,13 @@ class LaserComponent:
     def _read_tk6_display_temperature(self):
         self.serial.write(b"/{0}/{1}/{2}\r".decode('ascii').format(self.TK6.name, self.TK6.id, "Display temperature").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.TK6.temperature = reply
 
     def _read_tk6_set_temperature(self):
         self.serial.write(b"{0}/{1}/{2}".decode('ascii').format(self.TK6.name, self.TK6.id, "Set temperature").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.TK6.set_temperature = reply
 
     def _set_tk6_set_temperature(self, set_temperature):
@@ -157,28 +175,38 @@ class LaserComponent:
     def _read_hv40w_hv_voltage(self):
         self.serial.write(b"/{}/{}/{}".decode('ascii').format(self.HV40W.name, self.HV40W, "HV voltage").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        self._check_errors(reply)
         self.HV40W.voltage = reply
 
     def _read_delaylin_error_code(self):
         self.serial.write(b"/{}/{}/{}".decode('ascii').format(self.DelayLin.name, self.DelayLin.id, "Error Code").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.DelayLin.error_code = reply
 
     def _read_miniopg_error_code(self):
         self.serial.write(b"/{}/{}/{}".decode('ascii').format(self.MiniOPG.name, self.MiniOPG.id, "Error Code").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.MiniOPG.error_code = reply
 
     def _read_ldco48bp_display_temperature(self):
         self.serial.write(b"/{}/{}/{}".decode('ascii').format(self.LDCO48BP.name, self.LDCO48BP.id, "Display temperature").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.LDCO48BP.temperature = reply
 
     def _read_m_ldco48_display_temperature(self):
         self.serial.write(b"/{}/{}/{}".decode('ascii').format(self.M_LDCO48.name, self.M_LDCO48.id, "Display temperature").encode('ascii'))
         reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
         self.M_LDCO48.temperature = reply
 
+    def _check_errors(self, reply):
+        if reply.decode('ascii').starts_with("```"):
+            raise Exception(reply.decode('ascii'))
+        else:
+            return reply
 
 
 def main():
