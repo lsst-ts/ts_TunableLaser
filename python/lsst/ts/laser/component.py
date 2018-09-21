@@ -22,7 +22,7 @@ class LaserComponent:
             read_synchronization_mode=self._read_m_cpu800_synchronization_mode)
         self.llPKMu = SimpleNamespace(name="11PKMu", id=54, power=None, read_power=self._read_11pkmu_power)
         self.MaxiOPG = SimpleNamespace(
-            name="MaxiOPG", id=31, wavelength=None, configuration=None, read_wavelength=self._read_maxiopg_wavelength(),
+            name="MaxiOPG", id=31, wavelength=None, configuration=None, read_wavelength=self._read_maxiopg_wavelength,
          set_wavelength=self._set_maxiopg_wavelength, read_configuration=self._read_maxiopg_configuration,
         set_configuration=self._set_maxiopg_wavelength)
         self.TK6 = SimpleNamespace(
