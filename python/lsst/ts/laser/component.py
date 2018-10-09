@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 
 class LaserComponent:
-    def __init__(self,port):
+    def __init__(self,port:str):
         self.serial = serial.Serial(port=port or None, baudrate=19200)
         self.CPU8000 = SimpleNamespace(name="CPU8000",id=16,power=None, current=None,
                                        read_power=self._read_cpu8000_power,read_current=self._read_cpu8000_current)
