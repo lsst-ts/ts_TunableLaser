@@ -5,6 +5,20 @@ from time import sleep
 
 
 class LaserComponent:
+    """The class that implements the TunableLaser component
+
+    Parameters
+    ----------
+    port: str
+        The name of the port that the laser connection is located
+
+    Notes
+    -----
+    Class uses SimpleNamespace to implement laser modules into a neat python api. Each function is implemented as a
+    private function which are defined after the init function.
+
+
+    """
     def __init__(self,port):
         self.serial = serial.Serial(port=port or None, baudrate=19200, timeout=5)
         self.CPU8000 = SimpleNamespace(name="CPU8000",id=16,power=None, current=None,
