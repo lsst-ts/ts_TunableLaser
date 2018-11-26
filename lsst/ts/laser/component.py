@@ -1,16 +1,37 @@
-import csv
 import serial
 from types import SimpleNamespace
-from time import sleep
 
 
 class LaserComponent:
-    """The class that implements the TunableLaser component
+    """The class that implements the TunableLaser component.
 
     Parameters
     ----------
     port: str
-        The name of the port that the laser connection is located
+        The name of the USB port that the laser connection is located.
+
+    Attributes
+    ----------
+    CPU8000: SimpleNamespace
+        A simple namespace that corresponds to the CPU8000 module.
+    M_CPU800: SimpleNamespace
+        A simple namespace that corresponds to the M_CPU800 module.
+    11lPMKu: SimpleNamespace
+        A simple namespace that corresponds to the 11lkmpu module.
+    MaxiOPG: SimpleNamespace
+        A simple namespace that corresponds to the MaxiOPG module.
+    TK6: SimpleNamespace
+        A simple namespace that corresponds to the TK6 module.
+    HV40W: SimpleNamespace
+        A simple namespace that corresponds to the HV40W module.
+    DelayLin: SimpleNamespace
+        A simple namespace that corresponds to the DelayLin module.
+    MiniOPG: SimpleNamespace
+        A simple namespace that corresponds to the MiniOPG module.
+    LDCO48BP: SimpleNamespace
+        A simple namespace that corresponds to the LDCO48BP module.
+    M_LDCO48: SimpleNamespace
+        A simple namespace that corresponds to the M_LDCO48 module.
 
     Notes
     -----
@@ -19,17 +40,20 @@ class LaserComponent:
 
 
     """
-    def __init__(self,port):
+    def __init__(self,port: str):
         self.serial = serial.Serial(port=port or None, baudrate=19200, timeout=5)
         self.CPU8000 = SimpleNamespace(name="CPU8000",id=16,power=None, current=None,
                                        read_power=self._read_cpu8000_power,read_current=self._read_cpu8000_current)
         self.M_CPU800 = SimpleNamespace(
-            name="M_CPU800",id=[17,18],power=None,propagate_state=None,fault=None,current=None,configuration=None,energy=None,
+            name="M_CPU800",id=[17,18],power=None,propagate_state=None,fault=None,current=None,configuration=None,
+            energy=None,
             frequency_divider=None, burst_pulse_left=None, qsw_adjustment_output_delay=None, repetition_rate=None,
-            synchronization_mode=None, burst_length=None, read_power=self._read_m_cpu800_power, read_propagate=self._read_m_cpu800_power_2,
+            synchronization_mode=None, burst_length=None, read_power=self._read_m_cpu800_power,
+            read_propagate=self._read_m_cpu800_power_2,
             set_propagate = self._set_m_cpu800_power_2, read_fault=self._read_m_cpu800_fault,
             read_current=self._read_m_cpu800_current, read_configuration=self._read_m_cpu800_configuration,
             set_configuration=self._set_m_cpu800_configuration, read_energy=self._read_m_cpu800_energy,
+            set_energy=self._set_m_cpu800_energy,
             read_frequency_divider=self._read_m_cpu800_frequency_divider,
             set_frequency_divider=self._set_m_cpu800_frequency_divider,
             read_burst_pulse_left=self._read_m_cpu800_burst_pulse_left,
@@ -38,11 +62,11 @@ class LaserComponent:
             read_synchronization_mode=self._read_m_cpu800_synchronization_mode)
         self.llPMKu = SimpleNamespace(name="11PMKu", id=54, power=None, read_power=self._read_11pmku_power)
         self.MaxiOPG = SimpleNamespace(
-            name="MaxiOPG", id=31, wavelength=None, configuration=None, read_wavelength=self._read_maxiopg_wavelength,
+            name="MaxiOPG", id=31, wavelength="525nm", configuration=None, read_wavelength=self._read_maxiopg_wavelength,
             set_wavelength=self._set_maxiopg_wavelength, read_configuration=self._read_maxiopg_configuration,
-            set_configuration=self._set_maxiopg_wavelength)
+            set_configuration=self._set_maxiopg_configuration)
         self.TK6 = SimpleNamespace(
-            name="TK6", id=44, temperature=None, set_temperature=None,
+            name="TK6", id=44, temperature="40.90c", set_temperature=None,
             read_temperature=self._read_tk6_display_temperature, read_set_temperature=self._read_tk6_set_temperature,
             set_set_temperature=self._set_tk6_set_temperature)
         self.HV40W = SimpleNamespace(name="HV40W", id=41,hv_voltage=None, read_hv_voltage=self._read_hv40w_hv_voltage)
@@ -55,7 +79,7 @@ class LaserComponent:
         self.M_LDCO48 = SimpleNamespace(
             name="M_LDCO48", id=33, temperature=None, read_temperature=self._read_m_ldco48_display_temperature)
         self._register_dictionary = {
-            "Power": "power","Fault source":"fault", "Display Current": "current", "Continuous %2F Burst mode %2F Trigger burst": "configuration",
+            "Power": "power","Fault code":"fault", "Display Current": "current", "Continuous %2F Burst mode %2F Trigger burst": "configuration",
             "Output Energy level": "energy", "Frequency divider": "frequency_divider",
             "Burst pulses to go": "burst_pulse_left", "QSW Adjustment output delay": "qsw_adjustment_output_delay",
             "Repetition rate": "repetition_rate", "Synchronization mode": "synchronization_mode",
@@ -97,7 +121,7 @@ class LaserComponent:
             raise ValueError("Value not in accepted values list")
 
     def _read_m_cpu800_fault(self):
-        self._read_module_register(self.M_CPU800.name, self.M_CPU800.id[0], "Fault source")
+        self._read_module_register(self.M_CPU800.name, self.M_CPU800.id[0], "Fault code")
 
     def _read_m_cpu800_current(self):
         self._read_module_register(self.M_CPU800.name,self.M_CPU800.id[0],"Display Current")
@@ -116,6 +140,14 @@ class LaserComponent:
 
     def _read_m_cpu800_energy(self):
         self._read_module_register(self.M_CPU800.name,self.M_CPU800.id[1],"Output Energy level")
+
+    def _set_m_cpu800_energy(self,energy_level):
+        if energy_level in ["OFF","Adjust","MAX"]:
+            self.serial.write(b"/{}/{}/{}/{}\r".decode('ascii').format(self.M_CPU800.name, self.M_CPU800.id[1],"Output Energy level",energy_level).encode('ascii'))
+            reply = self.serial.read_until(b"\x03")
+            reply = self._check_errors(reply)
+        else:
+            raise ValueError("parameter not in accepted values list")
 
     def _read_m_cpu800_frequency_divider(self):
         self._read_module_register(self.M_CPU800.name, self.M_CPU800.id[1], "Frequency divider")
@@ -205,6 +237,32 @@ class LaserComponent:
         reply = reply.decode('ascii').strip('\r\n\x03')
         return reply
 
+    def _publish(self):
+        self.CPU8000.read_power()
+        self.CPU8000.read_current()
+        self.M_CPU800.read_power()
+        self.M_CPU800.read_propagate()
+        if self.M_CPU800.propagate_state == "FAULT":
+            self.M_CPU800.read_fault()
+        self.M_CPU800.read_current()
+        self.M_CPU800.read_configuration()
+        self.M_CPU800.read_energy()
+        self.M_CPU800.read_frequency_divider()
+        self.M_CPU800.read_burst_pulse_left()
+        self.M_CPU800.read_qsw_adjustment_output_delay()
+        self.M_CPU800.read_repetition_rate()
+        self.M_CPU800.read_synchronization_mode()
+        self.llPMKu.read_power()
+        self.MaxiOPG.read_wavelength()
+        self.MaxiOPG.read_configuration()
+        self.TK6.read_temperature()
+        self.TK6.read_set_temperature()
+        self.HV40W.read_hv_voltage()
+        self.DelayLin.read_error_code()
+        self.MiniOPG.read_error_code()
+        self.LDCO48BP.read_temperature()
+        self.M_LDCO48.read_temperature()
+
 
 def main():
     lc = LaserComponent("/dev/ttyACM0")
@@ -256,15 +314,27 @@ def main():
     print(lc.M_LDCO48.temperature)
 
     # lc.MaxiOPG.set_wavelength(550)
+    # lc.MaxiOPG.read_wavelength()
+    # print(lc.MaxiOPG.wavelength)
     # lc.MaxiOPG.set_wavelength(625)
     # lc.MaxiOPG.read_wavelength()
     # print(lc.MaxiOPG.wavelength)
-    # lc.M_CPU800.set_propagate("ON")
-    # lc.M_CPU800.read_propagate()
-    # print(lc.M_CPU800.propagate_state)
+    # lc.M_CPU800.read_energy()
+    # print(lc.M_CPU800.energy)
+    # lc.M_CPU800.set_energy("MAX")
+    # lc.M_CPU800.read_energy()
+    # print(lc.M_CPU800.energy)
+    lc.M_CPU800.read_propagate()
+    print(lc.M_CPU800.propagate_state)
+    lc.M_CPU800.set_propagate("OFF")
+    lc.M_CPU800.read_propagate()
+    print(lc.M_CPU800.propagate_state)
     # lc.M_CPU800.read_fault()
     # print(lc.M_CPU800.fault)
-
+    #print(lc.MaxiOPG.read_configuration())
+    #lc.MaxiOPG.set_configuration("No SCU")
+    #lc.MaxiOPG.read_configuration()
+    #print(lc.MaxiOPG.configuration)
 
 
 if __name__ == '__main__':
