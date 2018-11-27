@@ -4,6 +4,7 @@ import logging
 from lsst.ts.laser.csc import LaserCSC
 import asyncio
 
+
 @argh.arg("-ll","--log-level",choices=['info','debug'])
 def start(address,log_level="info"):
     log = logging.getLogger()

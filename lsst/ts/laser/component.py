@@ -1,3 +1,6 @@
+"""Implements component classes.
+
+"""
 import serial
 from types import SimpleNamespace
 
@@ -199,6 +202,8 @@ class LaserComponent:
             self.serial.write(b"/{0}/{1}/{2}/{3}\r".decode('ascii').format(self.MaxiOPG.name, self.MaxiOPG.id,
                                                                            "Configuration", configuration).
                               encode('ascii'))
+            reply = self.serial.read_until(b"\x03")
+            reply = self._check_errors(reply)
         else:
             raise ValueError("Configuration not in accepted values")
 
@@ -211,6 +216,8 @@ class LaserComponent:
     def _set_tk6_set_temperature(self, set_temperature):
         self.serial.write(b"/{0}/{1}/{2}/{3}\r".decode('ascii').format(self.TK6.name, self.TK6.id, "Set temperature",
                                                                        set_temperature).encode('ascii'))
+        reply = self.serial.read_until(b"\x03")
+        reply = self._check_errors(reply)
 
     def _read_hv40w_hv_voltage(self):
         self._read_module_register(self.HV40W.name, self.HV40W.id, "HV voltage")
