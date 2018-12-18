@@ -3,13 +3,13 @@
 """
 import logging
 from lsst.ts.laser.component import LaserComponent
-import salobj
+from lsst.ts.salobj import *
 import SALPY_TunableLaser
 import asyncio
 import enum
 
 
-class LaserDetailedStateEnum(enum.Enum):
+class LaserDetailedState(enum.IntEnum):
     """An enumeration class for handling the TunableLaser's substates.
 
     Attributes
@@ -30,7 +30,7 @@ class LaserDetailedStateEnum(enum.Enum):
     PROPAGATINGSTATE = 6
 
 
-class LaserCSC(salobj.BaseCsc):
+class LaserCSC(BaseCsc):
     """This is the class that implements the TunableLaser CSC.
 
     Parameters
@@ -48,8 +48,9 @@ class LaserCSC(salobj.BaseCsc):
     summary_state
 
     """
-    def __init__(self,address,frequency=1, initial_state=salobj.State.STANDBY):
+    def __init__(self,address,frequency=1, initial_state=State.STANDBY):
         super().__init__(SALPY_TunableLaser)
+        self._detailed_state = LaserDetailedState.STANDBYSTATE
         self.model = LaserModel(address)
         self.frequency = frequency
         self.wavelength_topic = self.tel_wavelength.DataType()
@@ -66,7 +67,7 @@ class LaserCSC(salobj.BaseCsc):
         """
         while True:
             self.model.publish()
-            if self.model.fault_code == "0002H":
+            if self.model._laser.M_CPU800.fault == "0002H":
                 self.fault()
             self.wavelength_topic.wavelength = float(self.model._laser.MaxiOPG.wavelength[:-2])
             self.temperature_topic.temperature = float(self.model._laser.TK6.temperature[:-1])
@@ -86,8 +87,8 @@ class LaserCSC(salobj.BaseCsc):
         -------
 
         """
-        if self.detailed_state != LaserDetailedStateEnum.PROPAGATINGSTATE:
-            raise salobj.ExpectedError(f"{action} not allowed in state {self.detailed_state}")
+        if self.detailed_state != LaserDetailedState.PROPAGATINGSTATE:
+            raise ExpectedError(f"{action} not allowed in state {self.detailed_state}")
 
     async def do_changeWavelength(self,id_data):
         """Changes the wavelength of the laser.
@@ -116,7 +117,7 @@ class LaserCSC(salobj.BaseCsc):
         """
         self.assert_enabled("startPropagateLaser")
         self.model.run()
-        self.detailed_state = LaserDetailedStateEnum.PROPAGATINGSTATE
+        self.detailed_state = LaserDetailedState.PROPAGATINGSTATE
 
     async def do_stopPropagateLaser(self,id_data):
         """Stops the Propagating State of the laser.
@@ -132,7 +133,7 @@ class LaserCSC(salobj.BaseCsc):
         self.assert_enabled("stopPropagateLaser")
         self.assert_propagating("stopPropagateLaser")
         self.model.stop()
-        self.detailed_state = LaserDetailedStateEnum.ENABLEDSTATE
+        self.detailed_state = LaserDetailedState.ENABLEDSTATE
 
     async def do_abort(self,id_data):
         """Actually does nothing and is not implemented yet.
@@ -189,13 +190,13 @@ class LaserCSC(salobj.BaseCsc):
 
     @property
     def detailed_state(self):
-        detailed_state_topic = self.evt_detailedState.DataType()
-        return detailed_state_topic.detailedState
+        return self._detailed_state
 
     @detailed_state.setter
     def detailed_state(self,new_sub_state):
+        self._detailed_state = LaserDetailedState(new_sub_state)
         detailed_state_topic = self.evt_detailedState.DataType()
-        detailed_state_topic.detailedState = new_sub_state
+        detailed_state_topic.detailedState = self._detailed_state
         self.evt_detailedState.put(detailed_state_topic)
 
     def begin_enable(self, id_data):
@@ -277,7 +278,7 @@ class LaserDeveloperRemote:
 
     """
     def __init__(self):
-        self.remote = salobj.Remote(SALPY_TunableLaser)
+        self.remote = Remote(SALPY_TunableLaser)
         self.log = logging.getLogger(__name__)
 
     async def standby(self,timeout=10):

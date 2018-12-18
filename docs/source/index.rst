@@ -10,9 +10,10 @@ Welcome to ts-tunablelaser's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-
-.. automodule:: lsst.ts.laser.component
-   :members:
+   user_guide
+   developer_guide
+   api
+   cli
 
 
 
