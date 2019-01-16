@@ -4,12 +4,14 @@ User's Guide
 
 The following page will instruct the user in how to use the TunableLaser CSC.
 
-Setting Up Hardware
--------------------
+Establishing Connection to Hardware
+-----------------------------------
 * plug in usb cable into usb device port on Laser's power supply
 * default connection goes to /dev/ttyACM0
-* Using udev rules it should go to /dev/ttyTunableLaser
-* otherwise use the default connection
+
+.. todo::
+    Write udev rule for symlinking to /dev/ttyTunableLaser
+
 
 Running CSC
 -----------
@@ -18,7 +20,7 @@ On the machine where the TunableLaser is connected run the following command.
 
 .. code-block:: bash
 
-    laser_csc /dev/ttyTunableLaser
+    laser_csc /dev/ttyACM0
 
 
 The user should see some output saying that the laser CSC is running and start seeing telemetry being sent.
@@ -67,4 +69,7 @@ Primarily, this is how one will interact with this lower level CSC.
 Shutting down CSC
 -----------------
 Hit ctrl+c on the running laser_csc process. Work in progress
+
+.. todo::
+    Figure out what needs to be done to improve this page.
 

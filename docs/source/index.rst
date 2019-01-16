@@ -7,11 +7,15 @@ Welcome to ts-tunablelaser's documentation!
 ===========================================
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+   :maxdepth: 1
+   :caption: Guides:
 
-   user_guide
-   developer_guide
+   guides/index
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Miscellanous:
+
    api
    cli
 

@@ -1,4 +1,4 @@
-"""Implements CSC classes.
+"""Implements CSC classes for the TunableLaser.
 
 """
 import logging
@@ -12,14 +12,23 @@ import enum
 class LaserDetailedState(enum.IntEnum):
     """An enumeration class for handling the TunableLaser's substates.
 
+    These enumerations listed here correspond to the ones found in the detailedState enum located in ts_xml under the
+    TunableLaser folder within the TunableLaser_Events.xml.
+
     Attributes
     ----------
     DISABLEDSTATE: int
+        Corresponds to the disabled state.
     ENABLEDSTATE: int
+        Corresponds to the enabled state.
     FAULTSTATE: int
+        Corresponds to the fault state.
     OFFLINESTATE: int
+        Corresponds to the offline state.
     STANDBYSTATE: int
+        Corresponds to the standby state.
     PROPAGATINGSTATE: int
+        Corresponds to the propagating state.
 
     """
     DISABLEDSTATE = 1
@@ -35,23 +44,23 @@ class LaserCSC(BaseCsc):
 
     Parameters
     ----------
-    address
+    address: str
     frequency: optional
     initial_state: optional
 
     Attributes
     ----------
-    model
-    frequency
+    model: LaserModel
+    frequency: float
     wavelength_topic
     temperature_topic
-    summary_state
+    summary_state: State
 
     """
-    def __init__(self,address,frequency=1, initial_state=State.STANDBY):
+    def __init__(self,address,configuration,frequency=1, initial_state=State.STANDBY):
         super().__init__(SALPY_TunableLaser)
         self._detailed_state = LaserDetailedState.STANDBYSTATE
-        self.model = LaserModel(address)
+        self.model = LaserModel(port=address,configuration=configuration)
         self.frequency = frequency
         self.wavelength_topic = self.tel_wavelength.DataType()
         self.temperature_topic = self.tel_temperature.DataType()
@@ -59,18 +68,21 @@ class LaserCSC(BaseCsc):
         asyncio.ensure_future(self.telemetry())
 
     async def telemetry(self):
-        """Sends out laser's telemetry.
+        """Sends out the TunableLaser's telemetry.
 
         Returns
         -------
+        None
 
         """
         while True:
             self.model.publish()
-            if self.model._laser.M_CPU800.fault == "0002H":
+            if self.model._laser.CPU8000.power_register.register_value == "FAULT" or \
+                    self.model._laser.M_CPU800.power_register.register_value == "FAULT" or \
+                    self.model._laser.M_CPU800.power_register_2.register_value == "FAULT":
                 self.fault()
-            self.wavelength_topic.wavelength = float(self.model._laser.MaxiOPG.wavelength[:-2])
-            self.temperature_topic.temperature = float(self.model._laser.TK6.temperature[:-1])
+            self.wavelength_topic.wavelength = float(self.model._laser.MaxiOPG.wavelength_register.register_value[:-2])
+            self.temperature_topic.temperature = float(self.model._laser.TK6.display_temperature_register.register_value[:-1])
             self.tel_wavelength.put(self.wavelength_topic)
             self.tel_temperature.put(self.temperature_topic)
             await asyncio.sleep(self.frequency)
@@ -80,11 +92,16 @@ class LaserCSC(BaseCsc):
 
         Parameters
         ----------
-        action
-            The command being sent.
+        action: str
+            The name of the command being sent.
+
+        Raises
+        ------
+        ExpectedError
 
         Returns
         -------
+        None
 
         """
         if self.detailed_state != LaserDetailedState.PROPAGATINGSTATE:
@@ -159,7 +176,7 @@ class LaserCSC(BaseCsc):
         -------
 
         """
-        self.model.stop()
+        self.model._laser.clear_fault()
 
 
     async def do_setValue(self, id_data):
@@ -211,7 +228,22 @@ class LaserCSC(BaseCsc):
 
         """
         self.model._laser.MaxiOPG.set_configuration("No SCU")
-        self.model._laser.M_CPU800.set_energy("MAX")
+        self.model._laser.set_output_energy_level("MAX")
+
+    def begin_disable(self, id_data):
+        """
+
+        Parameters
+        ----------
+        id_data
+
+        Returns
+        -------
+
+        """
+        if self.model._laser.M_CPU800.power_register_2.register_value == "ON":
+            self.model.stop()
+            self.detailed_state = LaserDetailedState(LaserDetailedState.ENABLEDSTATE)
 
 
 class LaserModel:
@@ -220,10 +252,11 @@ class LaserModel:
     Parameters
     ----------
     port
+    simulation_mode
 
     """
-    def __init__(self,port):
-        self._laser = LaserComponent(port)
+    def __init__(self,port,configuration,simulation_mode=False):
+        self._laser = LaserComponent(port=port,configuration=configuration,simulation_mode=simulation_mode)
 
     def change_wavelength(self,wavelength):
         """Changes the wavelength of the laser.
@@ -234,36 +267,43 @@ class LaserModel:
 
         Returns
         -------
+        None
 
         """
-        self._laser.MaxiOPG.set_wavelength(wavelength)
+        self._laser.MaxiOPG.change_wavelength(wavelength=wavelength)
+
+    def set_output_energy_level(self,output_energy_level):
+        self._laser.set_output_energy_level(output_energy_level)
 
     def run(self):
         """Propagates the laser.
 
         Returns
         -------
+        None
 
         """
-        self._laser.M_CPU800.set_propagate("ON")
+        self._laser.start_propagating()
 
     def stop(self):
         """Stops propagating the laser.
 
         Returns
         -------
+        None
 
         """
-        self._laser.M_CPU800.set_propagate("OFF")
+        self._laser.stop_propagating()
 
     def publish(self):
         """Updates the laser's attributes.
 
         Returns
         -------
+        None
 
         """
-        self._laser._publish()
+        self._laser.publish()
 
 
 class LaserDeveloperRemote:
@@ -273,8 +313,8 @@ class LaserDeveloperRemote:
 
     Attributes
     ----------
-    remote
-    log
+    remote: Remote
+    log: logging.Logger
 
     """
     def __init__(self):

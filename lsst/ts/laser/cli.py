@@ -2,6 +2,7 @@ import argh
 import argparse
 import logging
 from lsst.ts.laser.csc import LaserCSC
+from lsst.ts.laser.settings import laser_configuration
 import asyncio
 
 
@@ -18,7 +19,7 @@ def start(address,log_level="info"):
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
     ch.setFormatter(formatter)
     log.addHandler(ch)
-    laser = LaserCSC(address=str(address))
+    laser = LaserCSC(address=str(address),configuration=laser_configuration())
     log.info("TunableLaser CSC initialized")
     loop = asyncio.get_event_loop()
     try:

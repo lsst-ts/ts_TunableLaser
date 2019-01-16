@@ -4,11 +4,9 @@ pipeline {
 
     agent {
         // Use the docker to assign the Python version.
-        // Use the label to assign the node to run the test.
-        // The node in T&S teams is 'jenkins-el7-1'
         docker {
             image 'python:3.6.2'
-            label 'jenkins-el7-1'
+            args '-u root'
         }
     }
 

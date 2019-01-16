@@ -20,8 +20,8 @@ from pkg_resources import get_distribution
 # -- Project information -----------------------------------------------------
 
 project = 'ts-tunablelaser'
-copyright = '2018, lsst-ts'
-author = 'lsst-ts'
+copyright = '2018-19, lsst-tssw'
+author = 'lsst-tssw'
 
 # The short X.Y version
 version = get_distribution('ts-tunablelaser').version
@@ -51,6 +51,7 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx.ext.napoleon',
     'sphinxarg.ext',
+    'sphinx.ext.autosectionlabel'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -141,7 +142,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'ts-tunablelaser.tex', 'ts-tunablelaser Documentation',
-     'lsst-ts', 'manual'),
+     'lsst-tssw', 'manual'),
 ]
 
 
@@ -190,9 +191,12 @@ epub_exclude_files = ['search.html']
 # -- Options for intersphinx extension ---------------------------------------
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'https://docs.python.org/': None}
+intersphinx_mapping = {'https://docs.python.org/3.6/': None}
 
 # -- Options for todo extension ----------------------------------------------
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = True
+todo_link_only = True
+
+autosectionlabel_prefix_document = True
