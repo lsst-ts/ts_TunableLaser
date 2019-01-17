@@ -82,7 +82,19 @@ class LaserCSC(BaseCsc):
                     self.model._laser.M_CPU800.power_register_2.register_value == "FAULT":
                 self.fault()
             self.wavelength_topic.wavelength = float(self.model._laser.MaxiOPG.wavelength_register.register_value[:-2])
-            self.temperature_topic.temperature = float(self.model._laser.TK6.display_temperature_register.register_value[:-1])
+            self.temperature_topic.tk6_temperature = float(self.model._laser.TK6.display_temperature_register.register_value[:-1])
+            self.temperature_topic.tk6_temperature_2 = float(self.model._laser.TK6.display_temperature_register_2.register_value[:-1])
+            self.temperature_topic.ldco48bp_temperature = float(self.model._laser.LDCO48BP.display_temperature_register.register_value[:-1])
+            self.temperature_topic.ldco48bp_temperature_2 = float(
+                self.model._laser.LDCO48BP.display_temperature_register_2.register_value[:-1])
+            self.temperature_topic.ldco48bp_temperature_3 = float(
+                self.model._laser.LDCO48BP.display_temperature_register_3.register_value[:-1])
+            self.temperature_topic.m_ldco48_temperature = float(
+                self.model._laser.M_LDCO48.display_temperature_register.register_value[:-1]
+            )
+            self.temperature_topic.m_ldco48_temperature_2 = float(
+                self.model._laser.M_LDCO48.display_temperature_register_2.register_value[:-1]
+            )
             self.tel_wavelength.put(self.wavelength_topic)
             self.tel_temperature.put(self.temperature_topic)
             await asyncio.sleep(self.frequency)
@@ -120,6 +132,9 @@ class LaserCSC(BaseCsc):
         """
         self.assert_enabled("changeWavelength")
         self.model.change_wavelength(id_data.data.wavelength)
+        wavelength_changed_topic = self.evt_wavelengthChanged.DataType()
+        wavelength_changed_topic.wavelength= id_data.data.wavelength
+        self.evt_wavelengthChanged.put(wavelength_changed_topic)
 
     async def do_startPropagateLaser(self,id_data):
         """Changes the state to the Propagating State of the laser.

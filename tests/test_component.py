@@ -1,11 +1,12 @@
 from lsst.ts.laser.component import LaserComponent
+from lsst.ts.laser.settings import laser_configuration
 from unittest.mock import Mock
 import pytest
 
 class TestLaserComponent:
     @pytest.fixture(scope="class")
     def lc(self):
-        lc = LaserComponent(None)
+        lc = LaserComponent(None,laser_configuration())
         lc.serial = Mock()
         return lc
 
