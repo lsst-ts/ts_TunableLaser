@@ -24,14 +24,16 @@ class AsciiSerial(serial.Serial):
     Parameters
     ----------
     port: str
+    timeout: 5
+        The amount of time to wait before reporting the port as timed out.
 
     Attributes
     ----------
     log: logging.Logger
 
     """
-    def __init__(self, port):
-        super(AsciiSerial, self).__init__(port, baudrate=19200, timeout=5)
+    def __init__(self, port,timeout=5):
+        super(AsciiSerial, self).__init__(port, baudrate=19200, timeout=timeout)
         self.log = logging.getLogger(__name__)
 
     def perform_magic(self, message):
