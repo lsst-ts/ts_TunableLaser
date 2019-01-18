@@ -3,7 +3,7 @@
 """
 import logging
 from lsst.ts.laser.component import LaserComponent
-from lsst.ts.salobj import *
+from lsst.ts.salobj import BaseCsc, Remote, State, ExpectedError
 import SALPY_TunableLaser
 import asyncio
 import enum
@@ -12,8 +12,8 @@ import enum
 class LaserDetailedState(enum.IntEnum):
     """An enumeration class for handling the TunableLaser's substates.
 
-    These enumerations listed here correspond to the ones found in the detailedState enum located in ts_xml under the
-    TunableLaser folder within the TunableLaser_Events.xml.
+    These enumerations listed here correspond to the ones found in the detailedState enum located in ts_xml
+    under the TunableLaser folder within the TunableLaser_Events.xml.
 
     Attributes
     ----------
@@ -57,10 +57,10 @@ class LaserCSC(BaseCsc):
     summary_state: State
 
     """
-    def __init__(self,address,configuration,frequency=1, initial_state=State.STANDBY):
+    def __init__(self, address, configuration, frequency=1, initial_state=State.STANDBY):
         super().__init__(SALPY_TunableLaser)
         self._detailed_state = LaserDetailedState.STANDBYSTATE
-        self.model = LaserModel(port=address,configuration=configuration)
+        self.model = LaserModel(port=address, configuration=configuration)
         self.frequency = frequency
         self.wavelength_topic = self.tel_wavelength.DataType()
         self.temperature_topic = self.tel_temperature.DataType()
@@ -81,10 +81,14 @@ class LaserCSC(BaseCsc):
                     self.model._laser.M_CPU800.power_register.register_value == "FAULT" or \
                     self.model._laser.M_CPU800.power_register_2.register_value == "FAULT":
                 self.fault()
-            self.wavelength_topic.wavelength = float(self.model._laser.MaxiOPG.wavelength_register.register_value[:-2])
-            self.temperature_topic.tk6_temperature = float(self.model._laser.TK6.display_temperature_register.register_value[:-1])
-            self.temperature_topic.tk6_temperature_2 = float(self.model._laser.TK6.display_temperature_register_2.register_value[:-1])
-            self.temperature_topic.ldco48bp_temperature = float(self.model._laser.LDCO48BP.display_temperature_register.register_value[:-1])
+            self.wavelength_topic.wavelength = float(
+                self.model._laser.MaxiOPG.wavelength_register.register_value[:-2])
+            self.temperature_topic.tk6_temperature = float(
+                self.model._laser.TK6.display_temperature_register.register_value[:-1])
+            self.temperature_topic.tk6_temperature_2 = float(
+                self.model._laser.TK6.display_temperature_register_2.register_value[:-1])
+            self.temperature_topic.ldco48bp_temperature = float(
+                self.model._laser.LDCO48BP.display_temperature_register.register_value[:-1])
             self.temperature_topic.ldco48bp_temperature_2 = float(
                 self.model._laser.LDCO48BP.display_temperature_register_2.register_value[:-1])
             self.temperature_topic.ldco48bp_temperature_3 = float(
@@ -119,7 +123,7 @@ class LaserCSC(BaseCsc):
         if self.detailed_state != LaserDetailedState.PROPAGATINGSTATE:
             raise ExpectedError(f"{action} not allowed in state {self.detailed_state}")
 
-    async def do_changeWavelength(self,id_data):
+    async def do_changeWavelength(self, id_data):
         """Changes the wavelength of the laser.
 
         Parameters
@@ -133,10 +137,10 @@ class LaserCSC(BaseCsc):
         self.assert_enabled("changeWavelength")
         self.model.change_wavelength(id_data.data.wavelength)
         wavelength_changed_topic = self.evt_wavelengthChanged.DataType()
-        wavelength_changed_topic.wavelength= id_data.data.wavelength
+        wavelength_changed_topic.wavelength = id_data.data.wavelength
         self.evt_wavelengthChanged.put(wavelength_changed_topic)
 
-    async def do_startPropagateLaser(self,id_data):
+    async def do_startPropagateLaser(self, id_data):
         """Changes the state to the Propagating State of the laser.
 
         Parameters
@@ -151,7 +155,7 @@ class LaserCSC(BaseCsc):
         self.model.run()
         self.detailed_state = LaserDetailedState.PROPAGATINGSTATE
 
-    async def do_stopPropagateLaser(self,id_data):
+    async def do_stopPropagateLaser(self, id_data):
         """Stops the Propagating State of the laser.
 
         Parameters
@@ -167,7 +171,7 @@ class LaserCSC(BaseCsc):
         self.model.stop()
         self.detailed_state = LaserDetailedState.ENABLEDSTATE
 
-    async def do_abort(self,id_data):
+    async def do_abort(self, id_data):
         """Actually does nothing and is not implemented yet.
 
         Parameters
@@ -192,7 +196,6 @@ class LaserCSC(BaseCsc):
 
         """
         self.model._laser.clear_fault()
-
 
     async def do_setValue(self, id_data):
         """Actually does nothing and is not implemented yet.
@@ -225,7 +228,7 @@ class LaserCSC(BaseCsc):
         return self._detailed_state
 
     @detailed_state.setter
-    def detailed_state(self,new_sub_state):
+    def detailed_state(self, new_sub_state):
         self._detailed_state = LaserDetailedState(new_sub_state)
         detailed_state_topic = self.evt_detailedState.DataType()
         detailed_state_topic.detailedState = self._detailed_state
@@ -270,10 +273,10 @@ class LaserModel:
     simulation_mode
 
     """
-    def __init__(self,port,configuration,simulation_mode=False):
-        self._laser = LaserComponent(port=port,configuration=configuration,simulation_mode=simulation_mode)
+    def __init__(self, port, configuration, simulation_mode=False):
+        self._laser = LaserComponent(port=port, configuration=configuration, simulation_mode=simulation_mode)
 
-    def change_wavelength(self,wavelength):
+    def change_wavelength(self, wavelength):
         """Changes the wavelength of the laser.
 
         Parameters
@@ -287,7 +290,7 @@ class LaserModel:
         """
         self._laser.MaxiOPG.change_wavelength(wavelength=wavelength)
 
-    def set_output_energy_level(self,output_energy_level):
+    def set_output_energy_level(self, output_energy_level):
         self._laser.set_output_energy_level(output_energy_level)
 
     def run(self):
@@ -336,7 +339,7 @@ class LaserDeveloperRemote:
         self.remote = Remote(SALPY_TunableLaser)
         self.log = logging.getLogger(__name__)
 
-    async def standby(self,timeout=10):
+    async def standby(self, timeout=10):
         """Standby command
 
         Parameters
@@ -348,10 +351,10 @@ class LaserDeveloperRemote:
 
         """
         standby_topic = self.remote.cmd_standby.DataType()
-        standby_ack = await self.remote.cmd_standby.start(standby_topic,timeout=timeout)
+        standby_ack = await self.remote.cmd_standby.start(standby_topic, timeout=timeout)
         self.log.info(standby_ack.ack.ack)
 
-    async def start(self,timeout=10):
+    async def start(self, timeout=10):
         """Start command
 
         Parameters
@@ -363,10 +366,10 @@ class LaserDeveloperRemote:
 
         """
         start_topic = self.remote.cmd_start.DataType()
-        start_ack = await self.remote.cmd_start.start(start_topic,timeout=timeout)
+        start_ack = await self.remote.cmd_start.start(start_topic, timeout=timeout)
         self.log.info(start_ack.ack.ack)
 
-    async def enable(self,timeout=10):
+    async def enable(self, timeout=10):
         """Enable command
 
         Parameters
@@ -378,10 +381,10 @@ class LaserDeveloperRemote:
 
         """
         enable_topic = self.remote.cmd_enable.DataType()
-        enable_ack = await self.remote.cmd_enable.start(enable_topic,timeout=timeout)
+        enable_ack = await self.remote.cmd_enable.start(enable_topic, timeout=timeout)
         self.log.info(enable_ack.ack.ack)
 
-    async def disable(self,timeout=10):
+    async def disable(self, timeout=10):
         """Disable command
 
         Parameters
@@ -393,10 +396,10 @@ class LaserDeveloperRemote:
 
         """
         disable_topic = self.remote.cmd_disable.DataType()
-        disable_ack = await self.remote.cmd_disable.start(disable_topic,timeout=timeout)
+        disable_ack = await self.remote.cmd_disable.start(disable_topic, timeout=timeout)
         self.log.info(disable_ack.ack.ack)
 
-    async def change_wavelength(self, wavelength,timeout=10):
+    async def change_wavelength(self, wavelength, timeout=10):
         """
 
         Parameters
@@ -410,10 +413,11 @@ class LaserDeveloperRemote:
         """
         change_wavelength_topic = self.remote.cmd_changeWavelength.DataType()
         change_wavelength_topic.wavelength = float(wavelength)
-        change_wavelength_ack = await self.remote.cmd_changeWavelength.start(change_wavelength_topic,timeout=timeout)
+        change_wavelength_ack = await self.remote.cmd_changeWavelength.start(change_wavelength_topic,
+                                                                             timeout=timeout)
         self.log.info(change_wavelength_ack.ack.ack)
 
-    async def start_propagate_laser(self,timeout=10):
+    async def start_propagate_laser(self, timeout=10):
         """startPropagate command
 
         Parameters
@@ -425,10 +429,11 @@ class LaserDeveloperRemote:
 
         """
         start_propagate_laser_topic = self.remote.cmd_startPropagateLaser.DataType()
-        start_propagate_laser_ack = await self.remote.cmd_startPropagateLaser.start(start_propagate_laser_topic,timeout=timeout)
+        start_propagate_laser_ack = await self.remote.cmd_startPropagateLaser.start(
+            start_propagate_laser_topic, timeout=timeout)
         self.log.info(start_propagate_laser_ack.ack.ack)
 
-    async def stop_propagate_laser(self,timeout=10):
+    async def stop_propagate_laser(self, timeout=10):
         """stopPropagate command.
 
         Parameters
@@ -440,5 +445,6 @@ class LaserDeveloperRemote:
 
         """
         stop_propagate_laser_topic = self.remote.cmd_stopPropagateLaser.DataType()
-        stop_propagate_laser_ack = await self.remote.cmd_stopPropagateLaser.start(stop_propagate_laser_topic,timeout=timeout)
+        stop_propagate_laser_ack = await self.remote.cmd_stopPropagateLaser.start(stop_propagate_laser_topic,
+                                                                                  timeout=timeout)
         self.log.info(stop_propagate_laser_ack.ack.ack)

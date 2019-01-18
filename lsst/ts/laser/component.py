@@ -2,9 +2,10 @@
 
 """
 import logging
-from lsst.ts.laser.hardware import *
-from lsst.ts.laser.ascii import *
-from lsst.ts.laser.settings import *
+from lsst.ts.laser.hardware import CPU8000, M_CPU800, llPMKU, MaxiOPG, MiniOPG, TK6, HV40W, DelayLin, \
+    LDCO48BP, M_LDCO48
+from lsst.ts.laser.ascii import AsciiSerial
+from lsst.ts.laser.settings import laser_configuration
 
 
 class LaserComponent:
@@ -46,20 +47,21 @@ class LaserComponent:
 
 
     """
-    def __init__(self,port: str,configuration,simulation_mode=False):
+    def __init__(self, port: str, configuration, simulation_mode=False):
         self.log = logging.getLogger(__name__)
         self.serial = AsciiSerial(port)
         self.configuration = configuration
-        self.CPU8000 = CPU8000(port=self.serial,simulation_mode=simulation_mode)
-        self.M_CPU800 = M_CPU800(port=self.serial,simulation_mode=simulation_mode)
-        self.llPMKu = llPMKU(port=self.serial,simulation_mode=simulation_mode)
-        self.MaxiOPG = MaxiOPG(port=self.serial,simulation_mode=simulation_mode,configuration=self.configuration)
-        self.TK6 = TK6(port=self.serial,simulation_mode=simulation_mode)
-        self.HV40W = HV40W(port=self.serial,simulation_mode=simulation_mode)
-        self.DelayLin = DelayLin(port=self.serial,simulation_mode=simulation_mode)
-        self.MiniOPG = MiniOPG(port=self.serial,simulation_mode=simulation_mode)
-        self.LDCO48BP = LDCO48BP(port=self.serial,simulation_mode=simulation_mode)
-        self.M_LDCO48 = M_LDCO48(port=self.serial,simulation_mode=simulation_mode)
+        self.CPU8000 = CPU8000(port=self.serial, simulation_mode=simulation_mode)
+        self.M_CPU800 = M_CPU800(port=self.serial, simulation_mode=simulation_mode)
+        self.llPMKu = llPMKU(port=self.serial, simulation_mode=simulation_mode)
+        self.MaxiOPG = MaxiOPG(port=self.serial, simulation_mode=simulation_mode,
+                               configuration=self.configuration)
+        self.TK6 = TK6(port=self.serial, simulation_mode=simulation_mode)
+        self.HV40W = HV40W(port=self.serial, simulation_mode=simulation_mode)
+        self.DelayLin = DelayLin(port=self.serial, simulation_mode=simulation_mode)
+        self.MiniOPG = MiniOPG(port=self.serial, simulation_mode=simulation_mode)
+        self.LDCO48BP = LDCO48BP(port=self.serial, simulation_mode=simulation_mode)
+        self.M_LDCO48 = M_LDCO48(port=self.serial, simulation_mode=simulation_mode)
         self.log.info("Laser Component initialized.")
 
     def change_wavelength(self, wavelength):
@@ -158,7 +160,7 @@ class LaserComponent:
 
 def main():
     logging.basicConfig(level=logging.DEBUG)
-    lc = LaserComponent("/dev/ttyACM0",configuration=laser_configuration())
+    lc = LaserComponent("/dev/ttyACM0", configuration=laser_configuration())
     lc.publish()
     print(lc)
     lc.change_wavelength(626)

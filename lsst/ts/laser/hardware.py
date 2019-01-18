@@ -1,15 +1,18 @@
 """Implements classes corresponding to modules for the TunableLaser.
 
-These classes correspond to one module inside of the TunableLaser. Each class contains child registers that have values
-that can be read and sometimes set. Each class contains a method to publish its registers' values.
+These classes correspond to one module inside of the TunableLaser. Each class contains child registers that
+have values that can be read and sometimes set. Each class contains a method to publish its registers' values.
 
 Notes
 -----
 These classes are based on the REMOTECONTROL.csv file provided by the vendor.
 
 """
+__all__ = ["CPU8000", "M_CPU800", "llPMKU", "MaxiOPG", "MiniOPG", "TK6", "HV40W", "LDCO48BP", "M_LDCO48",
+           "DelayLin"]
 import logging
-from lsst.ts.laser.ascii import *
+from lsst.ts.laser.ascii import AsciiRegister
+
 
 class CPU8000:
     """
@@ -39,14 +42,18 @@ class CPU8000:
 
 
     """
-    def __init__(self,port,simulation_mode=False):
+    def __init__(self, port, simulation_mode=False):
         self.log = logging.getLogger(f"CPU8000")
         self.name = "CPU8000"
         self.id = 16
         self.port = port
-        self.power_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="Power",simulation_mode=simulation_mode)
-        self.display_current_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="Display Current",simulation_mode=simulation_mode)
-        self.fault_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="Fault code",simulation_mode=simulation_mode)
+        self.power_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                            register_name="Power", simulation_mode=simulation_mode)
+        self.display_current_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                                      register_name="Display Current",
+                                                      simulation_mode=simulation_mode)
+        self.fault_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                            register_name="Fault code", simulation_mode=simulation_mode)
         self.log.debug(f"{self.name} Module initialized")
 
     def publish(self):
@@ -62,7 +69,9 @@ class CPU8000:
         self.fault_register.get_register_value()
 
     def __str__(self):
-        return "CPU8000: \n {} \n {} \n {} \n".format(self.power_register,self.display_current_register,self.fault_register)
+        return "CPU8000: \n {} \n {} \n {} \n".format(self.power_register, self.display_current_register,
+                                                      self.fault_register)
+
 
 class M_CPU800:
     """
@@ -113,26 +122,58 @@ class M_CPU800:
         Corresponds to the "Burst length" register.
 
     """
-    def __init__(self,port,simulation_mode=False):
+    def __init__(self, port, simulation_mode=False):
         self.name = "M_CPU800"
         self.id = 17
         self.id_2 = 18
         self.port = port
-        self.power_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="Power",simulation_mode=simulation_mode)
-        self.display_current_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="Display Current",simulation_mode=simulation_mode)
-        self.fault_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="Fault code",simulation_mode=simulation_mode)
+        self.power_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                            register_name="Power", simulation_mode=simulation_mode)
+        self.display_current_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                                      register_name="Display Current",
+                                                      simulation_mode=simulation_mode)
+        self.fault_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                            register_name="Fault code", simulation_mode=simulation_mode)
 
-        self.power_register_2 = AsciiRegister(port=port,module_name=self.name,module_id=self.id_2,register_name="Power",read_only=False,accepted_values=["OFF","ON"],simulation_mode=simulation_mode)
-        self.display_current_register_2 = AsciiRegister(port=port,module_name=self.name,module_id=self.id_2,register_name="Display Current",simulation_mode=simulation_mode)
-        self.fault_register_2 = AsciiRegister(port=port,module_name=self.name,module_id=self.id_2,register_name="Fault code",simulation_mode=simulation_mode)
-        self.continous_burst_mode_trigger_burst_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id_2,register_name="Continuous %2F Burst mode %2F Trigger burst",read_only=False,accepted_values=["Continous","Burst","Trigger"],simulation_mode=simulation_mode)
-        self.output_energy_level_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id_2,register_name="Output Energy level",read_only=False,accepted_values=["OFF","Adjust","MAX"],simulation_mode=simulation_mode)
-        self.frequency_divider_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id_2,register_name="Frequency divider",read_only=False,accepted_values=range(1,5001),simulation_mode=simulation_mode)
-        self.burst_pulse_left_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id_2,register_name="Burst pulses to go",simulation_mode=simulation_mode)
-        self.qsw_adjustment_output_delay_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id_2,register_name="QSW Adjustment output delay",simulation_mode=simulation_mode)
-        self.repetition_rate_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id_2,register_name="Repetition rate",simulation_mode=simulation_mode)
-        self.synchronization_mode_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id_2,register_name="Synchronization mode",simulation_mode=simulation_mode)
-        self.burst_length_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id_2,register_name="Burst length",read_only=False,accepted_values=range(1,50001),simulation_mode=simulation_mode)
+        self.power_register_2 = AsciiRegister(port=port, module_name=self.name, module_id=self.id_2,
+                                              register_name="Power", read_only=False,
+                                              accepted_values=["OFF", "ON"], simulation_mode=simulation_mode)
+        self.display_current_register_2 = AsciiRegister(port=port, module_name=self.name, module_id=self.id_2,
+                                                        register_name="Display Current",
+                                                        simulation_mode=simulation_mode)
+        self.fault_register_2 = AsciiRegister(port=port, module_name=self.name, module_id=self.id_2,
+                                              register_name="Fault code", simulation_mode=simulation_mode)
+        self.continous_burst_mode_trigger_burst_register = AsciiRegister(
+            port=port, module_name=self.name, module_id=self.id_2,
+            register_name="Continuous %2F Burst mode %2F Trigger burst", read_only=False,
+            accepted_values=["Continous", "Burst", "Trigger"], simulation_mode=simulation_mode)
+        self.output_energy_level_register = AsciiRegister(port=port, module_name=self.name,
+                                                          module_id=self.id_2,
+                                                          register_name="Output Energy level",
+                                                          read_only=False,
+                                                          accepted_values=["OFF", "Adjust", "MAX"],
+                                                          simulation_mode=simulation_mode)
+        self.frequency_divider_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id_2,
+                                                        register_name="Frequency divider", read_only=False,
+                                                        accepted_values=range(1, 5001),
+                                                        simulation_mode=simulation_mode)
+        self.burst_pulse_left_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id_2,
+                                                       register_name="Burst pulses to go",
+                                                       simulation_mode=simulation_mode)
+        self.qsw_adjustment_output_delay_register = AsciiRegister(port=port, module_name=self.name,
+                                                                  module_id=self.id_2,
+                                                                  register_name="QSW Adjustment output delay",
+                                                                  simulation_mode=simulation_mode)
+        self.repetition_rate_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id_2,
+                                                      register_name="Repetition rate",
+                                                      simulation_mode=simulation_mode)
+        self.synchronization_mode_register = AsciiRegister(
+            port=port, module_name=self.name, module_id=self.id_2, register_name="Synchronization mode",
+            simulation_mode=simulation_mode)
+        self.burst_length_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id_2,
+                                                   register_name="Burst length", read_only=False,
+                                                   accepted_values=range(1, 50001),
+                                                   simulation_mode=simulation_mode)
 
     def start_propagating(self):
         """Starts the propagation of the laser.
@@ -166,7 +207,6 @@ class M_CPU800:
         None
         """
         self.output_energy_level_register.set_register_value(value)
-
 
     def publish(self):
         """Publishes the register values of the module.
@@ -210,7 +250,6 @@ class M_CPU800:
         )
 
 
-
 class llPMKU:
     """
     Parameters
@@ -232,11 +271,12 @@ class llPMKU:
         Corresponds to the "Power" register.
 
     """
-    def __init__(self,port,simulation_mode=False):
-        self.name= "11PMKu"
+    def __init__(self, port, simulation_mode=False):
+        self.name = "11PMKu"
         self.id = 54
         self.port = port
-        self.power_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="Power",simulation_mode=simulation_mode)
+        self.power_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                            register_name="Power", simulation_mode=simulation_mode)
 
     def publish(self):
         """Publishes the register values of the module.
@@ -250,6 +290,7 @@ class llPMKU:
 
     def __str__(self):
         return "11PMKu: \n {}".format(self.power_register)
+
 
 class MaxiOPG:
     """
@@ -273,20 +314,29 @@ class MaxiOPG:
     configuration_register: AsciiRegister
         Corresponds to the "Configuration" register.
     """
-    def __init__(self,port,configuration,simulation_mode=False):
+    def __init__(self, port, configuration, simulation_mode=False):
         self.name = "MaxiOPG"
         self.id = 31
         self.port = port
         self.configuration = configuration["MaxiOPG_output_configuration"]
-        self.wavelength_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="WaveLength",read_only=False,accepted_values=range(300,1100),simulation_mode=simulation_mode)
+        self.wavelength_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                                 register_name="WaveLength", read_only=False,
+                                                 accepted_values=range(300, 1100),
+                                                 simulation_mode=simulation_mode)
         if self.configuration == "No SCU":
-            self.configuration_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="Configuration",read_only=False,accepted_values=["No SCU","F1 No SCU","F2 No SCU"],simulation_mode=simulation_mode)
+            self.configuration_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                                        register_name="Configuration", read_only=False,
+                                                        accepted_values=["No SCU", "F1 No SCU", "F2 No SCU"],
+                                                        simulation_mode=simulation_mode)
         elif self.configuration == "SCU":
-            self.configuration_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="Configuration",read_only=False,accepted_values=["SCU","F1 SCU","F2 SCU"],simulation_mode=simulation_mode)
+            self.configuration_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                                        register_name="Configuration", read_only=False,
+                                                        accepted_values=["SCU", "F1 SCU", "F2 SCU"],
+                                                        simulation_mode=simulation_mode)
         else:
             raise ValueError("Invalid configuration value")
 
-    def change_wavelength(self,wavelength):
+    def change_wavelength(self, wavelength):
         """Changes the wavelength of the laser.
 
         Parameters
@@ -326,7 +376,7 @@ class MaxiOPG:
         self.configuration_register.get_register_value()
 
     def __str__(self):
-        return "{}: \n {} \n {}\n".format(self.name,self.wavelength_register,self.configuration_register)
+        return "{}: \n {} \n {}\n".format(self.name, self.wavelength_register, self.configuration_register)
 
 
 class MiniOPG:
@@ -349,11 +399,12 @@ class MiniOPG:
         Corresponds to the "Error code" register.
 
     """
-    def __init__(self,port,simulation_mode=False):
+    def __init__(self, port, simulation_mode=False):
         self.name = "MiniOPG"
         self.id = 56
         self.port = port
-        self.error_code_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="Error Code",simulation_mode=simulation_mode)
+        self.error_code_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                                 register_name="Error Code", simulation_mode=simulation_mode)
 
     def publish(self):
         """Publishes the register values of the module.
@@ -366,7 +417,8 @@ class MiniOPG:
         self.error_code_register.get_register_value()
 
     def __str__(self):
-        return "{}: \n {}\n".format(self.name,self.error_code_register)
+        return "{}: \n {}\n".format(self.name, self.error_code_register)
+
 
 class TK6:
     """
@@ -397,15 +449,24 @@ class TK6:
         Corresponds to the "Set temperature" register.
 
     """
-    def __init__(self,port,simulation_mode=False):
+    def __init__(self, port, simulation_mode=False):
         self.name = "TK6"
         self.id = 44
         self.id_2 = 45
         self.port = port
-        self.display_temperature_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="Display temperature",simulation_mode=simulation_mode)
-        self.set_temperature_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="Set temperature",simulation_mode=simulation_mode)
-        self.display_temperature_register_2 = AsciiRegister(port=port,module_name=self.name,module_id=self.id_2,register_name="Display temperature",simulation_mode=simulation_mode)
-        self.set_temperature_register_2 = AsciiRegister(port=port,module_name=self.name,module_id=self.id_2,register_name="Set temperature",simulation_mode=simulation_mode)
+        self.display_temperature_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                                          register_name="Display temperature",
+                                                          simulation_mode=simulation_mode)
+        self.set_temperature_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                                      register_name="Set temperature",
+                                                      simulation_mode=simulation_mode)
+        self.display_temperature_register_2 = AsciiRegister(port=port, module_name=self.name,
+                                                            module_id=self.id_2,
+                                                            register_name="Display temperature",
+                                                            simulation_mode=simulation_mode)
+        self.set_temperature_register_2 = AsciiRegister(port=port, module_name=self.name, module_id=self.id_2,
+                                                        register_name="Set temperature",
+                                                        simulation_mode=simulation_mode)
 
     def publish(self):
         """Publishes the register values of the module.
@@ -422,11 +483,12 @@ class TK6:
 
     def __str__(self):
         return "{}: \n {} \n {} \n {} \n {}\n".format(
-            self.name,self.display_temperature_register,
+            self.name, self.display_temperature_register,
             self.set_temperature_register,
             self.display_temperature_register_2,
             self.set_temperature_register_2
         )
+
 
 class HV40W:
     """
@@ -449,11 +511,12 @@ class HV40W:
         Corresponds to the "HV Voltage" register.
 
     """
-    def __init__(self,port,simulation_mode=False):
+    def __init__(self, port, simulation_mode=False):
         self.name = "HV40W"
         self.id = 41
         self.port = port
-        self.hv_voltage_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="HV voltage",simulation_mode=simulation_mode)
+        self.hv_voltage_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                                 register_name="HV voltage", simulation_mode=simulation_mode)
 
     def publish(self):
         """Publishes the register values of the module.
@@ -466,7 +529,8 @@ class HV40W:
         self.hv_voltage_register.get_register_value()
 
     def __str__(self):
-        return "{}: \n {}\n".format(self.name,self.hv_voltage_register)
+        return "{}: \n {}\n".format(self.name, self.hv_voltage_register)
+
 
 class DelayLin:
     """
@@ -488,11 +552,12 @@ class DelayLin:
     error_code_register: AsciiRegister
         Corresponds to the "Error code" register.
     """
-    def __init__(self,port,simulation_mode=False):
+    def __init__(self, port, simulation_mode=False):
         self.name = "DelayLin"
         self.id = 40
         self.port = port
-        self.error_code_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="Error Code",simulation_mode=simulation_mode)
+        self.error_code_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                                 register_name="Error Code", simulation_mode=simulation_mode)
 
     def publish(self):
         """Publishes the register values of the module.
@@ -505,7 +570,8 @@ class DelayLin:
         self.error_code_register.get_register_value()
 
     def __str__(self):
-        return "{}: \n {}\n".format(self.name,self.error_code_register)
+        return "{}: \n {}\n".format(self.name, self.error_code_register)
+
 
 class LDCO48BP:
     """
@@ -535,15 +601,23 @@ class LDCO48BP:
         Corresponds to the "Display temperature" register.
 
     """
-    def __init__(self,port,simulation_mode=False):
+    def __init__(self, port, simulation_mode=False):
         self.name = "LDCO48BP"
         self.id = 30
         self.id_2 = 29
         self.id_3 = 24
         self.port = port
-        self.display_temperature_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="Display temperature",simulation_mode=simulation_mode)
-        self.display_temperature_register_2 = AsciiRegister(port=port,module_name=self.name,module_id=self.id_2,register_name="Display temperature",simulation_mode=simulation_mode)
-        self.display_temperature_register_3 = AsciiRegister(port=port,module_name=self.name,module_id=self.id_3,register_name="Display temperature",simulation_mode=simulation_mode)
+        self.display_temperature_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                                          register_name="Display temperature",
+                                                          simulation_mode=simulation_mode)
+        self.display_temperature_register_2 = AsciiRegister(port=port, module_name=self.name,
+                                                            module_id=self.id_2,
+                                                            register_name="Display temperature",
+                                                            simulation_mode=simulation_mode)
+        self.display_temperature_register_3 = AsciiRegister(port=port, module_name=self.name,
+                                                            module_id=self.id_3,
+                                                            register_name="Display temperature",
+                                                            simulation_mode=simulation_mode)
 
     def publish(self):
         """Publishes the register values of the module.
@@ -563,6 +637,7 @@ class LDCO48BP:
             self.display_temperature_register_2,
             self.display_temperature_register_3
         )
+
 
 class M_LDCO48:
     """
@@ -588,13 +663,18 @@ class M_LDCO48:
     display_temperature_register_2: AsciiSerial
         Corresponds to the "Display temperature" register.
     """
-    def __init__(self,port,simulation_mode=False):
+    def __init__(self, port, simulation_mode=False):
         self.name = "M_LDCO48"
         self.id = 33
         self.id_2 = 34
         self.port = port
-        self.display_temperature_register = AsciiRegister(port=port,module_name=self.name,module_id=self.id,register_name="Display temperature",simulation_mode=simulation_mode)
-        self.display_temperature_register_2 = AsciiRegister(port=port,module_name=self.name,module_id=self.id_2,register_name="Display temperature",simulation_mode=simulation_mode)
+        self.display_temperature_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
+                                                          register_name="Display temperature",
+                                                          simulation_mode=simulation_mode)
+        self.display_temperature_register_2 = AsciiRegister(port=port, module_name=self.name,
+                                                            module_id=self.id_2,
+                                                            register_name="Display temperature",
+                                                            simulation_mode=simulation_mode)
 
     def publish(self):
         """Publishes the register values of the module.
@@ -608,4 +688,5 @@ class M_LDCO48:
         self.display_temperature_register_2.get_register_value()
 
     def __str__(self):
-        return "{}: \n {} \n {}\n".format(self.name,self.display_temperature_register,self.display_temperature_register_2)
+        return "{}: \n {} \n {}\n".format(self.name, self.display_temperature_register,
+                                          self.display_temperature_register_2)

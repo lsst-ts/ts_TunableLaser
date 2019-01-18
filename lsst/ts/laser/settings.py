@@ -1,4 +1,6 @@
-def laser_configuration():
-    configuration = {"MaxiOPG_output_configuration":"No SCU"}
-    return configuration
+__all__ = ["laser_configuration"]
 
+
+def laser_configuration():
+    configuration = {"MaxiOPG_output_configuration": "No SCU"}
+    return configuration
