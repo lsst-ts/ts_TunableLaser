@@ -1,25 +1,34 @@
-"""Implements CSC classes.
+"""Implements CSC classes for the TunableLaser.
 
 """
 import logging
 from lsst.ts.laser.component import LaserComponent
-import salobj
+from lsst.ts.salobj import BaseCsc, Remote, State, ExpectedError
 import SALPY_TunableLaser
 import asyncio
 import enum
 
 
-class LaserDetailedStateEnum(enum.Enum):
+class LaserDetailedState(enum.IntEnum):
     """An enumeration class for handling the TunableLaser's substates.
+
+    These enumerations listed here correspond to the ones found in the detailedState enum located in ts_xml
+    under the TunableLaser folder within the TunableLaser_Events.xml.
 
     Attributes
     ----------
     DISABLEDSTATE: int
+        Corresponds to the disabled state.
     ENABLEDSTATE: int
+        Corresponds to the enabled state.
     FAULTSTATE: int
+        Corresponds to the fault state.
     OFFLINESTATE: int
+        Corresponds to the offline state.
     STANDBYSTATE: int
+        Corresponds to the standby state.
     PROPAGATINGSTATE: int
+        Corresponds to the propagating state.
 
     """
     DISABLEDSTATE = 1
@@ -30,27 +39,28 @@ class LaserDetailedStateEnum(enum.Enum):
     PROPAGATINGSTATE = 6
 
 
-class LaserCSC(salobj.BaseCsc):
+class LaserCSC(BaseCsc):
     """This is the class that implements the TunableLaser CSC.
 
     Parameters
     ----------
-    address
+    address: str
     frequency: optional
     initial_state: optional
 
     Attributes
     ----------
-    model
-    frequency
+    model: LaserModel
+    frequency: float
     wavelength_topic
     temperature_topic
-    summary_state
+    summary_state: State
 
     """
-    def __init__(self,address,frequency=1, initial_state=salobj.State.STANDBY):
+    def __init__(self, address, configuration, frequency=1, initial_state=State.STANDBY):
         super().__init__(SALPY_TunableLaser)
-        self.model = LaserModel(address)
+        self._detailed_state = LaserDetailedState.STANDBYSTATE
+        self.model = LaserModel(port=address, configuration=configuration)
         self.frequency = frequency
         self.wavelength_topic = self.tel_wavelength.DataType()
         self.temperature_topic = self.tel_temperature.DataType()
@@ -58,18 +68,40 @@ class LaserCSC(salobj.BaseCsc):
         asyncio.ensure_future(self.telemetry())
 
     async def telemetry(self):
-        """Sends out laser's telemetry.
+        """Sends out the TunableLaser's telemetry.
 
         Returns
         -------
+        None
 
         """
         while True:
-            self.model.publish()
-            if self.model.fault_code == "0002H":
+            try:
+                self.model.publish()
+            except TimeoutError as te:
                 self.fault()
-            self.wavelength_topic.wavelength = float(self.model._laser.MaxiOPG.wavelength[:-2])
-            self.temperature_topic.temperature = float(self.model._laser.TK6.temperature[:-1])
+            if self.model._laser.CPU8000.power_register.register_value == "FAULT" or \
+                    self.model._laser.M_CPU800.power_register.register_value == "FAULT" or \
+                    self.model._laser.M_CPU800.power_register_2.register_value == "FAULT":
+                self.fault()
+            self.wavelength_topic.wavelength = float(
+                self.model._laser.MaxiOPG.wavelength_register.register_value[:-2])
+            self.temperature_topic.tk6_temperature = float(
+                self.model._laser.TK6.display_temperature_register.register_value[:-1])
+            self.temperature_topic.tk6_temperature_2 = float(
+                self.model._laser.TK6.display_temperature_register_2.register_value[:-1])
+            self.temperature_topic.ldco48bp_temperature = float(
+                self.model._laser.LDCO48BP.display_temperature_register.register_value[:-1])
+            self.temperature_topic.ldco48bp_temperature_2 = float(
+                self.model._laser.LDCO48BP.display_temperature_register_2.register_value[:-1])
+            self.temperature_topic.ldco48bp_temperature_3 = float(
+                self.model._laser.LDCO48BP.display_temperature_register_3.register_value[:-1])
+            self.temperature_topic.m_ldco48_temperature = float(
+                self.model._laser.M_LDCO48.display_temperature_register.register_value[:-1]
+            )
+            self.temperature_topic.m_ldco48_temperature_2 = float(
+                self.model._laser.M_LDCO48.display_temperature_register_2.register_value[:-1]
+            )
             self.tel_wavelength.put(self.wavelength_topic)
             self.tel_temperature.put(self.temperature_topic)
             await asyncio.sleep(self.frequency)
@@ -79,17 +111,22 @@ class LaserCSC(salobj.BaseCsc):
 
         Parameters
         ----------
-        action
-            The command being sent.
+        action: str
+            The name of the command being sent.
+
+        Raises
+        ------
+        ExpectedError
 
         Returns
         -------
+        None
 
         """
-        if self.detailed_state != LaserDetailedStateEnum.PROPAGATINGSTATE:
-            raise salobj.ExpectedError(f"{action} not allowed in state {self.detailed_state}")
+        if self.detailed_state != LaserDetailedState.PROPAGATINGSTATE:
+            raise ExpectedError(f"{action} not allowed in state {self.detailed_state}")
 
-    async def do_changeWavelength(self,id_data):
+    async def do_changeWavelength(self, id_data):
         """Changes the wavelength of the laser.
 
         Parameters
@@ -101,9 +138,15 @@ class LaserCSC(salobj.BaseCsc):
 
         """
         self.assert_enabled("changeWavelength")
-        self.model.change_wavelength(id_data.data.wavelength)
+        try:
+            self.model.change_wavelength(id_data.data.wavelength)
+        except TimeoutError as te:
+            self.fault()
+        wavelength_changed_topic = self.evt_wavelengthChanged.DataType()
+        wavelength_changed_topic.wavelength = id_data.data.wavelength
+        self.evt_wavelengthChanged.put(wavelength_changed_topic)
 
-    async def do_startPropagateLaser(self,id_data):
+    async def do_startPropagateLaser(self, id_data):
         """Changes the state to the Propagating State of the laser.
 
         Parameters
@@ -115,10 +158,13 @@ class LaserCSC(salobj.BaseCsc):
 
         """
         self.assert_enabled("startPropagateLaser")
-        self.model.run()
-        self.detailed_state = LaserDetailedStateEnum.PROPAGATINGSTATE
+        try:
+            self.model.run()
+        except TimeoutError as te:
+            self.fault()
+        self.detailed_state = LaserDetailedState.PROPAGATINGSTATE
 
-    async def do_stopPropagateLaser(self,id_data):
+    async def do_stopPropagateLaser(self, id_data):
         """Stops the Propagating State of the laser.
 
         Parameters
@@ -131,10 +177,13 @@ class LaserCSC(salobj.BaseCsc):
         """
         self.assert_enabled("stopPropagateLaser")
         self.assert_propagating("stopPropagateLaser")
-        self.model.stop()
-        self.detailed_state = LaserDetailedStateEnum.ENABLEDSTATE
+        try:
+            self.model.stop()
+        except TimeoutError as te:
+            self.fault()
+        self.detailed_state = LaserDetailedState.ENABLEDSTATE
 
-    async def do_abort(self,id_data):
+    async def do_abort(self, id_data):
         """Actually does nothing and is not implemented yet.
 
         Parameters
@@ -158,8 +207,7 @@ class LaserCSC(salobj.BaseCsc):
         -------
 
         """
-        self.model.stop()
-
+        self.model._laser.clear_fault()
 
     async def do_setValue(self, id_data):
         """Actually does nothing and is not implemented yet.
@@ -189,13 +237,13 @@ class LaserCSC(salobj.BaseCsc):
 
     @property
     def detailed_state(self):
-        detailed_state_topic = self.evt_detailedState.DataType()
-        return detailed_state_topic.detailedState
+        return self._detailed_state
 
     @detailed_state.setter
-    def detailed_state(self,new_sub_state):
+    def detailed_state(self, new_sub_state):
+        self._detailed_state = LaserDetailedState(new_sub_state)
         detailed_state_topic = self.evt_detailedState.DataType()
-        detailed_state_topic.detailedState = new_sub_state
+        detailed_state_topic.detailedState = self._detailed_state
         self.evt_detailedState.put(detailed_state_topic)
 
     def begin_enable(self, id_data):
@@ -209,8 +257,29 @@ class LaserCSC(salobj.BaseCsc):
         -------
 
         """
-        self.model._laser.MaxiOPG.set_configuration("No SCU")
-        self.model._laser.M_CPU800.set_energy("MAX")
+        try:
+            self.model._laser.MaxiOPG.set_configuration("No SCU")
+            self.model._laser.set_output_energy_level("MAX")
+        except TimeoutError as te:
+            self.fault()
+
+    def begin_disable(self, id_data):
+        """
+
+        Parameters
+        ----------
+        id_data
+
+        Returns
+        -------
+
+        """
+        if self.model._laser.M_CPU800.power_register_2.register_value == "ON":
+            try:
+                self.model.stop()
+                self.detailed_state = LaserDetailedState(LaserDetailedState.ENABLEDSTATE)
+            except TimeoutError as te:
+                self.fault()
 
 
 class LaserModel:
@@ -219,12 +288,13 @@ class LaserModel:
     Parameters
     ----------
     port
+    simulation_mode
 
     """
-    def __init__(self,port):
-        self._laser = LaserComponent(port)
+    def __init__(self, port, configuration, simulation_mode=False):
+        self._laser = LaserComponent(port=port, configuration=configuration, simulation_mode=simulation_mode)
 
-    def change_wavelength(self,wavelength):
+    def change_wavelength(self, wavelength):
         """Changes the wavelength of the laser.
 
         Parameters
@@ -233,36 +303,43 @@ class LaserModel:
 
         Returns
         -------
+        None
 
         """
-        self._laser.MaxiOPG.set_wavelength(wavelength)
+        self._laser.MaxiOPG.change_wavelength(wavelength=wavelength)
+
+    def set_output_energy_level(self, output_energy_level):
+        self._laser.set_output_energy_level(output_energy_level)
 
     def run(self):
         """Propagates the laser.
 
         Returns
         -------
+        None
 
         """
-        self._laser.M_CPU800.set_propagate("ON")
+        self._laser.start_propagating()
 
     def stop(self):
         """Stops propagating the laser.
 
         Returns
         -------
+        None
 
         """
-        self._laser.M_CPU800.set_propagate("OFF")
+        self._laser.stop_propagating()
 
     def publish(self):
         """Updates the laser's attributes.
 
         Returns
         -------
+        None
 
         """
-        self._laser._publish()
+        self._laser.publish()
 
 
 class LaserDeveloperRemote:
@@ -272,15 +349,15 @@ class LaserDeveloperRemote:
 
     Attributes
     ----------
-    remote
-    log
+    remote: Remote
+    log: logging.Logger
 
     """
     def __init__(self):
-        self.remote = salobj.Remote(SALPY_TunableLaser)
+        self.remote = Remote(SALPY_TunableLaser)
         self.log = logging.getLogger(__name__)
 
-    async def standby(self,timeout=10):
+    async def standby(self, timeout=10):
         """Standby command
 
         Parameters
@@ -292,10 +369,10 @@ class LaserDeveloperRemote:
 
         """
         standby_topic = self.remote.cmd_standby.DataType()
-        standby_ack = await self.remote.cmd_standby.start(standby_topic,timeout=timeout)
+        standby_ack = await self.remote.cmd_standby.start(standby_topic, timeout=timeout)
         self.log.info(standby_ack.ack.ack)
 
-    async def start(self,timeout=10):
+    async def start(self, timeout=10):
         """Start command
 
         Parameters
@@ -307,10 +384,10 @@ class LaserDeveloperRemote:
 
         """
         start_topic = self.remote.cmd_start.DataType()
-        start_ack = await self.remote.cmd_start.start(start_topic,timeout=timeout)
+        start_ack = await self.remote.cmd_start.start(start_topic, timeout=timeout)
         self.log.info(start_ack.ack.ack)
 
-    async def enable(self,timeout=10):
+    async def enable(self, timeout=10):
         """Enable command
 
         Parameters
@@ -322,10 +399,10 @@ class LaserDeveloperRemote:
 
         """
         enable_topic = self.remote.cmd_enable.DataType()
-        enable_ack = await self.remote.cmd_enable.start(enable_topic,timeout=timeout)
+        enable_ack = await self.remote.cmd_enable.start(enable_topic, timeout=timeout)
         self.log.info(enable_ack.ack.ack)
 
-    async def disable(self,timeout=10):
+    async def disable(self, timeout=10):
         """Disable command
 
         Parameters
@@ -337,10 +414,10 @@ class LaserDeveloperRemote:
 
         """
         disable_topic = self.remote.cmd_disable.DataType()
-        disable_ack = await self.remote.cmd_disable.start(disable_topic,timeout=timeout)
+        disable_ack = await self.remote.cmd_disable.start(disable_topic, timeout=timeout)
         self.log.info(disable_ack.ack.ack)
 
-    async def change_wavelength(self, wavelength,timeout=10):
+    async def change_wavelength(self, wavelength, timeout=10):
         """
 
         Parameters
@@ -354,10 +431,11 @@ class LaserDeveloperRemote:
         """
         change_wavelength_topic = self.remote.cmd_changeWavelength.DataType()
         change_wavelength_topic.wavelength = float(wavelength)
-        change_wavelength_ack = await self.remote.cmd_changeWavelength.start(change_wavelength_topic,timeout=timeout)
+        change_wavelength_ack = await self.remote.cmd_changeWavelength.start(change_wavelength_topic,
+                                                                             timeout=timeout)
         self.log.info(change_wavelength_ack.ack.ack)
 
-    async def start_propagate_laser(self,timeout=10):
+    async def start_propagate_laser(self, timeout=10):
         """startPropagate command
 
         Parameters
@@ -369,10 +447,11 @@ class LaserDeveloperRemote:
 
         """
         start_propagate_laser_topic = self.remote.cmd_startPropagateLaser.DataType()
-        start_propagate_laser_ack = await self.remote.cmd_startPropagateLaser.start(start_propagate_laser_topic,timeout=timeout)
+        start_propagate_laser_ack = await self.remote.cmd_startPropagateLaser.start(
+            start_propagate_laser_topic, timeout=timeout)
         self.log.info(start_propagate_laser_ack.ack.ack)
 
-    async def stop_propagate_laser(self,timeout=10):
+    async def stop_propagate_laser(self, timeout=10):
         """stopPropagate command.
 
         Parameters
@@ -384,5 +463,6 @@ class LaserDeveloperRemote:
 
         """
         stop_propagate_laser_topic = self.remote.cmd_stopPropagateLaser.DataType()
-        stop_propagate_laser_ack = await self.remote.cmd_stopPropagateLaser.start(stop_propagate_laser_topic,timeout=timeout)
+        stop_propagate_laser_ack = await self.remote.cmd_stopPropagateLaser.start(stop_propagate_laser_topic,
+                                                                                  timeout=timeout)
         self.log.info(stop_propagate_laser_ack.ack.ack)
