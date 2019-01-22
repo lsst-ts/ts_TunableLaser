@@ -76,7 +76,10 @@ class LaserCSC(BaseCsc):
 
         """
         while True:
-            self.model.publish()
+            try:
+                self.model.publish()
+            except TimeoutError as te:
+                self.fault()
             if self.model._laser.CPU8000.power_register.register_value == "FAULT" or \
                     self.model._laser.M_CPU800.power_register.register_value == "FAULT" or \
                     self.model._laser.M_CPU800.power_register_2.register_value == "FAULT":
@@ -135,7 +138,10 @@ class LaserCSC(BaseCsc):
 
         """
         self.assert_enabled("changeWavelength")
-        self.model.change_wavelength(id_data.data.wavelength)
+        try:
+            self.model.change_wavelength(id_data.data.wavelength)
+        except TimeoutError as te:
+            self.fault()
         wavelength_changed_topic = self.evt_wavelengthChanged.DataType()
         wavelength_changed_topic.wavelength = id_data.data.wavelength
         self.evt_wavelengthChanged.put(wavelength_changed_topic)
@@ -152,7 +158,10 @@ class LaserCSC(BaseCsc):
 
         """
         self.assert_enabled("startPropagateLaser")
-        self.model.run()
+        try:
+            self.model.run()
+        except TimeoutError as te:
+            self.fault()
         self.detailed_state = LaserDetailedState.PROPAGATINGSTATE
 
     async def do_stopPropagateLaser(self, id_data):
@@ -168,7 +177,10 @@ class LaserCSC(BaseCsc):
         """
         self.assert_enabled("stopPropagateLaser")
         self.assert_propagating("stopPropagateLaser")
-        self.model.stop()
+        try:
+            self.model.stop()
+        except TimeoutError as te:
+            self.fault()
         self.detailed_state = LaserDetailedState.ENABLEDSTATE
 
     async def do_abort(self, id_data):
@@ -245,8 +257,11 @@ class LaserCSC(BaseCsc):
         -------
 
         """
-        self.model._laser.MaxiOPG.set_configuration("No SCU")
-        self.model._laser.set_output_energy_level("MAX")
+        try:
+            self.model._laser.MaxiOPG.set_configuration("No SCU")
+            self.model._laser.set_output_energy_level("MAX")
+        except TimeoutError as te:
+            self.fault()
 
     def begin_disable(self, id_data):
         """
@@ -260,8 +275,11 @@ class LaserCSC(BaseCsc):
 
         """
         if self.model._laser.M_CPU800.power_register_2.register_value == "ON":
-            self.model.stop()
-            self.detailed_state = LaserDetailedState(LaserDetailedState.ENABLEDSTATE)
+            try:
+                self.model.stop()
+                self.detailed_state = LaserDetailedState(LaserDetailedState.ENABLEDSTATE)
+            except TimeoutError as te:
+                self.fault()
 
 
 class LaserModel:

@@ -51,8 +51,13 @@ class AsciiSerial(serial.Serial):
 
         """
         self.write(message)
-        reply = self.parse_reply(self.read_until(b"\x03"))
-        return reply
+        try:
+            reply = self.parse_reply(self.read_until(b"\x03"))
+        except TimeoutError as te:
+            reply = "Timed out"
+            raise
+        finally:
+            return reply
 
     def parse_reply(self, message):
         """Parses the reply as expected by Ascii spec provided by the vendor.
