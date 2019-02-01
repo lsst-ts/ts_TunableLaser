@@ -16,7 +16,7 @@ Welcome to ts-tunablelaser's documentation!
    :maxdepth: 2
    :caption: Miscellanous:
 
-   api
+   main_api
    cli
 
 

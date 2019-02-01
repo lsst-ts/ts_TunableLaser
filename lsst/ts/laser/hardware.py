@@ -18,26 +18,26 @@ class CPU8000:
     """
     Parameters
     ----------
-    port: AsciiSerial
+    port: `AsciiSerial`
         Hands off serial duty to this port.
-    simulation_mode: bool
+    simulation_mode: `bool`
         A boolean to set the module in simulation mode.
 
     Attributes
     ----------
-    log: logging.Logger
+    log: `logging.Logger`
         The log for the class.
-    name: str
+    name: `str`
         Name of the module.
-    id: int
+    id: `int`
         The ID of the module.
-    port: AsciiSerial
+    port: `AsciiSerial`
         The port that handles reading and writing to the laser
-    power_register: AsciiRegister
+    power_register: `AsciiRegister`
         Handles the "Power" register for this module.
-    display_current_register: AsciiRegister
+    display_current_register: `AsciiRegister`
         Handles the "Display current" register.
-    fault_register: AsciiRegister
+    fault_register: `AsciiRegister`
         Handles the "Fault code" register.
 
 
@@ -54,6 +54,10 @@ class CPU8000:
                                                       simulation_mode=simulation_mode)
         self.fault_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
                                             register_name="Fault code", simulation_mode=simulation_mode)
+        if simulation_mode:
+            self.power_register.register_value = "ON"
+            self.display_current_register.register_value = "1.5A"
+            self.fault_register.register_value = "0h"
         self.log.debug(f"{self.name} Module initialized")
 
     def publish(self):
@@ -77,48 +81,48 @@ class M_CPU800:
     """
     Parameters
     ----------
-    port: AsciiSerial
+    port: `AsciiSerial`
         Connects the serial port to the module.
-    simulation_mode: bool
+    simulation_mode: `bool`
         A boolean which establishes whether the module is in simulation mode or not.
 
     Attributes
     ----------
-    name: str
+    name: `str`
         The name of the module.
-    id: int
+    id: `int`
         The id of the module.
-    id_2: int
+    id_2: `int`
         The second id of the module.
-    port: AsciiSerial
+    port: `AsciiSerial`
         A reference to the AsciiSerial object that handles the serial functionality.
-    power_register: AsciiRegister
+    power_register: `AsciiRegister`
         Corresponds to the "Power" register.
-    display_current_register: AsciiRegister
+    display_current_register: `AsciiRegister`
         Corresponds to the "Display current" register.
-    fault_register: AsciiRegister
+    fault_register: `AsciiRegister`
         Corresponds to the "Fault code" register.
-    power_register_2: AsciiRegister
+    power_register_2: `AsciiRegister`
         Corresponds to the "Power" register which handles the propagation.
-    display_current_register_2: AsciiRegister
+    display_current_register_2: `AsciiRegister`
         Corresponds to the "Display current" register.
-    fault_register_2: AsciiRegister
+    fault_register_2: `AsciiRegister`
         Corresponds to the "Fault code" register.
-    continous_burst_mode_trigger_burst_register: AsciiRegister
+    continous_burst_mode_trigger_burst_register: `AsciiRegister`
         Corresponds to the "Continous %f Burst mode %f Trigger burst" register.
-    output_energy_level_register: AsciiRegister
+    output_energy_level_register: `AsciiRegister`
         Corresponds to the "Output energy level" register.
-    frequency_divider_register: AsciiRegister
+    frequency_divider_register: `AsciiRegister`
         Corresponds to the "frequency divider" register.
-    burst_pulse_left_register: AsciiRegister
+    burst_pulse_left_register: `AsciiRegister`
         Corresponds to the "Burst pulse left" register.
-    qsw_adjustment_output_delay_register: AsciiRegister
+    qsw_adjustment_output_delay_register: `AsciiRegister`
         Corresponds to the "qsw adjustment output delay" register.
-    repetition_rate_register: AsciiRegister
+    repetition_rate_register: `AsciiRegister`
         Corresponds to the "Repetition rate" register.
-    synchronization_mode_register: AsciiRegister
+    synchronization_mode_register: `AsciiRegister`
         Corresponds to the "Synchronization mode" register.
-    burst_length_register: AsciiRegister
+    burst_length_register: `AsciiRegister`
         Corresponds to the "Burst length" register.
 
     """
@@ -174,6 +178,10 @@ class M_CPU800:
                                                    register_name="Burst length", read_only=False,
                                                    accepted_values=range(1, 50001),
                                                    simulation_mode=simulation_mode)
+        if simulation_mode:
+            self.power_register.register_value = "ON"
+            self.display_current_register.register_value = "1.3A"
+            self.fault_register.register_value = "0h"
 
     def start_propagating(self):
         """Starts the propagation of the laser.
@@ -254,20 +262,20 @@ class llPMKU:
     """
     Parameters
     ----------
-    port: AsciiSerial
+    port: `AsciiSerial`
         A reference to the serial port
-    simulation_mode: bool
+    simulation_mode: `bool`
         Sets the simulation mode of the module.
 
     Attributes
     ----------
-    name: str
+    name: `str`
         The name of the module.
-    id: int
+    id: `int`
         The id of the module.
-    port: AsciiSerial
+    port: `AsciiSerial`
         A reference to the serial port.
-    power_register: AsciiRegister
+    power_register: `AsciiRegister`
         Corresponds to the "Power" register.
 
     """
@@ -467,6 +475,9 @@ class TK6:
         self.set_temperature_register_2 = AsciiRegister(port=port, module_name=self.name, module_id=self.id_2,
                                                         register_name="Set temperature",
                                                         simulation_mode=simulation_mode)
+        if simulation_mode:
+            self.display_temperature_register.register_value = "45C"
+            self.display_temperature_register_2.register_value = "19C"
 
     def publish(self):
         """Publishes the register values of the module.
@@ -618,6 +629,10 @@ class LDCO48BP:
                                                             module_id=self.id_3,
                                                             register_name="Display temperature",
                                                             simulation_mode=simulation_mode)
+        if simulation_mode:
+            self.display_temperature_register.register_value = "27C"
+            self.display_temperature_register_2.register_value = "25C"
+            self.display_temperature_register_3.register_value = "6C"
 
     def publish(self):
         """Publishes the register values of the module.
@@ -675,6 +690,9 @@ class M_LDCO48:
                                                             module_id=self.id_2,
                                                             register_name="Display temperature",
                                                             simulation_mode=simulation_mode)
+        if simulation_mode:
+            self.display_temperature_register.register_value = "13C"
+            self.display_temperature_register_2.register_value = "19C"
 
     def publish(self):
         """Publishes the register values of the module.
