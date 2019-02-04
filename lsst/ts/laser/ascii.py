@@ -32,7 +32,7 @@ class AsciiSerial(serial.Serial):
     log: logging.Logger
 
     """
-    def __init__(self, port,timeout=5):
+    def __init__(self, port, timeout=5):
         super(AsciiSerial, self).__init__(port, baudrate=19200, timeout=timeout)
         self.log = logging.getLogger(__name__)
 
@@ -93,10 +93,6 @@ class AsciiRegister:
     If it is read only, then the accepted_values do not matter in this case, but if it is writable then the
     accepted_values do matter. The simulation_mode has not been implemented at this time.
 
-    .. warning::
-        The simulation_mode parameter has not been handled at this time. Setting it will not change any
-        functionality of this component.
-
     Parameters
     ----------
     port: AsciiSerial
@@ -129,11 +125,12 @@ class AsciiRegister:
         The name of the register.
     read_only: bool
         Whether the register is read only or writable.
-    accepted_values: Optional[List[Any]]
+    accepted_values: list
         If read_only is set to true then this parameter can be None. If not, this parameter must contain a
         list of values accepted by this register and can be of int or str.
     simulation_mode: bool
-        A bool representing whether the register is in simulation mode or not. Currently is not implemented.
+        A bool representing whether the register is in simulation mode or not. Currently has a basic
+        implementation.
     register_value: str
         The value of the register as gotten by :meth:`get_register_value`.
 
@@ -205,8 +202,11 @@ class AsciiRegister:
         None
 
         """
-        message = self.create_get_message()
-        self.register_value = self.port.perform_magic(message)
+        if not self.simulation_mode:
+            message = self.create_get_message()
+            self.register_value = self.port.perform_magic(message)
+        else:
+            pass
 
     def set_register_value(self, set_value):
         """Sets the value of the register provided the register is not read only.
@@ -226,9 +226,12 @@ class AsciiRegister:
 
         """
         if not self.read_only:
-            message = self.create_set_message(set_value)
-            self.log.debug("sending message to serial port.")
-            self.port.perform_magic(message)
+            if not self.simulation_mode:
+                message = self.create_set_message(set_value)
+                self.log.debug("sending message to serial port.")
+                self.port.perform_magic(message)
+            else:
+                self.register_value = set_value
         else:
             raise ReadOnlyException("This register is read only.")
 

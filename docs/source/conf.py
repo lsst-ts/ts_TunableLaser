@@ -41,7 +41,6 @@ autodoc_mock_imports=['salobj','SALPY_TunableLaser']
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
     'sphinx.ext.intersphinx',
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
@@ -49,10 +48,14 @@ extensions = [
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
     'sphinx.ext.autosummary',
-    'sphinx.ext.napoleon',
+    'numpydoc',
     'sphinxarg.ext',
-    'sphinx.ext.autosectionlabel'
+    'sphinx.ext.autosectionlabel',
+    'sphinx_automodapi.automodapi',
+    'sphinx_automodapi.smart_resolver'
 ]
+
+numpydoc_show_class_members = False
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -191,7 +194,7 @@ epub_exclude_files = ['search.html']
 # -- Options for intersphinx extension ---------------------------------------
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'https://docs.python.org/3.6/': None}
+intersphinx_mapping = {'https://docs.python.org/3.6/': None,'http://staff.washington.edu/rowen/ts_salobj/': None}
 
 # -- Options for todo extension ----------------------------------------------
 

@@ -49,7 +49,10 @@ class LaserComponent:
     """
     def __init__(self, port: str, configuration, simulation_mode=False):
         self.log = logging.getLogger(__name__)
-        self.serial = AsciiSerial(port)
+        if not simulation_mode:
+            self.serial = AsciiSerial(port)
+        else:
+            self.seral = AsciiSerial(None)
         self.configuration = configuration
         self.CPU8000 = CPU8000(port=self.serial, simulation_mode=simulation_mode)
         self.M_CPU800 = M_CPU800(port=self.serial, simulation_mode=simulation_mode)
