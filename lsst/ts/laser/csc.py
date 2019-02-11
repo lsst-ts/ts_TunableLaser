@@ -2,8 +2,8 @@
 
 """
 import logging
-from lsst.ts.laser.component import LaserComponent
-from lsst.ts.salobj import BaseCsc, Remote, State, ExpectedError
+from .component import LaserComponent
+from lsst.ts import salobj
 import SALPY_TunableLaser
 import asyncio
 import enum
@@ -39,25 +39,30 @@ class LaserDetailedState(enum.IntEnum):
     PROPAGATINGSTATE = 6
 
 
-class LaserCSC(BaseCsc):
+class LaserCSC(salobj.BaseCsc):
     """This is the class that implements the TunableLaser CSC.
 
     Parameters
     ----------
     address: str
-    frequency: optional
-    initial_state: optional
+        The physical usb port string where the laser is located.
+    frequency: float, optional
+        The amount of time that the telemetry stream is published.
+    initial_state: salobj.State, optional
+        The initial state that a CSC will start up in. Only useful for unit tests as most CSCs
+        will start in `State.STANDBY`
 
     Attributes
     ----------
     model: LaserModel
+        The model of the laser component which handles the actual hardware.
     frequency: float
+        The amount of time that telemetry waits to publish.
     wavelength_topic
     temperature_topic
-    summary_state: State
 
     """
-    def __init__(self, address, configuration, frequency=1, initial_state=State.STANDBY):
+    def __init__(self, address, configuration, frequency=1, initial_state=salobj.State.STANDBY):
         super().__init__(SALPY_TunableLaser)
         self._detailed_state = LaserDetailedState.STANDBYSTATE
         self.model = LaserModel(port=address, configuration=configuration)
@@ -82,7 +87,8 @@ class LaserCSC(BaseCsc):
                 self.fault()
             if self.model._laser.CPU8000.power_register.register_value == "FAULT" or \
                     self.model._laser.M_CPU800.power_register.register_value == "FAULT" or \
-                    self.model._laser.M_CPU800.power_register_2.register_value == "FAULT":
+                    self.model._laser.M_CPU800.power_register_2.register_value == "FAULT" \
+                    and self.summary_state is not salobj.State.FAULT:
                 self.fault()
             self.wavelength_topic.wavelength = float(
                 self.model._laser.MaxiOPG.wavelength_register.register_value[:-2])
@@ -124,7 +130,7 @@ class LaserCSC(BaseCsc):
 
         """
         if self.detailed_state != LaserDetailedState.PROPAGATINGSTATE:
-            raise ExpectedError(f"{action} not allowed in state {self.detailed_state}")
+            raise salobj.ExpectedError(f"{action} not allowed in state {self.detailed_state}")
 
     async def do_changeWavelength(self, id_data):
         """Changes the wavelength of the laser.
@@ -237,6 +243,8 @@ class LaserCSC(BaseCsc):
 
     @property
     def detailed_state(self):
+        """Returns the current substate of the laser and when it changes publishes an event.
+        """
         return self._detailed_state
 
     @detailed_state.setter
@@ -354,7 +362,7 @@ class LaserDeveloperRemote:
 
     """
     def __init__(self):
-        self.remote = Remote(SALPY_TunableLaser)
+        self.remote = salobj.Remote(SALPY_TunableLaser)
         self.log = logging.getLogger(__name__)
 
     async def standby(self, timeout=10):

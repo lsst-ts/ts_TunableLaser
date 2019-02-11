@@ -2,10 +2,10 @@
 
 """
 import logging
-from lsst.ts.laser.hardware import CPU8000, M_CPU800, llPMKU, MaxiOPG, MiniOPG, TK6, HV40W, DelayLin, \
+from .hardware import CPU8000, M_CPU800, llPMKU, MaxiOPG, MiniOPG, TK6, HV40W, DelayLin, \
     LDCO48BP, M_LDCO48
-from lsst.ts.laser.ascii import AsciiSerial
-from lsst.ts.laser.settings import laser_configuration
+from .ascii import AsciiSerial
+from .settings import laser_configuration
 
 
 class LaserComponent:
@@ -15,6 +15,8 @@ class LaserComponent:
     ----------
     port: str
         The name of the USB port that the laser connection is located.
+    configuration: dict
+        A dict that is created from :func:`laser_configuration`
     simulation_mode: bool
         A flag which tells the component to initialize into simulation mode or not.
 
@@ -22,27 +24,27 @@ class LaserComponent:
     ----------
     log: logging.Logger
         Creates a logger for this class.
-    serial: AsciiSerial
+    serial: `AsciiSerial`
         Creates a serial connection to the laser
-    CPU8000: CPU8000
+    CPU8000: `CPU8000`
         Controls the CPU8000 :term:`module`.
-    M_CPU800: M_CPU800
+    M_CPU800: `M_CPU800`
         Controls the M_CPU800 module.
-    llPMKu: llPMKU
+    llPMKu: `llPMKU`
         Controls the llPKMu module.
-    MaxiOPG: MaxiOPG
+    MaxiOPG: `MaxiOPG`
         Controls the MaxiOPG module.
-    TK6: TK6
+    TK6: `TK6`
         Controls the TK6 module.
-    HV40W: HV40W
+    HV40W: `HV40W`
         Controls the HV40W module.
-    DelayLin: DelayLin
+    DelayLin: `DelayLin`
         Controls the DelayLin module.
-    MiniOPG: MiniOPG
+    MiniOPG: `MiniOPG`
         Controls the MiniOPG module.
-    LDCO48BP: LDCO48BP
+    LDCO48BP: `LDCO48BP`
         Controls the LDCO48BP module.
-    M_LDCO48: M_LDCO48
+    M_LDCO48: `M_LDCO48`
         Controls the LDCO48 module.
 
 
@@ -72,8 +74,10 @@ class LaserComponent:
 
         Parameters
         ----------
-        wavelength
+        wavelength: float
             The wavelength to change to.
+            
+            * Units: nanometers
 
         Returns
         -------
@@ -86,8 +90,12 @@ class LaserComponent:
 
         Parameters
         ----------
-        output_energy_level: {OFF,Adjust,MAX}
+        output_energy_level: str, {OFF,Adjust,MAX}
             The energy level to set the laser to.
+            
+            * OFF: Output energy is off.
+            * Adjust: A mode for calibrating the laser.
+            * MAX: The maximum energy output of the laser.
 
         Returns
         -------
@@ -130,6 +138,12 @@ class LaserComponent:
 
     def publish(self):
         """Publishes the module's registers' values.
+
+        Notes
+        -----
+        This method is designed for integrating with the CSC class and so serves as a auxiliary to 
+        "publish" to the CSC :meth:`publish` the updated values of the component. Hence why it is called 
+        publish.
 
         Returns
         -------
