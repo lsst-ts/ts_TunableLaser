@@ -5,8 +5,8 @@ pipeline {
     agent {
         // Use the docker to assign the Python version.
         docker {
-            image 'python:3.6.2'
-            args '-u root'
+            image 'lsst/queue'
+            args '-u root -it --entrypoint=/bin/bash'
         }
     }
 
@@ -24,7 +24,8 @@ pipeline {
                 // to install the packages.
                 withEnv(["HOME=${env.WORKSPACE}"]) {
                     sh """
-                        pip install --user -r requirements-dev.txt -e .
+			make_salpy_libs.py TunableLaser
+                        pip install --user -r requirements-dev.txt .
                     """
                 }
             }
