@@ -3,7 +3,7 @@
 pipeline {
 
     agent {
-        // Use the docker to assign the Python version.
+        // Use the docker to configure the docker image by default it will pull from dockerhub.
         docker {
             image 'lsst/queue'
             args '-u root -it --entrypoint=/bin/bash'
@@ -24,9 +24,11 @@ pipeline {
                 // to install the packages.
                 withEnv(["HOME=${env.WORKSPACE}"]) {
                     sh """
-			make_salpy_libs.py TunableLaser
                         pip install --user -r requirements-dev.txt .
                     """
+		    sh """
+			make_salpy_libs.py TunableLaser
+		    """
                 }
             }
         }
