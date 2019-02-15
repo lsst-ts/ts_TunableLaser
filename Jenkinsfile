@@ -66,11 +66,6 @@ pipeline {
                 reportName: "Coverage Report"
               ])
         }
-	success {
-		emailext(attachLog: true, body: '''"""<p>SUCCESSFUL: Job \'${env.JOB_NAME} [${env.BUILD_NUMBER}]\':</p>
-            <p>Check console output at &QUOT;<a href=\'${env.BUILD_URL}\'>${env.JOB_NAME} [${env.BUILD_NUMBER}]</a>&QUOT;</p>"""''', recipientProviders: [developers()], subject: '"SUCCESSFUL: Job \'${env.JOB_NAME} [${env.BUILD_NUMBER}]\'"')
-	}
-
         cleanup {
             // clean up the workspace
             deleteDir()
