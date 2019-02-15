@@ -6,7 +6,7 @@ pipeline {
         // Use the docker to configure the docker image by default it will pull from dockerhub.
         docker {
             image 'lsst/queue'
-            args '-u saluser'
+            args '-u root'
         }
     }
 
@@ -24,9 +24,8 @@ pipeline {
                 // to install the packages.
                 withEnv(["HOME=${env.WORKSPACE}"]) {
                     sh """
+			source /home/saluser/.setup.sh
                         pip install --user -r requirements-dev.txt .
-                    """
-		    sh """
 			make_salpy_libs.py TunableLaser
 		    """
                 }
@@ -42,6 +41,7 @@ pipeline {
                 // Pytest needs to export the junit report.
                 withEnv(["HOME=${env.WORKSPACE}"]) {
                     sh """
+			source /home/saluser/.setup.sh
                         export PATH=$PATH:${env.WORKSPACE}/.local/bin
                         pytest --cov-report html --cov=lsst.ts.laser --junitxml=${env.WORKSPACE}/${env.XML_REPORT} ${env.WORKSPACE}/tests
                     """
