@@ -65,10 +65,10 @@ pipeline {
                 reportFiles: 'index.html',
                 reportName: "Coverage Report"
               ])
-        }
-        cleanup {
+	cleanup {
             // clean up the workspace
             deleteDir()
+        }
         }
     }
 }
