@@ -34,7 +34,7 @@ class CPU8000:
     port: `AsciiSerial`
         The port that handles reading and writing to the laser
     power_register: `AsciiRegister`
-        Handles the "Power" register for this module.
+        Handles the "Power" register for this module. 
     display_current_register: `AsciiRegister`
         Handles the "Display current" register.
     fault_register: `AsciiRegister`

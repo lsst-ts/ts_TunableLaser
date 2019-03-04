@@ -148,6 +148,8 @@ class LaserCSC(salobj.BaseCsc):
             self.model.change_wavelength(id_data.data.wavelength)
         except TimeoutError as te:
             self.fault()
+        except Exception as e:
+            self.evt_errorCode(error=1)
         wavelength_changed_topic = self.evt_wavelengthChanged.DataType()
         wavelength_changed_topic.wavelength = id_data.data.wavelength
         self.evt_wavelengthChanged.put(wavelength_changed_topic)

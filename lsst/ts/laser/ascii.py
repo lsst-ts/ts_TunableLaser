@@ -54,8 +54,10 @@ class AsciiSerial(serial.Serial):
         try:
             reply = self.parse_reply(self.read_until(b"\x03"))
         except TimeoutError as te:
-            reply = "Timed out"
-            raise
+            reply = None
+            self.clear()
+            self.log.error(te)
+            self.perform_magic(message)
         finally:
             return reply
 
@@ -205,6 +207,8 @@ class AsciiRegister:
         if not self.simulation_mode:
             message = self.create_get_message()
             self.register_value = self.port.perform_magic(message)
+            if reply == None:
+                pass
         else:
             pass
 
@@ -227,9 +231,12 @@ class AsciiRegister:
         """
         if not self.read_only:
             if not self.simulation_mode:
-                message = self.create_set_message(set_value)
-                self.log.debug("sending message to serial port.")
-                self.port.perform_magic(message)
+                try:
+                    message = self.create_set_message(set_value)
+                    self.log.debug("sending message to serial port.")
+                    self.port.perform_magic(message)
+                except TimeoutError as te:
+                    self.log.error(te)
             else:
                 self.register_value = set_value
         else:
