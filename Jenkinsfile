@@ -13,7 +13,7 @@ pipeline {
     environment {
         // Use the double quote instead of single quote
         // XML report path
-	PYTHONPATH=${env.WORKSPACE}
+	PYTHONPATH="${env.WORKSPACE}"
         XML_REPORT="jenkinsReport/report.xml"
     }
 
