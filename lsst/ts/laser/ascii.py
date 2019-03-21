@@ -32,9 +32,10 @@ class AsciiSerial(serial.Serial):
     log: logging.Logger
 
     """
-    def __init__(self, port, timeout=5):
+    def __init__(self, port, timeout=5,num_of_tries=3):
         super(AsciiSerial, self).__init__(port, baudrate=19200, timeout=timeout)
         self.log = logging.getLogger(__name__)
+        self.num_of_tries = num_of_tries
 
     def perform_magic(self, message):
         """Writes the message to the serial port, parses the reply and then returns it for processing by
@@ -50,16 +51,19 @@ class AsciiSerial(serial.Serial):
             The parsed reply returned by :meth:`parse_reply`.
 
         """
-        self.write(message)
-        try:
-            reply = self.parse_reply(self.read_until(b"\x03"))
-        except TimeoutError as te:
-            reply = None
-            self.clear()
-            self.log.error(te)
-            self.perform_magic(message)
-        finally:
-            return reply
+        for num_of_tries in range(self.num_of_tries):
+            try:
+                self.write(message)
+                reply = self.parse_reply(self.read_until(b"\x03"))
+            except TimeoutError as te:
+                reply = None
+                self.clear()
+                self.log.exception(te)
+            except Exception as e:
+                self.log.exception(e)
+                raise
+            else:
+                return reply
 
     def parse_reply(self, message):
         """Parses the reply as expected by Ascii spec provided by the vendor.
@@ -207,8 +211,8 @@ class AsciiRegister:
         if not self.simulation_mode:
             message = self.create_get_message()
             self.register_value = self.port.perform_magic(message)
-            if reply == None:
-                pass
+            if self.register_value == None:
+                raise TimeoutError
         else:
             pass
 
@@ -236,7 +240,8 @@ class AsciiRegister:
                     self.log.debug("sending message to serial port.")
                     self.port.perform_magic(message)
                 except TimeoutError as te:
-                    self.log.error(te)
+                    self.log.exception(te)
+                    raise 
             else:
                 self.register_value = set_value
         else:
