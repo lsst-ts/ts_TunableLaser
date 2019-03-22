@@ -41,10 +41,12 @@ class LaserDetailedState(enum.IntEnum):
 
 
 class LaserErrorCode(enum.IntEnum):
-    ascii_error = 1
-    general_error = 2
-    timeout_error = 3
-    hw_cpu_error = 4
+    """Laser error codes
+    """
+    ascii_error = 7301
+    general_error = 7302
+    timeout_error = 7303
+    hw_cpu_error = 7304
 
 
 class LaserCSC(salobj.BaseCsc):
@@ -99,14 +101,16 @@ class LaserCSC(salobj.BaseCsc):
                             errorCode=LaserErrorCode.timeout_error,
                             errorReport=te.msg,
                             traceback=traceback.format_exc())
-                    if self.model._laser.CPU8000.power_register.register_value == "FAULT" or \
+                    if (self.model._laser.CPU8000.power_register.register_value == "FAULT" or \
                         self.model._laser.M_CPU800.power_register.register_value == "FAULT" or \
-                        self.model._laser.M_CPU800.power_register_2.register_value == "FAULT" \
+                        self.model._laser.M_CPU800.power_register_2.register_value == "FAULT") \
                             and self.summary_state is not salobj.State.FAULT:
                                 self.fault()
                                 self.evt_errorCode.set_put(
                                     errorCode=LaserErrorCode.hw_cpu_error,
-                                    errorReport=f"Code:{self._laser.CPU8000.fault_register.fault}",
+                                    errorReport=f"Code:{self._laser.CPU8000.fault_register.fault}"
+                                    f" Code:{self._laser.M_CPU800.fault_register.fault}"
+                                    f" Code:{self._laser.M_CPU800.fault_register_2.fault}",
                                     traceback="")
                     if self.summary_state is not salobj.State.FAULT:
                         self.wavelength_topic.wavelength = float(
