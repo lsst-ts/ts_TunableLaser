@@ -1,4 +1,4 @@
-from lsst.ts.laser.ascii import *
+from lsst.ts.laser import AsciiSerial
 from unittest.mock import Mock
 import pytest
 

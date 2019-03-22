@@ -3,9 +3,9 @@
 pipeline {
 
     agent {
-        // Use the docker to assign the Python version.
+        // Use the docker to configure the docker image by default it will pull from dockerhub.
         docker {
-            image 'python:3.6.2'
+            image 'lsstts/tunablelaser:2019_3_8'
             args '-u root'
         }
     }
@@ -13,6 +13,7 @@ pipeline {
     environment {
         // Use the double quote instead of single quote
         // XML report path
+	PYTHONPATH="${env.WORKSPACE}"
         XML_REPORT="jenkinsReport/report.xml"
     }
 
@@ -24,8 +25,13 @@ pipeline {
                 // to install the packages.
                 withEnv(["HOME=${env.WORKSPACE}"]) {
                     sh """
-                        pip install --user -r requirements-dev.txt -e .
-                    """
+			source /opt/rh/devtoolset-6/enable
+                        source /opt/lsst/lsst_stack/loadLSST.bash
+                        source /home/lsst/gitrepo/ts_sal/setup.env
+                        setup sconsUtils 16.0
+                        setup ts_salobj 3.8.0
+                        pip install --user -r requirements-dev.txt .
+		    """
                 }
             }
         }
@@ -39,6 +45,11 @@ pipeline {
                 // Pytest needs to export the junit report.
                 withEnv(["HOME=${env.WORKSPACE}"]) {
                     sh """
+			source /opt/rh/devtoolset-6/enable
+                        source /opt/lsst/lsst_stack/loadLSST.bash
+                        source /home/lsst/gitrepo/ts_sal/setup.env
+                        setup sconsUtils 16.0
+                        setup ts_salobj 3.8.0
                         export PATH=$PATH:${env.WORKSPACE}/.local/bin
                         pytest --cov-report html --cov=lsst.ts.laser --junitxml=${env.WORKSPACE}/${env.XML_REPORT} ${env.WORKSPACE}/tests
                     """
@@ -62,10 +73,6 @@ pipeline {
                 reportFiles: 'index.html',
                 reportName: "Coverage Report"
               ])
-        }
-
-        cleanup {
-            // clean up the workspace
             deleteDir()
         }
     }

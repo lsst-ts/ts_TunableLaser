@@ -2,8 +2,9 @@
 
 """
 import logging
-from lsst.ts.laser.component import LaserComponent
-from lsst.ts.salobj import BaseCsc, Remote, State, ExpectedError
+import traceback
+from .component import LaserComponent
+from lsst.ts import salobj
 import SALPY_TunableLaser
 import asyncio
 import enum
@@ -31,33 +32,47 @@ class LaserDetailedState(enum.IntEnum):
         Corresponds to the propagating state.
 
     """
-    DISABLEDSTATE = 1
-    ENABLEDSTATE = 2
-    FAULTSTATE = 3
-    OFFLINESTATE = 4
-    STANDBYSTATE = 5
-    PROPAGATINGSTATE = 6
+    DISABLEDSTATE = SALPY_TunableLaser.TunableLaser_shared_DetailedState_DisabledState
+    ENABLEDSTATE = SALPY_TunableLaser.TunableLaser_shared_DetailedState_EnabledState
+    FAULTSTATE = SALPY_TunableLaser.TunableLaser_shared_DetailedState_FaultState
+    OFFLINESTATE = SALPY_TunableLaser.TunableLaser_shared_DetailedState_OfflineState
+    STANDBYSTATE = SALPY_TunableLaser.TunableLaser_shared_DetailedState_StandbyState
+    PROPAGATINGSTATE = SALPY_TunableLaser.TunableLaser_shared_DetailedState_PropagatingState
 
 
-class LaserCSC(BaseCsc):
+class LaserErrorCode(enum.IntEnum):
+    """Laser error codes
+    """
+    ascii_error = 7301
+    general_error = 7302
+    timeout_error = 7303
+    hw_cpu_error = 7304
+
+
+class LaserCSC(salobj.BaseCsc):
     """This is the class that implements the TunableLaser CSC.
 
     Parameters
     ----------
     address: str
-    frequency: optional
-    initial_state: optional
+        The physical usb port string where the laser is located.
+    frequency: float, optional
+        The amount of time that the telemetry stream is published.
+    initial_state: salobj.State, optional
+        The initial state that a CSC will start up in. Only useful for unit tests as most CSCs
+        will start in `State.STANDBY`
 
     Attributes
     ----------
     model: LaserModel
+        The model of the laser component which handles the actual hardware.
     frequency: float
+        The amount of time that telemetry waits to publish.
     wavelength_topic
     temperature_topic
-    summary_state: State
 
     """
-    def __init__(self, address, configuration, frequency=1, initial_state=State.STANDBY):
+    def __init__(self, address, configuration, frequency=1, initial_state=salobj.State.STANDBY):
         super().__init__(SALPY_TunableLaser)
         self._detailed_state = LaserDetailedState.STANDBYSTATE
         self.model = LaserModel(port=address, configuration=configuration)
@@ -75,36 +90,58 @@ class LaserCSC(BaseCsc):
         None
 
         """
-        while True:
-            try:
-                self.model.publish()
-            except TimeoutError as te:
+        try:
+            while True:
+                if self.summary_state is not salobj.State.FAULT:
+                    try:
+                        self.model.publish()
+                    except TimeoutError as te:
+                        self.fault()
+                        self.evt_errorCode.set_put(
+                            errorCode=LaserErrorCode.timeout_error,
+                            errorReport=te.msg,
+                            traceback=traceback.format_exc())
+                    if (self.model._laser.CPU8000.power_register.register_value == "FAULT" or \
+                        self.model._laser.M_CPU800.power_register.register_value == "FAULT" or \
+                        self.model._laser.M_CPU800.power_register_2.register_value == "FAULT") \
+                            and self.summary_state is not salobj.State.FAULT:
+                                self.fault()
+                                self.evt_errorCode.set_put(
+                                    errorCode=LaserErrorCode.hw_cpu_error,
+                                    errorReport=f"Code:{self._laser.CPU8000.fault_register.fault}"
+                                    f" Code:{self._laser.M_CPU800.fault_register.fault}"
+                                    f" Code:{self._laser.M_CPU800.fault_register_2.fault}",
+                                    traceback="")
+                    if self.summary_state is not salobj.State.FAULT:
+                        self.wavelength_topic.wavelength = float(
+                            self.model._laser.MaxiOPG.wavelength_register.register_value[:-2])
+                        self.temperature_topic.tk6_temperature = float(
+                            self.model._laser.TK6.display_temperature_register.register_value[:-1])
+                        self.temperature_topic.tk6_temperature_2 = float(
+                            self.model._laser.TK6.display_temperature_register_2.register_value[:-1])
+                        self.temperature_topic.ldco48bp_temperature = float(
+                            self.model._laser.LDCO48BP.display_temperature_register.register_value[:-1])
+                        self.temperature_topic.ldco48bp_temperature_2 = float(
+                            self.model._laser.LDCO48BP.display_temperature_register_2.register_value[:-1])
+                        self.temperature_topic.ldco48bp_temperature_3 = float(
+                            self.model._laser.LDCO48BP.display_temperature_register_3.register_value[:-1])
+                        self.temperature_topic.m_ldco48_temperature = float(
+                            self.model._laser.M_LDCO48.display_temperature_register.register_value[:-1]
+                        )
+                        self.temperature_topic.m_ldco48_temperature_2 = float(
+                            self.model._laser.M_LDCO48.display_temperature_register_2.register_value[:-1]
+                        )
+                        self.tel_wavelength.put(self.wavelength_topic)
+                        self.tel_temperature.put(self.temperature_topic)
+                await asyncio.sleep(self.frequency)
+        except Exception as e:
+            self.log.exception(e)
+            self.evt_errorCode.set_put(
+                errorCode=2,
+                errorReport=e.msg,
+                traceback=traceback.format_exc())
+            if self.summary_state is not salobj.State.FAULT:
                 self.fault()
-            if self.model._laser.CPU8000.power_register.register_value == "FAULT" or \
-                    self.model._laser.M_CPU800.power_register.register_value == "FAULT" or \
-                    self.model._laser.M_CPU800.power_register_2.register_value == "FAULT":
-                self.fault()
-            self.wavelength_topic.wavelength = float(
-                self.model._laser.MaxiOPG.wavelength_register.register_value[:-2])
-            self.temperature_topic.tk6_temperature = float(
-                self.model._laser.TK6.display_temperature_register.register_value[:-1])
-            self.temperature_topic.tk6_temperature_2 = float(
-                self.model._laser.TK6.display_temperature_register_2.register_value[:-1])
-            self.temperature_topic.ldco48bp_temperature = float(
-                self.model._laser.LDCO48BP.display_temperature_register.register_value[:-1])
-            self.temperature_topic.ldco48bp_temperature_2 = float(
-                self.model._laser.LDCO48BP.display_temperature_register_2.register_value[:-1])
-            self.temperature_topic.ldco48bp_temperature_3 = float(
-                self.model._laser.LDCO48BP.display_temperature_register_3.register_value[:-1])
-            self.temperature_topic.m_ldco48_temperature = float(
-                self.model._laser.M_LDCO48.display_temperature_register.register_value[:-1]
-            )
-            self.temperature_topic.m_ldco48_temperature_2 = float(
-                self.model._laser.M_LDCO48.display_temperature_register_2.register_value[:-1]
-            )
-            self.tel_wavelength.put(self.wavelength_topic)
-            self.tel_temperature.put(self.temperature_topic)
-            await asyncio.sleep(self.frequency)
 
     def assert_propagating(self, action):
         """Asserts that the action is happening while in the PropagatingState.
@@ -124,7 +161,7 @@ class LaserCSC(BaseCsc):
 
         """
         if self.detailed_state != LaserDetailedState.PROPAGATINGSTATE:
-            raise ExpectedError(f"{action} not allowed in state {self.detailed_state}")
+            raise salobj.ExpectedError(f"{action} not allowed in state {self.detailed_state}")
 
     async def do_changeWavelength(self, id_data):
         """Changes the wavelength of the laser.
@@ -142,6 +179,11 @@ class LaserCSC(BaseCsc):
             self.model.change_wavelength(id_data.data.wavelength)
         except TimeoutError as te:
             self.fault()
+        except Exception as e:
+            self.evt_errorCode(
+                errorCode=LaserErrorCode.general_error,
+                errorReport=e.msg,
+                traceback=traceback.format_exc())
         wavelength_changed_topic = self.evt_wavelengthChanged.DataType()
         wavelength_changed_topic.wavelength = id_data.data.wavelength
         self.evt_wavelengthChanged.put(wavelength_changed_topic)
@@ -160,8 +202,8 @@ class LaserCSC(BaseCsc):
         self.assert_enabled("startPropagateLaser")
         try:
             self.model.run()
-        except TimeoutError as te:
-            self.fault()
+        except Exception as e:
+            raise
         self.detailed_state = LaserDetailedState.PROPAGATINGSTATE
 
     async def do_stopPropagateLaser(self, id_data):
@@ -179,8 +221,8 @@ class LaserCSC(BaseCsc):
         self.assert_propagating("stopPropagateLaser")
         try:
             self.model.stop()
-        except TimeoutError as te:
-            self.fault()
+        except Exception as e:
+            raise
         self.detailed_state = LaserDetailedState.ENABLEDSTATE
 
     async def do_abort(self, id_data):
@@ -237,6 +279,8 @@ class LaserCSC(BaseCsc):
 
     @property
     def detailed_state(self):
+        """Returns the current substate of the laser and when it changes publishes an event.
+        """
         return self._detailed_state
 
     @detailed_state.setter
@@ -354,7 +398,7 @@ class LaserDeveloperRemote:
 
     """
     def __init__(self):
-        self.remote = Remote(SALPY_TunableLaser)
+        self.remote = salobj.Remote(SALPY_TunableLaser)
         self.log = logging.getLogger(__name__)
 
     async def standby(self, timeout=10):

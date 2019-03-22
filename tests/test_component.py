@@ -1,5 +1,4 @@
-from lsst.ts.laser.component import LaserComponent
-from lsst.ts.laser.settings import laser_configuration
+from lsst.ts.laser import LaserComponent, laser_configuration
 from unittest.mock import Mock
 import pytest
 

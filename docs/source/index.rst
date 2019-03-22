@@ -3,27 +3,17 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to ts-tunablelaser's documentation!
-===========================================
+^^^^^^^^^^^^^
+lsst.ts.laser
+^^^^^^^^^^^^^
+
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Guides:
 
    guides/index
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Miscellanous:
 
-   main_api
-   cli
-
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+.. automodapi:: lsst.ts.laser
+   :no-inheritance-diagram:

@@ -11,7 +11,7 @@ These classes are based on the REMOTECONTROL.csv file provided by the vendor.
 __all__ = ["CPU8000", "M_CPU800", "llPMKU", "MaxiOPG", "MiniOPG", "TK6", "HV40W", "LDCO48BP", "M_LDCO48",
            "DelayLin"]
 import logging
-from lsst.ts.laser.ascii import AsciiRegister
+from .ascii import AsciiRegister
 
 
 class CPU8000:
@@ -34,7 +34,7 @@ class CPU8000:
     port: `AsciiSerial`
         The port that handles reading and writing to the laser
     power_register: `AsciiRegister`
-        Handles the "Power" register for this module.
+        Handles the "Power" register for this module. 
     display_current_register: `AsciiRegister`
         Handles the "Display current" register.
     fault_register: `AsciiRegister`
