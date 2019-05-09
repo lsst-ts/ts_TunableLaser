@@ -72,6 +72,13 @@ class CPU8000:
         self.display_current_register.get_register_value()
         self.fault_register.get_register_value()
 
+    def set_simulation_mode(self,mode):
+        self.power_register.simulation_mode=mode
+        self.display_current_register.simulation_mode=mode
+        self.fault_register.simulation_mode=mode
+
+
+
     def __str__(self):
         return "CPU8000: \n {} \n {} \n {} \n".format(self.power_register, self.display_current_register,
                                                       self.fault_register)
@@ -239,6 +246,22 @@ class M_CPU800:
         self.synchronization_mode_register.get_register_value()
         self.burst_length_register.get_register_value()
 
+    def set_simulation_mode(self,mode):
+        self.power_register.simulation_mode=mode
+        self.display_current_register.simulation_mode=mode
+        self.fault_register.simulation_mode=mode
+        self.power_register_2.simulation_mode=mode
+        self.display_current_register_2.simulation_mode=mode
+        self.fault_register_2.simulation_mode=mode
+        self.continous_burst_mode_trigger_burst_register.simulation_mode=mode
+        self.output_energy_level_register.simulation_mode=mode
+        self.frequency_divider_register.simulation_mode=mode
+        self.burst_pulse_left_register.simulation_mode=mode
+        self.qsw_adjustment_output_delay_register.simulation_mode=mode
+        self.repetition_rate_register.simulation_mode=mode
+        self.synchronization_mode_register.simulation_mode=mode
+        self.burst_length_register.simulation_mode=mode
+
     def __str__(self):
         return "M_CPU800: \n {}\n {}\n {}\n {}\n {}\n {}\n {}\n {}\n {}\n {}\n {}\n {}\n {}\n {}\n".format(
             self.power_register,
@@ -296,6 +319,9 @@ class llPMKU:
         """
         self.power_register.get_register_value()
 
+    def set_simulation_mode(self,mode):
+        self.power_register.simulation_mode=mode
+
     def __str__(self):
         return "11PMKu: \n {}".format(self.power_register)
 
@@ -322,11 +348,11 @@ class MaxiOPG:
     configuration_register: AsciiRegister
         Corresponds to the "Configuration" register.
     """
-    def __init__(self, port, configuration, simulation_mode=False):
+    def __init__(self, port, simulation_mode=False):
         self.name = "MaxiOPG"
         self.id = 31
         self.port = port
-        self.configuration = configuration["MaxiOPG_output_configuration"]
+        self.configuration="No SCU"
         self.wavelength_register = AsciiRegister(port=port, module_name=self.name, module_id=self.id,
                                                  register_name="WaveLength", read_only=False,
                                                  accepted_values=range(300, 1100),
@@ -370,7 +396,10 @@ class MaxiOPG:
         None
 
         """
-        self.configuration_register.set_register_value(configuration)
+        if self.optical_alignment == "straight-through":
+            self.configuration_register.set_register_value(self.configuration)
+        else:
+            self.configuration_register.set_register_value(f"{self.optical_alignment} {self.configuration}")
 
     def publish(self):
         """Publishes the register values of the modules.
@@ -382,6 +411,11 @@ class MaxiOPG:
         """
         self.wavelength_register.get_register_value()
         self.configuration_register.get_register_value()
+
+    def set_simulation_mode(self,mode):
+        self.wavelength_register.simulation_mode=mode
+        self.wavelength_register.register_value=425
+        self.configuration_register.simulation_mode=mode
 
     def __str__(self):
         return "{}: \n {} \n {}\n".format(self.name, self.wavelength_register, self.configuration_register)
@@ -424,6 +458,9 @@ class MiniOPG:
         """
         self.error_code_register.get_register_value()
 
+    def set_simulation_mode(self,mode):
+        self.error_code_register.simulation_mode=mode
+
     def __str__(self):
         return "{}: \n {}\n".format(self.name, self.error_code_register)
 
@@ -453,7 +490,7 @@ class TK6:
         Corresponds to the "Set temperature" register.
     display_temperature_register_2: AsciiRegister
         Corresponds to the "Display temperature" register.
-    set_temperature_register_2: AsciiRegister
+    set_temperature_register_2 : `AsciiRegister`
         Corresponds to the "Set temperature" register.
 
     """
@@ -491,6 +528,12 @@ class TK6:
         self.set_temperature_register.get_register_value()
         self.display_temperature_register_2.get_register_value()
         self.set_temperature_register_2.get_register_value()
+
+    def set_simulation_mode(self,mode):
+        self.display_temperature_register.simulation_mode=mode
+        self.set_temperature_register.simulation_mode=mode
+        self.display_temperature_register_2.simulation_mode=mode
+        self.set_temperature_register_2.simulation_mode=mode
 
     def __str__(self):
         return "{}: \n {} \n {} \n {} \n {}\n".format(
@@ -539,6 +582,9 @@ class HV40W:
         """
         self.hv_voltage_register.get_register_value()
 
+    def set_simulation_mode(self,mode):
+        self.hv_voltage_register.simulation_mode=mode
+
     def __str__(self):
         return "{}: \n {}\n".format(self.name, self.hv_voltage_register)
 
@@ -579,6 +625,9 @@ class DelayLin:
 
         """
         self.error_code_register.get_register_value()
+
+    def set_simulation_mode(self,mode):
+        self.error_code_register.simulation_mode=mode
 
     def __str__(self):
         return "{}: \n {}\n".format(self.name, self.error_code_register)
@@ -645,6 +694,11 @@ class LDCO48BP:
         self.display_temperature_register_2.get_register_value()
         self.display_temperature_register_3.get_register_value()
 
+    def set_simulation_mode(self,mode):
+        self.display_temperature_register.simulation_mode=mode
+        self.display_temperature_register_2.simulation_mode=mode
+        self.display_temperature_register_3.simulation_mode=mode
+
     def __str__(self):
         return "{}: \n {} \n {} \n {}\n".format(
             self.name,
@@ -704,6 +758,10 @@ class M_LDCO48:
         """
         self.display_temperature_register.get_register_value()
         self.display_temperature_register_2.get_register_value()
+
+    def set_simulation_mode(self,mode):
+        self.display_temperature_register.simulation_mode=mode
+        self.display_temperature_register_2.simulation_mode=mode
 
     def __str__(self):
         return "{}: \n {} \n {}\n".format(self.name, self.display_temperature_register,

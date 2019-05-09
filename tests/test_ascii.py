@@ -11,7 +11,7 @@ class TestAsciiSerial:
     def test_parse_reply(self,serial):
         reply = "525nm\r\x03".encode('ascii')
         response = serial.parse_reply(reply)
-        assert response == "525nm"
+        assert response == "525"
 
 
 class TestAsciiRegister:

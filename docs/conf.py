@@ -11,3 +11,6 @@ _g = globals()
 _g.update(build_package_configs(
     project_name='ts_tunablelaser',
     version=get_distribution('ts-tunablelaser').version))
+intersphinx_mapping['ts_salobj']=('http://staff.washington.edu/rowen/ts_salobj/',None)
+extensions.append('sphinxcontrib.confluencebuilder')
+todo_include_todos=False

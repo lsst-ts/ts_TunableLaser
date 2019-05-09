@@ -49,24 +49,20 @@ class LaserComponent:
 
 
     """
-    def __init__(self, port: str, configuration, simulation_mode=False):
+    def __init__(self, simulation_mode=False):
         self.log = logging.getLogger(__name__)
-        if not simulation_mode:
-            self.serial = AsciiSerial(port)
-        else:
-            self.seral = AsciiSerial(None)
-        self.configuration = configuration
+        self.serial = AsciiSerial(None)
         self.CPU8000 = CPU8000(port=self.serial, simulation_mode=simulation_mode)
         self.M_CPU800 = M_CPU800(port=self.serial, simulation_mode=simulation_mode)
         self.llPMKu = llPMKU(port=self.serial, simulation_mode=simulation_mode)
-        self.MaxiOPG = MaxiOPG(port=self.serial, simulation_mode=simulation_mode,
-                               configuration=self.configuration)
+        self.MaxiOPG = MaxiOPG(port=self.serial, simulation_mode=simulation_mode)
         self.TK6 = TK6(port=self.serial, simulation_mode=simulation_mode)
         self.HV40W = HV40W(port=self.serial, simulation_mode=simulation_mode)
         self.DelayLin = DelayLin(port=self.serial, simulation_mode=simulation_mode)
         self.MiniOPG = MiniOPG(port=self.serial, simulation_mode=simulation_mode)
         self.LDCO48BP = LDCO48BP(port=self.serial, simulation_mode=simulation_mode)
         self.M_LDCO48 = M_LDCO48(port=self.serial, simulation_mode=simulation_mode)
+        self.configuration = None
         self.log.info("Laser Component initialized.")
 
     def change_wavelength(self, wavelength):
@@ -159,6 +155,33 @@ class LaserComponent:
         self.DelayLin.publish()
         self.LDCO48BP.publish()
         self.M_LDCO48.publish()
+
+    def set_simulation_mode(self,mode):
+        self.simulation_mode = mode
+        self.CPU8000.set_simulation_mode(mode)
+        self.M_CPU800.set_simulation_mode(mode)
+        self.llPMKu.set_simulation_mode(mode)
+        self.MaxiOPG.set_simulation_mode(mode)
+        self.MiniOPG.set_simulation_mode(mode)
+        self.TK6.set_simulation_mode(mode)
+        self.HV40W.set_simulation_mode(mode)
+        self.DelayLin.set_simulation_mode(mode)
+        self.LDCO48BP.set_simulation_mode(mode)
+        self.M_LDCO48.set_simulation_mode(mode)
+
+    def set_configuration(self):
+        if not self.simulation_mode:
+            self.serial.port=self.configuration.port
+        self.MaxiOPG.wavelength_register.accepted_values=range(self.configuration.wavelength['min'],self.configuration.wavelength['max'])
+        self.MaxiOPG.optical_alignment = self.configuration.optical_configuration
+
+    def disconnect(self):
+        if not self.simulation_mode:
+            self.serial.close()
+
+    def connect(self):
+        if not self.simulation_mode:
+            self.serial.open()
 
     def __str__(self):
         return "{} {} {} {} {} {} {} {} {} {}".format(
