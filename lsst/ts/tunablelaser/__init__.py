@@ -4,4 +4,3 @@ from .ascii import *
 from .component import *
 from .csc import *
 from .hardware import *
-from .settings import *
