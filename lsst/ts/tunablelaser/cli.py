@@ -7,7 +7,10 @@ import asyncio
 
 
 @argh.arg("-ll", "--log-level", choices=['info', 'debug'])
-def start(log_level="info"):
+def start(log_level="info",simulation_mode=0):
+    """
+    Start the tunable laser CSC.
+    """
     log = logging.getLogger()
     ch = logging.StreamHandler()
     fh = logging.handlers.TimedRotatingFileHandler('tunable_laser_csc.log',when='D')
@@ -24,7 +27,7 @@ def start(log_level="info"):
     fh.setFormatter(formatter)
     log.addHandler(fh)
     log.addHandler(ch)
-    laser = LaserCSC()
+    laser = LaserCSC(simulation_mode=simulation_mode)
     sal_log=logging.getLogger(laser.log_name)
     sal_log.setLevel(logging.DEBUG)
     sal_log.addHandler(fh)
@@ -36,7 +39,7 @@ def start(log_level="info"):
         loop.run_until_complete(laser.done_task)
         log.info('Stopping CSC')
     except KeyboardInterrupt as kbe:
-        log.info("Stopping CBP CSC")
+        log.info("Stopping TunableLaser CSC")
         log.exception(kbe)
     except Exception as e:
         log.error(e)

@@ -5,7 +5,6 @@ import logging
 from .hardware import CPU8000, M_CPU800, llPMKU, MaxiOPG, MiniOPG, TK6, HV40W, DelayLin, \
     LDCO48BP, M_LDCO48
 from .ascii import AsciiSerial
-from .settings import laser_configuration
 
 
 class LaserComponent:
@@ -22,7 +21,7 @@ class LaserComponent:
 
     Attributes
     ----------
-    log: logging.Logger
+    log : `logging.Logger`
         Creates a logger for this class.
     serial: `AsciiSerial`
         Creates a serial connection to the laser

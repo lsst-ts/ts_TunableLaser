@@ -8,6 +8,7 @@ from lsst.ts import salobj
 import SALPY_TunableLaser
 import asyncio
 import enum
+import pathlib
 
 
 class LaserDetailedState(enum.IntEnum):
@@ -72,7 +73,11 @@ class LaserCSC(salobj.ConfigurableCsc):
     temperature_topic
 
     """
-    def __init__(self,frequency=1, initial_state=salobj.State.STANDBY,index=None,schema="/home/ecoughlin/gitrepo/ts_laser/schema/TunableLaser.yaml"):
+    def __init__(self,
+            frequency=1, 
+            initial_state=salobj.State.STANDBY,
+            index=None,
+            schema=pathlib.Path(__file__).parents[4].joinpath("schema","TunableLaser.yaml")):
         super().__init__(SALPY_TunableLaser,index,schema)
         self._detailed_state = LaserDetailedState.STANDBYSTATE
         self.model = LaserModel()
@@ -325,14 +330,14 @@ class LaserCSC(salobj.ConfigurableCsc):
                 self.fault(code=LaserErrorCode.timeout_error,report=te.msg)
         self.model.set_output_energy_level("OFF")
 
-    def end_start(self,id_data):
+    async def end_start(self,id_data):
         try:
             self.model.connect()
             self.telemetry_task=asyncio.ensure_future(self.telemetry())
         except Exception as e:
             raise
 
-    def end_standby(self,id_data):
+    async def end_standby(self,id_data):
         try:
             if not self.telemetry_task.done():
                 self.telemetry_task.set_result('done')
@@ -348,8 +353,9 @@ class LaserCSC(salobj.ConfigurableCsc):
             self.fault(code=LaserErrorCode.general_error,report=e.msg)
             raise
 
-    def get_config_pkg(self):
-        return "ts_config_mttcs"
+    @staticmethod
+    def get_config_pkg():
+        return "ts_config_mtcalsys"
 
     async def implement_simulation_mode(self, simulation_mode):
         self.log.debug(simulation_mode)
