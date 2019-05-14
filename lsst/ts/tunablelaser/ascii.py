@@ -12,6 +12,7 @@ contain the bulk of the functionality.
 __all__ = ["AsciiSerial", "AsciiRegister", "AsciiError", "ReadOnlyException"]
 import logging
 import serial
+import random
 
 
 class AsciiSerial(serial.Serial):
@@ -84,7 +85,7 @@ class AsciiSerial(serial.Serial):
         """
         decoded_message = message.decode()
         self.log.debug(f"decoded message is {decoded_message}")
-        stripped_message = decoded_message.strip('\r\n\x03')
+        stripped_message = decoded_message.strip('nmC\r\n\x03')
         self.log.debug(f"stripped message is {stripped_message}")
         if stripped_message.startswith("'''"):
             self.log.error(f"Port returned {stripped_message}")
@@ -208,13 +209,14 @@ class AsciiRegister:
         None
 
         """
-        if not self.simulation_mode:
+        if self.simulation_mode == False:
             message = self.create_get_message()
             self.register_value = self.port.perform_magic(message)
             if self.register_value == None:
                 raise TimeoutError
         else:
-            pass
+            if self.accepted_values is None and self.read_only:
+                self.register_value=random.uniform(17.8,18.2)
 
     def set_register_value(self, set_value):
         """Sets the value of the register provided the register is not read only.
@@ -234,7 +236,7 @@ class AsciiRegister:
 
         """
         if not self.read_only:
-            if not self.simulation_mode:
+            if self.simulation_mode==False:
                 try:
                     message = self.create_set_message(set_value)
                     self.log.debug("sending message to serial port.")

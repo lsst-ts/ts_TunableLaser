@@ -5,7 +5,7 @@ import pytest
 class TestLaserComponent:
     @pytest.fixture(scope="class")
     def lc(self):
-        lc = LaserComponent(None,laser_configuration())
+        lc = LaserComponent()
         lc.serial = Mock()
         return lc
 

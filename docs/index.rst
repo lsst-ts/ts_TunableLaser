@@ -3,6 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
+.. py:currentmodule:: lsst.ts.tunablelaser
+
 ^^^^^^^^^^^^^
 lsst.ts.laser
 ^^^^^^^^^^^^^
@@ -10,10 +12,10 @@ lsst.ts.laser
 
 .. toctree::
    :maxdepth: 2
-   :caption: Guides:
 
    guides/index
+   cli
 
 
-.. automodapi:: lsst.ts.laser
+.. automodapi:: lsst.ts.tunablelaser
    :no-inheritance-diagram:
