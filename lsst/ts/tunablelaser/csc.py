@@ -345,7 +345,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         except Exception as e:
             raise
 
-    def configure(self,config):
+    async def configure(self,config):
         try:
             self.log.debug(config)
             self.model.set_configuration(config)
