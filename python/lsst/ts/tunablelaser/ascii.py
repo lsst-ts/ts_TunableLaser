@@ -1,12 +1,12 @@
 """Implements Ascii helper classes for the TunableLaser.
 
-These classes are meant to aid in developing a python wrapper around the ascii spec used by Ekspla to
-communicate with the TunableLaser.
+These classes are meant to aid in developing a python wrapper around the ascii
+spec used by Ekspla to communicate with the TunableLaser.
 
 Notes
 -----
-The most important classes are the :class:`AsciiSerial` class and the :class:`AsciiRegister` class as they
-contain the bulk of the functionality.
+The most important classes are the :class:`AsciiSerial` class and the
+:class:`AsciiRegister` class as they contain the bulk of the functionality.
 
 """
 __all__ = ["AsciiSerial", "AsciiRegister", "AsciiError", "ReadOnlyException"]
@@ -16,39 +16,40 @@ import random
 
 
 class AsciiSerial(serial.Serial):
-    """A class which inherits serial.Serial in order to provide helper functions for communication handling
-    with the laser.
+    """A class which inherits serial.Serial in order to provide helper
+    functions for communication handling with the laser.
 
-    This class extends the class :class:`serial.Serial` in order to provide helper methods in order to parse
-    the expected reply and then return the reply for handling by :class:`AsciiRegister`.
+    This class extends the class :class:`serial.Serial` in order to provide
+    helper methods in order to parse the expected reply and then return the
+    reply for handling by :class:`AsciiRegister`.
 
     Parameters
     ----------
-    port: str
-    timeout: 5
+    port : str
+    timeout : int
         The amount of time to wait before reporting the port as timed out.
 
     Attributes
     ----------
-    log: logging.Logger
+    log : logging.Logger
 
     """
-    def __init__(self, port, timeout=5,num_of_tries=3):
+    def __init__(self, port, timeout=5, num_of_tries=3):
         super(AsciiSerial, self).__init__(port, baudrate=19200, timeout=timeout)
         self.log = logging.getLogger(__name__)
         self.num_of_tries = num_of_tries
 
     def perform_magic(self, message):
-        """Writes the message to the serial port, parses the reply and then returns it for processing by
-        :class:`AsciiRegister`.
+        """Writes the message to the serial port, parses the reply and then
+        returns it for processing by :class:`AsciiRegister`.
 
         Parameters
         ----------
-        message: bytearray
+        message : bytearray
 
         Returns
         -------
-        reply: str
+        reply : str
             The parsed reply returned by :meth:`parse_reply`.
 
         """
@@ -58,7 +59,7 @@ class AsciiSerial(serial.Serial):
                 reply = self.parse_reply(self.read_until(b"\x03"))
             except TimeoutError as te:
                 reply = None
-                self.clear()
+                self.flush()
                 self.log.exception(te)
             except Exception as e:
                 self.log.exception(e)
@@ -71,7 +72,7 @@ class AsciiSerial(serial.Serial):
 
         Parameters
         ----------
-        message: bytearray
+        message : bytearray
 
         Raises
         ------
@@ -80,7 +81,7 @@ class AsciiSerial(serial.Serial):
 
         Returns
         -------
-        stripped_message: str
+        stripped_message : str
 
         """
         decoded_message = message.decode()
@@ -96,49 +97,55 @@ class AsciiSerial(serial.Serial):
 class AsciiRegister:
     """A representation of an Ascii register inside of a module of the laser.
 
-    The class corresponds to a register within a module of a laser. A register can be read only or writable.
-    If it is read only, then the accepted_values do not matter in this case, but if it is writable then the
-    accepted_values do matter. The simulation_mode has not been implemented at this time.
+    The class corresponds to a register within a module of a laser. A register
+    can be read only or writable.
+    If it is read only, then the accepted_values do not matter in this case,
+    but if it is writable then the accepted_values do matter.
+    The simulation_mode has not been implemented at this time.
 
     Parameters
     ----------
-    port: AsciiSerial
-        A serial port that writes and reads from the TunableLaser converter module.
-    module_name: str
+    port : AsciiSerial
+        A serial port that writes and reads from the TunableLaser converter
+        module.
+    module_name : str
         The name of the module that is the parent of the register.
-    module_id: int
+    module_id : int
         The id of the module that is the parent of the register.
-    register_name: str
+    register_name : str
         The name of the register.
-    read_only: bool, optional
+    read_only : bool, optional
         Whether the register is read only or writable.
-    accepted_values: Optional[List[int,str]], optional
-        If read_only is set to true then this parameter can be None. If not, this parameter must contain a
-        list of values accepted by this register and can be of int or str.
-    simulation_mode: bool, optional
-        A bool representing whether the register is in simulation mode or not. Currently is not implemented.
+    accepted_values : Optional[List[int,str]], optional
+        If read_only is set to true then this parameter can be None. If not,
+        this parameter must contain a list of values accepted by this
+        register and can be of int or str.
+    simulation_mode : bool, optional
+        A bool representing whether the register is in simulation mode or not.
+        Currently is not implemented.
 
     Attributes
     ----------
-    log: logging.Logger
+    log : logging.Logger
         The log for this class.
-    port: AsciiSerial
+    port : AsciiSerial
         A serial port for communicating with the TunableLaser.
-    module_name: str
+    module_name : str
         The name of the module that is the parent of the register.
-    module_id: int
+    module_id : int
         The id of the module that is the parent of the register.
-    register_name: str
+    register_name : str
         The name of the register.
-    read_only: bool
+    read_only : bool
         Whether the register is read only or writable.
-    accepted_values: list
-        If read_only is set to true then this parameter can be None. If not, this parameter must contain a
-        list of values accepted by this register and can be of int or str.
-    simulation_mode: bool
-        A bool representing whether the register is in simulation mode or not. Currently has a basic
-        implementation.
-    register_value: str
+    accepted_values : list
+        If read_only is set to true then this parameter can be None.
+        If not, this parameter must contain a list of values accepted by this
+        register and can be of int or str.
+    simulation_mode : bool
+        A bool representing whether the register is in simulation mode or not.
+        Currently has a basic implementation.
+    register_value : str
         The value of the register as gotten by :meth:`get_register_value`.
 
     """
@@ -170,32 +177,34 @@ class AsciiRegister:
         return get_message
 
     def create_set_message(self, set_value):
-        """Creates the message that sets the value of the register provided that it is not read only.
+        """Creates the message that sets the value of the register provided
+        that it is not read only.
 
         Parameters
         ----------
-        set_value: Any
+        set_value : Any
 
         Raises
         ------
         ReadOnlyException
             Indicates that the register is read only.
         ValueError
-            Indicates that the value received is not in the acceptable values for the register.
+            Indicates that the value received is not in the acceptable values
+            for the register.
 
         Returns
         -------
-        set_message: bytearray
+        set_message : bytearray
 
         """
         if not self.read_only:
-            if set_value in self.accepted_values:
+            if self.accepted_values is None:
+                raise AttributeError("self.accepted_values must be defined.")
+            elif set_value in self.accepted_values:
                 set_message = "/{0}/{1}/{2}/{3}\r".format(
                     self.module_name, self.module_id, self.register_name, set_value).encode('ascii')
                 self.log.debug(f"{set_message}")
                 return set_message
-            elif self.accepted_values is None:
-                raise AttributeError("self.accepted_values must be defined.")
             else:
                 raise ValueError("{1} not in {0}".format(self.accepted_values, set_value))
         else:
@@ -209,21 +218,22 @@ class AsciiRegister:
         None
 
         """
-        if self.simulation_mode == False:
+        if self.simulation_mode is False:
             message = self.create_get_message()
             self.register_value = self.port.perform_magic(message)
-            if self.register_value == None:
+            if self.register_value is None:
                 raise TimeoutError
         else:
-            if self.accepted_values is None and self.read_only:
-                self.register_value=random.uniform(17.8,18.2)
+            if self.accepted_values is None and self.read_only is False:
+                self.register_value = random.uniform(17.8, 18.2)
 
     def set_register_value(self, set_value):
-        """Sets the value of the register provided the register is not read only.
+        """Sets the value of the register provided the register is not read
+        only.
 
         Parameters
         ----------
-        set_value: Any
+        set_value : Any
 
         Raises
         ------
@@ -236,14 +246,14 @@ class AsciiRegister:
 
         """
         if not self.read_only:
-            if self.simulation_mode==False:
+            if self.simulation_mode is False:
                 try:
                     message = self.create_set_message(set_value)
                     self.log.debug("sending message to serial port.")
                     self.port.perform_magic(message)
                 except TimeoutError as te:
                     self.log.exception(te)
-                    raise 
+                    raise
             else:
                 self.register_value = set_value
         else:

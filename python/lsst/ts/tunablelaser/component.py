@@ -2,8 +2,8 @@
 
 """
 import logging
-from .hardware import CPU8000, M_CPU800, llPMKU, MaxiOPG, MiniOPG, TK6, HV40W, DelayLin, \
-    LDCO48BP, M_LDCO48
+from .hardware import CPU8000, MCPU800, LLPMKU, MaxiOPG, MiniOPG, TK6, HV40W, DelayLin, \
+    LDCO48BP, MLDCO48
 from .ascii import AsciiSerial
 
 
@@ -17,33 +17,34 @@ class LaserComponent:
     configuration: dict
         A dict that is created from :func:`laser_configuration`
     simulation_mode: bool
-        A flag which tells the component to initialize into simulation mode or not.
+        A flag which tells the component to initialize into simulation mode or
+        not.
 
     Attributes
     ----------
     log : `logging.Logger`
         Creates a logger for this class.
-    serial: `AsciiSerial`
+    serial : `AsciiSerial`
         Creates a serial connection to the laser
-    CPU8000: `CPU8000`
+    CPU8000 : `CPU8000`
         Controls the CPU8000 :term:`module`.
-    M_CPU800: `M_CPU800`
+    M_CPU800 : `M_CPU800`
         Controls the M_CPU800 module.
-    llPMKu: `llPMKU`
+    llPMKu : `llPMKU`
         Controls the llPKMu module.
-    MaxiOPG: `MaxiOPG`
+    MaxiOPG : `MaxiOPG`
         Controls the MaxiOPG module.
-    TK6: `TK6`
+    TK6 : `TK6`
         Controls the TK6 module.
-    HV40W: `HV40W`
+    HV40W : `HV40W`
         Controls the HV40W module.
-    DelayLin: `DelayLin`
+    DelayLin : `DelayLin`
         Controls the DelayLin module.
-    MiniOPG: `MiniOPG`
+    MiniOPG : `MiniOPG`
         Controls the MiniOPG module.
-    LDCO48BP: `LDCO48BP`
+    LDCO48BP : `LDCO48BP`
         Controls the LDCO48BP module.
-    M_LDCO48: `M_LDCO48`
+    M_LDCO48 : `M_LDCO48`
         Controls the LDCO48 module.
 
 
@@ -52,15 +53,15 @@ class LaserComponent:
         self.log = logging.getLogger(__name__)
         self.serial = AsciiSerial(None)
         self.CPU8000 = CPU8000(port=self.serial, simulation_mode=simulation_mode)
-        self.M_CPU800 = M_CPU800(port=self.serial, simulation_mode=simulation_mode)
-        self.llPMKu = llPMKU(port=self.serial, simulation_mode=simulation_mode)
+        self.M_CPU800 = MCPU800(port=self.serial, simulation_mode=simulation_mode)
+        self.llPMKu = LLPMKU(port=self.serial, simulation_mode=simulation_mode)
         self.MaxiOPG = MaxiOPG(port=self.serial, simulation_mode=simulation_mode)
         self.TK6 = TK6(port=self.serial, simulation_mode=simulation_mode)
         self.HV40W = HV40W(port=self.serial, simulation_mode=simulation_mode)
         self.DelayLin = DelayLin(port=self.serial, simulation_mode=simulation_mode)
         self.MiniOPG = MiniOPG(port=self.serial, simulation_mode=simulation_mode)
         self.LDCO48BP = LDCO48BP(port=self.serial, simulation_mode=simulation_mode)
-        self.M_LDCO48 = M_LDCO48(port=self.serial, simulation_mode=simulation_mode)
+        self.M_LDCO48 = MLDCO48(port=self.serial, simulation_mode=simulation_mode)
         self.configuration = None
         self.log.info("Laser Component initialized.")
 
@@ -69,10 +70,10 @@ class LaserComponent:
 
         Parameters
         ----------
-        wavelength: float
+        wavelength : float
             The wavelength to change to.
-            
-            * Units: nanometers
+
+            :Units: nanometers
 
         Returns
         -------
@@ -85,9 +86,9 @@ class LaserComponent:
 
         Parameters
         ----------
-        output_energy_level: str, {OFF,Adjust,MAX}
+        output_energy_level : str, {OFF,Adjust,MAX}
             The energy level to set the laser to.
-            
+
             * OFF: Output energy is off.
             * Adjust: A mode for calibrating the laser.
             * MAX: The maximum energy output of the laser.
@@ -136,9 +137,9 @@ class LaserComponent:
 
         Notes
         -----
-        This method is designed for integrating with the CSC class and so serves as a auxiliary to 
-        "publish" to the CSC :meth:`publish` the updated values of the component. Hence why it is called 
-        publish.
+        This method is designed for integrating with the CSC class and so
+        serves as a auxiliary to "publish" to the CSC :meth:`publish` the
+        updated values of the component. Hence why it is called publish.
 
         Returns
         -------
@@ -155,7 +156,7 @@ class LaserComponent:
         self.LDCO48BP.publish()
         self.M_LDCO48.publish()
 
-    def set_simulation_mode(self,mode):
+    def set_simulation_mode(self, mode):
         self.simulation_mode = mode
         self.CPU8000.set_simulation_mode(mode)
         self.M_CPU800.set_simulation_mode(mode)
@@ -170,8 +171,9 @@ class LaserComponent:
 
     def set_configuration(self):
         if not self.simulation_mode:
-            self.serial.port=self.configuration.port
-        self.MaxiOPG.wavelength_register.accepted_values=range(self.configuration.wavelength['min'],self.configuration.wavelength['max'])
+            self.serial.port = self.configuration.port
+        self.MaxiOPG.wavelength_register.accepted_values = range(self.configuration.wavelength['min'],
+                                                                 self.configuration.wavelength['max'])
         self.MaxiOPG.optical_alignment = self.configuration.optical_configuration
 
     def disconnect(self):
@@ -195,23 +197,3 @@ class LaserComponent:
             self.LDCO48BP,
             self.M_LDCO48
         )
-
-
-def main():
-    logging.basicConfig(level=logging.DEBUG)
-    lc = LaserComponent("/dev/ttyACM0", configuration=laser_configuration())
-    lc.publish()
-    print(lc)
-    lc.change_wavelength(626)
-    lc.publish()
-    print(lc)
-    lc.MaxiOPG.set_configuration("No SCU")
-    lc.publish()
-    print(lc)
-    lc.MaxiOPG.set_configuration("Bob")
-    lc.publish()
-    print(lc)
-
-
-if __name__ == '__main__':
-    main()

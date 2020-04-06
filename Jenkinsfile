@@ -3,55 +3,38 @@
 pipeline {
 
     agent {
-        // Use the docker to configure the docker image by default it will pull from dockerhub.
         docker {
-            image 'lsstts/tunablelaser:2019_3_8'
-            args '-u root'
+            image 'lsstts/develop-env:b45'
+            args "-u root --entrypoint=''"
         }
     }
 
     environment {
-        // Use the double quote instead of single quote
-        // XML report path
-	PYTHONPATH="${env.WORKSPACE}"
         XML_REPORT="jenkinsReport/report.xml"
+        MODULE_NAME="lsst.ts.tunablelaser"
     }
 
     stages {
         stage ('Install Requirements') {
             steps {
-                // When using the docker container, we need to change
-                // the HOME path to WORKSPACE to have the authority
-                // to install the packages.
                 withEnv(["HOME=${env.WORKSPACE}"]) {
                     sh """
-			source /opt/rh/devtoolset-6/enable
-                        source /opt/lsst/lsst_stack/loadLSST.bash
-                        source /home/lsst/gitrepo/ts_sal/setup.env
-                        setup sconsUtils 16.0
-                        setup ts_salobj 3.8.0
-                        pip install --user -r requirements-dev.txt .
-		    """
+                        source /home/saluser/.setup.sh
+                        pip install pyserial
+                        make_idl_files.py TunableLaser
+                    """
                 }
             }
         }
 
-        stage('Unit Tests with Coverage') {
+            
+        stage ('Unit Tests and Coverage Analysis') {
             steps {
-                // Direct the HOME to WORKSPACE for pip to get the
-                // installed library.
-                // 'PATH' can only be updated in a single shell block.
-                // We can not update PATH in 'environment' block.
-                // Pytest needs to export the junit report.
                 withEnv(["HOME=${env.WORKSPACE}"]) {
                     sh """
-			source /opt/rh/devtoolset-6/enable
-                        source /opt/lsst/lsst_stack/loadLSST.bash
-                        source /home/lsst/gitrepo/ts_sal/setup.env
-                        setup sconsUtils 16.0
-                        setup ts_salobj 3.8.0
-                        export PATH=$PATH:${env.WORKSPACE}/.local/bin
-                        pytest --cov-report html --cov=lsst.ts.laser --junitxml=${env.WORKSPACE}/${env.XML_REPORT} ${env.WORKSPACE}/tests
+                        source /home/saluser/.setup.sh
+                        setup -kr .
+                        pytest --cov-report html --cov=${env.MODULE_NAME} --junitxml=${env.XML_REPORT}
                     """
                 }
             }
@@ -60,19 +43,21 @@ pipeline {
 
     post {
         always {
-            // The path of xml needed by JUnit is relative to
-            // the workspace.
+            withEnv(["HOME=${env.WORKSPACE}"]) {
+                sh 'chown -R 1003:1003 ${HOME}/'
+            }
             junit 'jenkinsReport/*.xml'
-
-            // Publish the HTML report
-            publishHTML (target: [
+            publishHTML (target:[
                 allowMissing: false,
                 alwaysLinkToLastBuild: false,
                 keepAll: true,
                 reportDir: 'htmlcov',
                 reportFiles: 'index.html',
                 reportName: "Coverage Report"
-              ])
+            ])
+        }
+
+        cleanup {
             deleteDir()
         }
     }
