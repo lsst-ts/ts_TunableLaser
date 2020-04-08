@@ -5,37 +5,8 @@ import traceback
 from .component import LaserComponent
 from lsst.ts import salobj
 import asyncio
-import enum
 import pathlib
-
-
-class LaserDetailedState(enum.IntEnum):
-    """An enumeration class for handling the TunableLaser's substates.
-
-    These enumerations listed here correspond to the ones found in the
-    detailedState enum located in ts_xml under the TunableLaser folder within
-    the TunableLaser_Events.xml.
-
-    Attributes
-    ----------
-
-    NONPROPAGATING : `int`
-        Corresponds to the nonpropgating state.
-    PROPAGATINGSTATE : `int`
-        Corresponds to the propagating state.
-
-    """
-    NONPROPAGATING = 1
-    PROPAGATING = 2
-
-
-class LaserErrorCode(enum.IntEnum):
-    """Laser error codes
-    """
-    ascii_error = 7301
-    general_error = 7302
-    timeout_error = 7303
-    hw_cpu_error = 7304
+from lsst.ts.idl.enums import TunableLaser
 
 
 class LaserCSC(salobj.ConfigurableCsc):
@@ -63,9 +34,10 @@ class LaserCSC(salobj.ConfigurableCsc):
         super().__init__(name="TunableLaser", index=index, schema_path=schema_path, config_dir=config_dir,
                          initial_state=initial_state, initial_simulation_mode=initial_simulation_mode)
         self.model = LaserComponent()
+        self.evt_detailedState.set_put(detailedState=TunableLaser.DetailedState.NONPROPAGATING)
 
     async def telemetry(self):
-        """Sends out the TunableLaser's telemetry.
+        """Send out the TunableLaser's telemetry.
 
         """
         try:
@@ -76,16 +48,16 @@ class LaserCSC(salobj.ConfigurableCsc):
                     except TimeoutError as te:
                         self.fault()
                         self.evt_errorCode.set_put(
-                            errorCode=LaserErrorCode.timeout_error,
+                            errorCode=TunableLaser.LaserErrorCode.timeout_error,
                             errorReport=te.msg,
                             traceback=traceback.format_exc())
-                    if (self.model._laser.CPU8000.power_register.register_value == "FAULT" or
-                        self.model._laser.M_CPU800.power_register.register_value == "FAULT" or
-                        self.model._laser.M_CPU800.power_register_2.register_value == "FAULT") \
+                    if (self.model._laser.CPU8000.power_register.register_value == "FAULT"
+                        or self.model._laser.M_CPU800.power_register.register_value == "FAULT"
+                        or self.model._laser.M_CPU800.power_register_2.register_value == "FAULT") \
                        and self.summary_state is not salobj.State.FAULT:
                         self.fault()
                         self.evt_errorCode.set_put(
-                            errorCode=LaserErrorCode.hw_cpu_error,
+                            errorCode=TunableLaser.LaserErrorCode.hw_cpu_error,
                             errorReport=f"Code:{self._laser.CPU8000.fault_register.fault}"
                             f" Code:{self._laser.M_CPU800.fault_register.fault}"
                             f" Code:{self._laser.M_CPU800.fault_register_2.fault}",
@@ -113,16 +85,15 @@ class LaserCSC(salobj.ConfigurableCsc):
                         self.tel_temperature.put(self.temperature_topic)
                 await asyncio.sleep(self.frequency)
         except Exception as e:
-            self.log.exception(e)
             self.evt_errorCode.set_put(
                 errorCode=2,
                 errorReport=e.msg,
                 traceback=traceback.format_exc())
             if self.summary_state is not salobj.State.FAULT:
-                self.fault()
+                self.fault(code=TunableLaser.LaserErrorCode.hw_cpu_error, reason=f"Problem with hardware.")
 
     def assert_substate(self, substates, action):
-        """Asserts that the action is happening while in the PropagatingState.
+        """Assert that the action is happening while in the PropagatingState.
 
         Parameters
         ----------
@@ -134,7 +105,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         salobj.ExpectedError
 
         """
-        if self.detailed_state not in [LaserDetailedState(substate) for substate in substates]:
+        if self.detailed_state not in [TunableLaser.LaserDetailedState(substate) for substate in substates]:
             raise salobj.ExpectedError(f"{action} not allowed in state {self.detailed_state!r}")
 
     async def handle_summary_state(self):
@@ -142,153 +113,148 @@ class LaserCSC(salobj.ConfigurableCsc):
             pass
 
     async def do_changeWavelength(self, data):
-        """Changes the wavelength of the laser.
+        """Change the wavelength of the laser.
 
         Parameters
         ----------
-        id_data
-
-        Returns
-        -------
-
+        data
         """
         self.assert_enabled("changeWavelength")
         try:
             self.model.change_wavelength(data.wavelength)
         except TimeoutError as te:
-            self.fault(code=LaserErrorCode.timeout_error, msg=te.msg)
+            self.fault(code=TunableLaser.LaserErrorCode.timeout_error, msg=te.msg)
         except Exception as e:
             self.evt_errorCode(
-                errorCode=LaserErrorCode.general_error,
+                errorCode=TunableLaser.LaserErrorCode.general_error,
                 errorReport=e.msg,
                 traceback=traceback.format_exc())
         self.evt_wavelengthChanged.set_put(wavelength=data.wavelength)
 
     async def do_startPropagateLaser(self, data):
-        """Changes the state to the Propagating State of the laser.
+        """Change the state to the Propagating State of the laser.
 
         Parameters
         ----------
-        id_data
-
-        Returns
-        -------
-
+        data
         """
         self.assert_enabled("startPropagateLaser")
         try:
             self.model.run()
-        except Exception:
-            raise
-        self.detailed_state = LaserDetailedState.PROPAGATINGSTATE
+        except Exception as e:
+            self.evt_errorCode(
+                errorCode=TunableLaser.LaserErrorCode.general_error,
+                errorReport=e.msg,
+                traceback=traceback.format_exc()
+            )
+        self.detailed_state = TunableLaser.LaserDetailedState.PROPAGATINGSTATE
 
     async def do_stopPropagateLaser(self, data):
-        """Stops the Propagating State of the laser.
+        """Stop the Propagating State of the laser.
 
         Parameters
         ----------
-        id_data
-
-        Returns
-        -------
-
+        data
         """
         self.assert_enabled("stopPropagateLaser")
-        self.assert_substate([LaserDetailedState.PROPAGATING], "stopPropagateLaser")
+        self.assert_substate([TunableLaser.LaserDetailedState.PROPAGATING], "stopPropagateLaser")
         try:
             self.model.stop()
-        except Exception:
-            raise
-        self.detailed_state = LaserDetailedState.ENABLEDSTATE
+        except Exception as e:
+            self.evt_errorCode(
+                errorCode=TunableLaser.LaserErrorCode.general_error,
+                errorReport=e.msg,
+                traceback=traceback.format_exc()
+            )
+        self.detailed_state = TunableLaser.LaserDetailedState.ENABLEDSTATE
 
     async def do_clearFaultState(self, data):
-        """Clears the fault state of the laser by turning the power register
+        """Clear the fault state of the laser by turning the power register
         off.
 
         Parameters
         ----------
-        id_data
-
-        Returns
-        -------
-
+        data
         """
         self.model.clear_fault()
 
     @property
     def detailed_state(self):
-        """Returns the current substate of the laser and when it changes
+        """Return the current substate of the laser and when it changes
         publishes an event.
         """
-        return self._detailed_state
+        return TunableLaser.LaserDetailedState(self.evt_detailedState.data.detailedState)
 
     @detailed_state.setter
     def detailed_state(self, new_sub_state):
-        self._detailed_state = LaserDetailedState(new_sub_state)
-        self.report_detailed_state()
-
-    def report_detailed_state(self):
-        self.evt_detailedState.set_put(detailedState=self.detailed_state)
+        new_sub_state = TunableLaser.LaserDetailedState(new_sub_state)
+        self.evt_detailedState.set_put(detailedState=new_sub_state)
 
     async def begin_enable(self, data):
-        """A temporary hook that sets up the laser for propagation so that it
+        """A hook that sets up the laser for propagation so that it
         is ready to go.
 
         Parameters
         ----------
-        id_data
-
-        Returns
-        -------
-
+        data
         """
         try:
             self.model._laser.MaxiOPG.set_configuration(self.model.csc_configuration.optical_configuration)
             self.model._laser.set_output_energy_level("MAX")
         except TimeoutError as te:
-            self.fault(code=LaserErrorCode.timeout_error, report=te.msg)
+            self.fault(code=TunableLaser.LaserErrorCode.timeout_error, report=te.msg)
 
     async def begin_disable(self, data):
         """
 
         Parameters
         ----------
-        id_data
-
-        Returns
-        -------
-
+        data
         """
         if self.model._laser.M_CPU800.power_register_2.register_value == "ON":
             try:
                 self.model.stop()
-                self.detailed_state = LaserDetailedState(LaserDetailedState.ENABLEDSTATE)
+                self.detailed_state = TunableLaser.LaserDetailedState(
+                    TunableLaser.LaserDetailedState.ENABLEDSTATE)
             except TimeoutError as te:
-                self.fault(code=LaserErrorCode.timeout_error, report=te.msg)
+                self.fault(code=TunableLaser.LaserErrorCode.timeout_error, report=te.msg)
         self.model.set_output_energy_level("OFF")
 
     async def end_start(self, data):
         try:
             self.model.connect()
             self.telemetry_task = asyncio.ensure_future(self.telemetry())
-        except Exception:
-            raise
+        except Exception as e:
+            self.evt_errorCode(
+                errorCode=TunableLaser.LaserErrorCode.general_error,
+                errorReport=e.msg,
+                traceback=traceback.format_exc()
+            )
 
     async def end_standby(self, data):
         try:
             if not self.telemetry_task.done():
                 self.telemetry_task.set_result('done')
             self.model.disconnect()
-        except Exception:
-            raise
+        except Exception as e:
+            self.evt_errorCode(
+                errorCode=TunableLaser.LaserErrorCode.general_error,
+                errorReport=e.msg,
+                traceback=traceback.format_exc()
+            )
 
     async def configure(self, config):
         try:
-            self.log.debug(config)
+            self.log.debug(f"config={config}")
             self.model.set_configuration(config)
         except Exception as e:
-            self.fault(code=LaserErrorCode.general_error, report=e.msg)
-            raise
+            self.log.exception("set_configuration failed.")
+            self.fault(code=TunableLaser.LaserErrorCode.general_error, report=e.msg)
+            self.evt_errorCode(
+                errorCode=TunableLaser.LaserErrorCode.general_error,
+                errorReport=e.msg,
+                traceback=traceback.format_exc()
+            )
 
     @staticmethod
     def get_config_pkg():

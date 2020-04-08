@@ -21,6 +21,7 @@ pipeline {
                     sh """
                         source /home/saluser/.setup.sh
                         pip install pyserial
+                        cd /home/saluser/repos/ts_idl && git fetch && git checkout tickets/DM-23773
                         make_idl_files.py TunableLaser
                     """
                 }

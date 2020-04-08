@@ -2,9 +2,8 @@
 
 """
 import logging
-from .hardware import CPU8000, MCPU800, LLPMKU, MaxiOPG, MiniOPG, TK6, HV40W, DelayLin, \
-    LDCO48BP, MLDCO48
-from .ascii import AsciiSerial
+from . import hardware
+from .ascii import SerialCommander
 
 
 class LaserComponent:
@@ -12,118 +11,97 @@ class LaserComponent:
 
     Parameters
     ----------
-    port: str
+    port: `str`
         The name of the USB port that the laser connection is located.
-    configuration: dict
+    configuration: `dict`
         A dict that is created from :func:`laser_configuration`
-    simulation_mode: bool
+    simulation_mode: `bool`
         A flag which tells the component to initialize into simulation mode or
         not.
 
     Attributes
     ----------
     log : `logging.Logger`
-        Creates a logger for this class.
+        logger for this class.
     serial : `AsciiSerial`
-        Creates a serial connection to the laser
+        serial connection to the laser
     CPU8000 : `CPU8000`
-        Controls the CPU8000 :term:`module`.
+        Controls the CPU8000 laser :term:`module`.
     M_CPU800 : `M_CPU800`
-        Controls the M_CPU800 module.
+        Controls the M_CPU800 laser module.
     llPMKu : `llPMKU`
-        Controls the llPKMu module.
+        Controls the llPKMu laser module.
     MaxiOPG : `MaxiOPG`
-        Controls the MaxiOPG module.
+        Controls the MaxiOPG laser module.
     TK6 : `TK6`
-        Controls the TK6 module.
+        Controls the TK6 laser module.
     HV40W : `HV40W`
-        Controls the HV40W module.
+        Controls the HV40W laser module.
     DelayLin : `DelayLin`
-        Controls the DelayLin module.
+        Controls the DelayLin laser module.
     MiniOPG : `MiniOPG`
-        Controls the MiniOPG module.
+        Controls the MiniOPG laser module.
     LDCO48BP : `LDCO48BP`
-        Controls the LDCO48BP module.
+        Controls the LDCO48BP laser module.
     M_LDCO48 : `M_LDCO48`
-        Controls the LDCO48 module.
+        Controls the LDCO48 laser module.
 
 
     """
     def __init__(self, simulation_mode=False):
         self.log = logging.getLogger(__name__)
-        self.serial = AsciiSerial(None)
-        self.CPU8000 = CPU8000(port=self.serial, simulation_mode=simulation_mode)
-        self.M_CPU800 = MCPU800(port=self.serial, simulation_mode=simulation_mode)
-        self.llPMKu = LLPMKU(port=self.serial, simulation_mode=simulation_mode)
-        self.MaxiOPG = MaxiOPG(port=self.serial, simulation_mode=simulation_mode)
-        self.TK6 = TK6(port=self.serial, simulation_mode=simulation_mode)
-        self.HV40W = HV40W(port=self.serial, simulation_mode=simulation_mode)
-        self.DelayLin = DelayLin(port=self.serial, simulation_mode=simulation_mode)
-        self.MiniOPG = MiniOPG(port=self.serial, simulation_mode=simulation_mode)
-        self.LDCO48BP = LDCO48BP(port=self.serial, simulation_mode=simulation_mode)
-        self.M_LDCO48 = MLDCO48(port=self.serial, simulation_mode=simulation_mode)
+        self.serial = SerialCommander(None)
+        self.CPU8000 = hardware.CPU8000(port=self.serial, simulation_mode=simulation_mode)
+        self.M_CPU800 = hardware.MCPU800(port=self.serial, simulation_mode=simulation_mode)
+        self.llPMKu = hardware.LLPMKU(port=self.serial, simulation_mode=simulation_mode)
+        self.MaxiOPG = hardware.MaxiOPG(port=self.serial, simulation_mode=simulation_mode)
+        self.TK6 = hardware.TK6(port=self.serial, simulation_mode=simulation_mode)
+        self.HV40W = hardware.HV40W(port=self.serial, simulation_mode=simulation_mode)
+        self.DelayLin = hardware.DelayLin(port=self.serial, simulation_mode=simulation_mode)
+        self.MiniOPG = hardware.MiniOPG(port=self.serial, simulation_mode=simulation_mode)
+        self.LDCO48BP = hardware.LDCO48BP(port=self.serial, simulation_mode=simulation_mode)
+        self.M_LDCO48 = hardware.MLDCO48(port=self.serial, simulation_mode=simulation_mode)
         self.configuration = None
         self.log.info("Laser Component initialized.")
 
     def change_wavelength(self, wavelength):
-        """Changes the wavelength of the laser.
+        """Change the wavelength of the laser.
 
         Parameters
         ----------
-        wavelength : float
+        wavelength : `float`
             The wavelength to change to.
 
             :Units: nanometers
-
-        Returns
-        -------
-        None
         """
         self.MaxiOPG.change_wavelength(wavelength)
 
     def set_output_energy_level(self, output_energy_level):
-        """Sets the output energy level of the laser.
+        """Set the output energy level of the laser.
 
         Parameters
         ----------
-        output_energy_level : str, {OFF,Adjust,MAX}
+        output_energy_level : `str`, {OFF,Adjust,MAX}
             The energy level to set the laser to.
 
             * OFF: Output energy is off.
             * Adjust: A mode for calibrating the laser.
             * MAX: The maximum energy output of the laser.
-
-        Returns
-        -------
-        None
         """
         self.M_CPU800.set_output_energy_level(output_energy_level)
 
     def start_propagating(self):
-        """Starts propagating the beam of the laser.
-
-        Returns
-        -------
-        None
-
+        """Start propagating the beam of the laser.
         """
         self.M_CPU800.start_propagating()
 
     def stop_propagating(self):
-        """Stops propagating the beam of the laser
-
-        Returns
-        -------
-        None
+        """Stop propagating the beam of the laser
         """
         self.M_CPU800.stop_propagating()
 
     def clear_fault(self):
-        """Clears the fault state of the laser.
-
-        Returns
-        -------
-
+        """Clear the fault state of the laser.
         """
         if self.CPU8000.power_register.register_value == "FAULT":
             self.CPU8000.power_register.set_register_value("OFF")
@@ -133,17 +111,13 @@ class LaserComponent:
             self.M_CPU800.power_register_2.set_register_value("OFF")
 
     def publish(self):
-        """Publishes the module's registers' values.
+        """Publish the module's registers' values.
 
         Notes
         -----
         This method is designed for integrating with the CSC class and so
         serves as a auxiliary to "publish" to the CSC :meth:`publish` the
         updated values of the component. Hence why it is called publish.
-
-        Returns
-        -------
-        None
         """
         self.CPU8000.publish()
         self.M_CPU800.publish()

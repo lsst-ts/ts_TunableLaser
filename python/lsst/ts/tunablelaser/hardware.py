@@ -17,13 +17,14 @@ from .ascii import AsciiRegister
 
 
 class CPU8000:
-    """
+    """A module for the laser.
+
     Parameters
     ----------
-    port : `AsciiSerial`
+    port : `SerialCommander`
         Hands off serial duty to this port.
     simulation_mode : `bool`
-        A boolean to set the module in simulation mode.
+        False for normal operation, true for simulation operation.
 
     Attributes
     ----------
@@ -33,7 +34,7 @@ class CPU8000:
         Name of the module.
     id : `int`
         The ID of the module.
-    port : `AsciiSerial`
+    port : `SerialCommander`
         The port that handles reading and writing to the laser
     power_register : `AsciiRegister`
         Handles the "Power" register for this module.
@@ -63,7 +64,7 @@ class CPU8000:
         self.log.debug(f"{self.name} Module initialized")
 
     def publish(self):
-        """Publishes the registers located inside of this module.
+        """Publish the registers located inside of this module.
 
         Returns
         -------
@@ -85,14 +86,14 @@ class CPU8000:
 
 
 class MCPU800:
-    """
+    """A hardware module for the laser.
+
     Parameters
     ----------
-    port : `AsciiSerial`
+    port : `SerialCommander`
         Connects the serial port to the module.
     simulation_mode : `bool`
-        A boolean which establishes whether the module is in simulation mode
-        or not.
+        False for normal operation, true for simulation operation.
 
     Attributes
     ----------
@@ -102,37 +103,37 @@ class MCPU800:
         The id of the module.
     id_2 : `int`
         The second id of the module.
-    port : `AsciiSerial`
-        A reference to the AsciiSerial object that handles the serial
+    port : `SerialCommander`
+        A reference to the SerialCommander object that handles the serial
         functionality.
     power_register : `AsciiRegister`
-        Corresponds to the "Power" register.
+        Handles the "Power" register.
     display_current_register : `AsciiRegister`
-        Corresponds to the "Display current" register.
+        Handles the "Display current" register.
     fault_register : `AsciiRegister`
-        Corresponds to the "Fault code" register.
+        Handles the "Fault code" register.
     power_register_2 : `AsciiRegister`
-        Corresponds to the "Power" register which handles the propagation.
+        Handles the "Power" register which handles the propagation.
     display_current_register_2 : `AsciiRegister`
-        Corresponds to the "Display current" register.
+        Handles the "Display current" register.
     fault_register_2 : `AsciiRegister`
-        Corresponds to the "Fault code" register.
+        Handles the "Fault code" register.
     continous_burst_mode_trigger_burst_register : `AsciiRegister`
-        Corresponds to the "Continous %f Burst mode %f Trigger burst" register.
+        Handles the "Continous %f Burst mode %f Trigger burst" register.
     output_energy_level_register : `AsciiRegister`
-        Corresponds to the "Output energy level" register.
+        Handles the "Output energy level" register.
     frequency_divider_register : `AsciiRegister`
-        Corresponds to the "frequency divider" register.
+        Handles the "frequency divider" register.
     burst_pulse_left_register : `AsciiRegister`
-        Corresponds to the "Burst pulse left" register.
+        Handles the "Burst pulse left" register.
     qsw_adjustment_output_delay_register : `AsciiRegister`
-        Corresponds to the "qsw adjustment output delay" register.
+        Handles the "qsw adjustment output delay" register.
     repetition_rate_register : `AsciiRegister`
-        Corresponds to the "Repetition rate" register.
+        Handles the "Repetition rate" register.
     synchronization_mode_register : `AsciiRegister`
-        Corresponds to the "Synchronization mode" register.
+        Handles the "Synchronization mode" register.
     burst_length_register : `AsciiRegister`
-        Corresponds to the "Burst length" register.
+        Handles the "Burst length" register.
 
     """
     def __init__(self, port, simulation_mode=False):
@@ -193,7 +194,7 @@ class MCPU800:
             self.fault_register.register_value = "0h"
 
     def start_propagating(self):
-        """Starts the propagation of the laser.
+        """Start the propagation of the laser.
 
         Returns
         -------
@@ -203,7 +204,7 @@ class MCPU800:
         self.power_register_2.set_register_value("ON")
 
     def stop_propagating(self):
-        """Stops the propagation of the laser
+        """Stop the propagation of the laser
 
         Returns
         -------
@@ -213,11 +214,11 @@ class MCPU800:
         self.power_register_2.set_register_value("OFF")
 
     def set_output_energy_level(self, value):
-        """Sets the output energy level for the laser.
+        """Set the output energy level for the laser.
 
         Parameters
         ----------
-        value: str, {OFF,Adjust,MAX}
+        value: `str`, {OFF,Adjust,MAX}
 
         Returns
         -------
@@ -226,7 +227,7 @@ class MCPU800:
         self.output_energy_level_register.set_register_value(value)
 
     def publish(self):
-        """Publishes the register values of the module.
+        """Publish the register values of the module.
 
         Returns
         -------
@@ -284,13 +285,14 @@ class MCPU800:
 
 
 class LLPMKU:
-    """
+    """A hardware module for the laser.
+
     Parameters
     ----------
-    port : `AsciiSerial`
+    port : `SerialCommander`
         A reference to the serial port
     simulation_mode : `bool`
-        Sets the simulation mode of the module.
+        False for normal operation, true for simulation operation.
 
     Attributes
     ----------
@@ -298,10 +300,10 @@ class LLPMKU:
         The name of the module.
     id : `int`
         The id of the module.
-    port : `AsciiSerial`
+    port : `SerialCommander`
         A reference to the serial port.
     power_register : `AsciiRegister`
-        Corresponds to the "Power" register.
+        Handles the "Power" register.
 
     """
     def __init__(self, port, simulation_mode=False):
@@ -312,7 +314,7 @@ class LLPMKU:
                                             register_name="Power", simulation_mode=simulation_mode)
 
     def publish(self):
-        """Publishes the register values of the module.
+        """Publish the register values of the module.
 
         Returns
         -------
@@ -329,26 +331,27 @@ class LLPMKU:
 
 
 class MaxiOPG:
-    """
+    """A hardware module for the laser.
+
     Parameters
     ----------
-    port : AsciiSerial
+    port : `SerialCommander`
         A reference to the serial port.
-    simulation_mode : bool
-        Sets the module in simulation mode or not.
+    simulation_mode : `bool`
+        False for normal operation, true for simulation operation.
 
     Attributes
     ----------
-    name : str
+    name : `str`
         The name of the module.
-    id : int
+    id : `int`
         The id of the module.
-    port : AsciiSerial
+    port : `SerialCommander`
         The reference to the serial port.
-    wavelength_register : AsciiRegister
-        Corresponds to the "WaveLength" register.
-    configuration_register : AsciiRegister
-        Corresponds to the "Configuration" register.
+    wavelength_register : `AsciiRegister`
+        Handles the "WaveLength" register.
+    configuration_register : `AsciiRegister`
+        Handles the "Configuration" register.
     """
     def __init__(self, port, simulation_mode=False):
         self.name = "MaxiOPG"
@@ -373,11 +376,11 @@ class MaxiOPG:
             raise ValueError("Invalid configuration value")
 
     def change_wavelength(self, wavelength):
-        """Changes the wavelength of the laser.
+        """Change the wavelength of the laser.
 
         Parameters
         ----------
-        wavelength : float
+        wavelength : `float`
 
         Returns
         -------
@@ -387,11 +390,11 @@ class MaxiOPG:
         self.wavelength_register.set_register_value(wavelength)
 
     def set_configuration(self, configuration):
-        """Sets the configuration of the output of the laser
+        """Set the configuration of the output of the laser
 
         Parameters
         ----------
-        configuration : str, {Det,No SCU,SCU,F1 SCU,F2 SCU,F1 No SCU,
+        configuration : `str`, {Det,No SCU,SCU,F1 SCU,F2 SCU,F1 No SCU,
         F2 No SCU}
 
         Returns
@@ -405,7 +408,7 @@ class MaxiOPG:
             self.configuration_register.set_register_value(f"{self.optical_alignment} {self.configuration}")
 
     def publish(self):
-        """Publishes the register values of the modules.
+        """Publish the register values of the modules.
 
         Returns
         -------
@@ -417,7 +420,8 @@ class MaxiOPG:
 
     def set_simulation_mode(self, mode):
         self.wavelength_register.simulation_mode = mode
-        self.wavelength_register.register_value = 425
+        if mode:
+            self.wavelength_register.register_value = 425
         self.configuration_register.simulation_mode = mode
 
     def __str__(self):
@@ -425,22 +429,23 @@ class MaxiOPG:
 
 
 class MiniOPG:
-    """
+    """A hardware module for the laser.
+
     Parameters
     ----------
-    port : AsciiSerial
+    port : `SerialCommander`
         A reference to the serial port.
-    simulation_mode : bool
-        Sets the module in simulation mode or not.
+    simulation_mode : `bool`
+        False for normal operation, true for simulation operation.
     Attributes
     ----------
-    name : str
+    name : `str`
         The name of the module.
-    id : int
+    id : `int`
         The id of the module.
-    port : AsciiSerial
+    port : `SerialCommander`
         A reference to the serial port.
-    error_code_register : AsciiRegister
+    error_code_register : `AsciiRegister`
         Corresponds to the "Error code" register.
 
     """
@@ -452,7 +457,7 @@ class MiniOPG:
                                                  register_name="Error Code", simulation_mode=simulation_mode)
 
     def publish(self):
-        """Publishes the register values of the module.
+        """Publish the register values of the module.
 
         Returns
         -------
@@ -469,32 +474,33 @@ class MiniOPG:
 
 
 class TK6:
-    """
+    """A hardware module for the laser.
+
     Parameters
     ----------
-    port : AsciiSerial
+    port : `SerialCommander`
         A reference to the serial port.
-    simulation_mode : bool
-        Sets the module into simulation mode or not.
+    simulation_mode : `bool`
+        False for normal operation, true for simulation operation.
 
     Attributes
     ----------
-    name : str
+    name : `str`
         The name of the module.
-    id : int
+    id : `int`
         The id of the module.
-    id_2 : int
+    id_2 : `int`
         The second id of the module.
-    port : AsciiSerial
+    port : `SerialCommander`
         A reference to the serial port.
-    display_temperature_register : AsciiRegister
-        Corresponds to the "Display temperature" register.
-    set_temperature_register : AsciiRegister
-        Corresponds to the "Set temperature" register.
-    display_temperature_register_2 : AsciiRegister
-        Corresponds to the "Display temperature" register.
+    display_temperature_register : `AsciiRegister`
+        Handles the "Display temperature" register.
+    set_temperature_register : `AsciiRegister`
+        Handles the "Set temperature" register.
+    display_temperature_register_2 : `AsciiRegister`
+        Handles the "Display temperature" register.
     set_temperature_register_2 : `AsciiRegister`
-        Corresponds to the "Set temperature" register.
+        Handles the "Set temperature" register.
 
     """
     def __init__(self, port, simulation_mode=False):
@@ -520,7 +526,7 @@ class TK6:
             self.display_temperature_register_2.register_value = "19C"
 
     def publish(self):
-        """Publishes the register values of the module.
+        """Publish the register values of the module.
 
         Returns
         -------
@@ -548,24 +554,25 @@ class TK6:
 
 
 class HV40W:
-    """
+    """A hardware module for the laser.
+
     Parameters
     ----------
-    port : AsciiSerial
+    port : `SerialCommander`
         A reference to the serial port.
-    simulation_mode : bool
-        Sets the module into simulation mode or not.
+    simulation_mode : `bool`
+        False for normal operation, true for simulation operation.
 
     Attributes
     ----------
-    name : str
+    name : `str`
         The name of the module.
-    id : int
+    id : `int`
         The id of the module.
-    port : AsciiSerial
+    port : `SerialCommander`
         A reference to the serial port.
-    hv_voltage_register : AsciiRegister
-        Corresponds to the "HV Voltage" register.
+    hv_voltage_register : `AsciiRegister`
+        Handles the "HV Voltage" register.
 
     """
     def __init__(self, port, simulation_mode=False):
@@ -593,24 +600,25 @@ class HV40W:
 
 
 class DelayLin:
-    """
+    """A hardware module for the laser.
+
     Parameters
     ----------
-    port : AsciiSerial
+    port : `SerialCommander`
         A reference to the serial port.
-    simulation_mode : bool
-        Sets the module into simulation mode or not.
+    simulation_mode : `bool`
+        False for normal operation, true for simulation operation.
 
     Attributes
     ----------
-    name : str
+    name : `str`
         The name of the module.
-    id : int
+    id : `int`
         The id of the module.
-    port : AsciiSerial
+    port : `SerialCommander`
         A reference to the serial port.
-    error_code_register : AsciiRegister
-        Corresponds to the "Error code" register.
+    error_code_register : `AsciiRegister`
+        Handles the "Error code" register.
     """
     def __init__(self, port, simulation_mode=False):
         self.name = "DelayLin"
@@ -620,7 +628,7 @@ class DelayLin:
                                                  register_name="Error Code", simulation_mode=simulation_mode)
 
     def publish(self):
-        """Publishes the register values of the module.
+        """Publish the register values of the module.
 
         Returns
         -------
@@ -637,31 +645,32 @@ class DelayLin:
 
 
 class LDCO48BP:
-    """
+    """A hardware module for the laser.
+
     Parameters
     ----------
-    port : AsciiSerial
+    port : `SerialCommander`
         A reference to the serial port.
-    simulation_mode : bool
-        Sets the module into simulation mode or not.
+    simulation_mode : `bool`
+        False for normal operation, true for simulation operation.
     Attributes
     ----------
-    name : str
+    name : `str`
         The name of the module.
-    id : int
+    id : `int`
         The id of the module.
-    id_2 : int
+    id_2 : `int`
         The second id of the module.
-    id_3 : int
+    id_3 : `int`
         The third id of the module.
-    port : AsciiSerial
+    port : `SerialCommander`
         A reference to the serial port.
-    display_temperature_register : AsciiRegister
-        Corresponds to the "Display temperature" register.
-    display_temperature_register_2 : AsciiRegister
-        Corresponds to the "Display temperature" register.
-    display_temperature_register_3 : AsciiRegister
-        Corresponds to the "Display temperature" register.
+    display_temperature_register : `AsciiRegister`
+        Handles the "Display temperature" register.
+    display_temperature_register_2 : `AsciiRegister`
+        Handles the "Display temperature" register.
+    display_temperature_register_3 : `AsciiRegister`
+        Handles the "Display temperature" register.
 
     """
     def __init__(self, port, simulation_mode=False):
@@ -687,7 +696,7 @@ class LDCO48BP:
             self.display_temperature_register_3.register_value = "6C"
 
     def publish(self):
-        """Publishes the register values of the module.
+        """Publish the register values of the module.
 
         Returns
         -------
@@ -712,28 +721,29 @@ class LDCO48BP:
 
 
 class MLDCO48:
-    """
+    """A hardware module for the laser.
+
     Parameters
     ----------
-    port : AsciiSerial
+    port : `SerialCommander`
         A reference to the serial port.
-    simulation_mode : bool
-        Sets the module into simulation mode or not.
+    simulation_mode : `bool`
+        False for normal operation, true for simulation operation.
 
     Attributes
     ----------
-    name : str
+    name : `str`
         The name of the module.
-    id : int
+    id : `int`
         The id of the module.
-    id_2 : int
+    id_2 : `int`
         The second id of the module.
-    port : AsciiSerial
+    port : `SerialCommander`
         A reference to the serial port.
-    display_temperature_register : AsciiSerial
-        Corresponds to the "Display temperature" register.
-    display_temperature_register_2 : AsciiSerial
-        Corresponds to the "Display temperature" register.
+    display_temperature_register : `AsciiRegister`
+        Handles the "Display temperature" register.
+    display_temperature_register_2 : `AsciiRegister`
+        Handles the "Display temperature" register.
     """
     def __init__(self, port, simulation_mode=False):
         self.name = "M_LDCO48"
@@ -752,7 +762,7 @@ class MLDCO48:
             self.display_temperature_register_2.register_value = "19C"
 
     def publish(self):
-        """Publishes the register values of the module.
+        """Publish the register values of the module.
 
         Returns
         -------
