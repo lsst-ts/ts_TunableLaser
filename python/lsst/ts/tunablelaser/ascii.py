@@ -166,7 +166,7 @@ class AsciiRegister:
         self.log.debug(f"{self.register_name} Register initialized")
 
     def create_get_message(self):
-        """Generates the message that will get the register value.
+        """Generate the message that will get the register value.
 
         Returns
         -------
@@ -178,12 +178,12 @@ class AsciiRegister:
         return get_message
 
     def create_set_message(self, set_value):
-        """Creates the message that sets the value of the register provided
+        """Create the message that sets the value of the register provided
         that it is not read only.
 
         Parameters
         ----------
-        set_value : `Any`
+        set_value : Any
 
         Raises
         ------
@@ -211,10 +211,6 @@ class AsciiRegister:
     def get_register_value(self):
         """Get the value of the register.
 
-        Returns
-        -------
-        None
-
         """
         if not self.simulation_mode:
             message = self.create_get_message()
@@ -230,7 +226,7 @@ class AsciiRegister:
 
         Parameters
         ----------
-        set_value : `Any`
+        set_value : Any
 
         Raises
         ------

@@ -62,6 +62,8 @@ class LaserComponent:
         self.LDCO48BP = hardware.LDCO48BP(port=self.serial, simulation_mode=simulation_mode)
         self.M_LDCO48 = hardware.MLDCO48(port=self.serial, simulation_mode=simulation_mode)
         self.configuration = None
+        self.connected = False
+        self.is_propgating = False
         self.log.info("Laser Component initialized.")
 
     def change_wavelength(self, wavelength):
@@ -94,11 +96,13 @@ class LaserComponent:
         """Start propagating the beam of the laser.
         """
         self.M_CPU800.start_propagating()
+        self.is_propgating = True
 
     def stop_propagating(self):
         """Stop propagating the beam of the laser
         """
         self.M_CPU800.stop_propagating()
+        self.is_propgating = False
 
     def clear_fault(self):
         """Clear the fault state of the laser.
@@ -153,21 +157,13 @@ class LaserComponent:
     def disconnect(self):
         if not self.simulation_mode:
             self.serial.close()
+            self.connected = False
 
     def connect(self):
         if not self.simulation_mode:
             self.serial.open()
+            self.connected = True
 
     def __str__(self):
-        return "{} {} {} {} {} {} {} {} {} {}".format(
-            self.CPU8000,
-            self.M_CPU800,
-            self.llPMKu,
-            self.MaxiOPG,
-            self.MiniOPG,
-            self.TK6,
-            self.HV40W,
-            self.DelayLin,
-            self.LDCO48BP,
-            self.M_LDCO48
-        )
+        return (f"{self.CPU8000} {self.M_CPU800} {self.llPMKu} {self.MaxiOPG} {self.MiniOPG} {self.TK6}"
+                f"{self.HV40W} {self.DelayLin} {self.LDCO48BP} {self.M_LDCO48}")
