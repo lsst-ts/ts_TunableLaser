@@ -1,7 +1,6 @@
 """Implements CSC classes for the TunableLaser.
 
 """
-import traceback
 from .component import LaserComponent
 from lsst.ts import salobj
 import asyncio
@@ -45,48 +44,41 @@ class LaserCSC(salobj.ConfigurableCsc):
                 if self.summary_state is not salobj.State.FAULT:
                     try:
                         self.model.publish()
-                    except TimeoutError as te:
-                        self.fault()
-                        self.evt_errorCode.set_put(
-                            errorCode=TunableLaser.LaserErrorCode.timeout_error,
-                            errorReport=te.msg,
-                            traceback=traceback.format_exc())
-                    if (self.model._laser.CPU8000.power_register.register_value == "FAULT"
-                        or self.model._laser.M_CPU800.power_register.register_value == "FAULT"
-                        or self.model._laser.M_CPU800.power_register_2.register_value == "FAULT") \
+                    except TimeoutError:
+                        self.fault(code=TunableLaser.LaserErrorCode.timeout_error)
+                    if (self.model.CPU8000.power_register.register_value == "FAULT"
+                        or self.model.M_CPU800.power_register.register_value == "FAULT"
+                        or self.model.M_CPU800.power_register_2.register_value == "FAULT") \
                        and self.summary_state is not salobj.State.FAULT:
-                        self.fault()
-                        self.evt_errorCode.set_put(
-                            errorCode=TunableLaser.LaserErrorCode.hw_cpu_error,
-                            errorReport=f"Code:{self._laser.CPU8000.fault_register.fault}"
-                            f" Code:{self._laser.M_CPU800.fault_register.fault}"
-                            f" Code:{self._laser.M_CPU800.fault_register_2.fault}",
-                            traceback="")
+                        self.fault(code=TunableLaser.LaserErrorCode.hw_cpu_error,
+                                   report=(f"Code:{self.CPU8000.fault_register.fault}"
+                                           f" Code:{self.M_CPU800.fault_register.fault}"
+                                           f" Code:{self.M_CPU800.fault_register_2.fault}"))
                     if self.summary_state is not salobj.State.FAULT:
                         self.wavelength_topic.wavelength = float(
-                            self.model._laser.MaxiOPG.wavelength_register.register_value)
+                            self.model.MaxiOPG.wavelength_register.register_value)
                         self.temperature_topic.tk6_temperature = float(
-                            self.model._laser.TK6.display_temperature_register.register_value)
+                            self.model.TK6.display_temperature_register.register_value)
                         self.temperature_topic.tk6_temperature_2 = float(
-                            self.model._laser.TK6.display_temperature_register_2.register_value)
+                            self.model.TK6.display_temperature_register_2.register_value)
                         self.temperature_topic.ldco48bp_temperature = float(
-                            self.model._laser.LDCO48BP.display_temperature_register.register_value)
+                            self.model.LDCO48BP.display_temperature_register.register_value)
                         self.temperature_topic.ldco48bp_temperature_2 = float(
-                            self.model._laser.LDCO48BP.display_temperature_register_2.register_value)
+                            self.model.LDCO48BP.display_temperature_register_2.register_value)
                         self.temperature_topic.ldco48bp_temperature_3 = float(
-                            self.model._laser.LDCO48BP.display_temperature_register_3.register_value)
+                            self.model.LDCO48BP.display_temperature_register_3.register_value)
                         self.temperature_topic.m_ldco48_temperature = float(
-                            self.model._laser.M_LDCO48.display_temperature_register.register_value
+                            self.model.M_LDCO48.display_temperature_register.register_value
                         )
                         self.temperature_topic.m_ldco48_temperature_2 = float(
-                            self.model._laser.M_LDCO48.display_temperature_register_2.register_value
+                            self.model.M_LDCO48.display_temperature_register_2.register_value
                         )
                         self.tel_wavelength.put(self.wavelength_topic)
                         self.tel_temperature.put(self.temperature_topic)
                 await asyncio.sleep(self.frequency)
         except Exception:
             if self.summary_state is not salobj.State.FAULT:
-                self.fault(code=TunableLaser.LaserErrorCode.hw_cpu_error, reason=f"Problem with hardware.")
+                self.fault(code=TunableLaser.LaserErrorCode.hw_cpu_error, report=f"Problem with hardware.")
 
     def assert_substate(self, substates, action):
         """Assert that the action is happening while in the PropagatingState.
@@ -163,8 +155,8 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.detailed_state = TunableLaser.LaserDetailedState.NONPROPAGATING
 
     async def do_clearFaultState(self, data):
-        """Clear the fault state of the laser by turning the power register
-        off.
+        """Clear the hardware fault state of the laser by turning the power
+        register off.
 
         Parameters
         ----------

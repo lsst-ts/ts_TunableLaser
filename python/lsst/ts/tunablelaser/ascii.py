@@ -54,6 +54,7 @@ class SerialCommander:
             The parsed reply returned by :meth:`parse_reply`.
 
         """
+        message = message.encode('ascii')
         for num_of_tries in range(self.num_of_tries):
             try:
                 self.commander.write(message)
@@ -173,7 +174,7 @@ class AsciiRegister:
         get_message: `bytes`
 
         """
-        get_message = f"/{self.module_name}/{self.module_id}/{self.register_name}\r".encode('ascii')
+        get_message = f"/{self.module_name}/{self.module_id}/{self.register_name}\r"
         self.log.debug(f"{get_message}")
         return get_message
 
@@ -202,7 +203,7 @@ class AsciiRegister:
             if set_value not in self.accepted_values:
                 raise ValueError(f"{set_value} not in {self.accepted_values}")
             set_message = (f"/{self.module_name}/{self.module_id}/{self.register_name}/"
-                           f"{set_value}\r").encode('ascii')
+                           f"{set_value}\r")
             self.log.debug(f"set_message={set_message}")
             return set_message
         else:
@@ -251,7 +252,7 @@ class AsciiRegister:
         else:
             self.register_value = set_value
 
-    def __str__(self):
+    def __repr__(self):
         return "{}: {}".format(self.register_name, self.register_value)
 
 

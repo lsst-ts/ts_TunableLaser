@@ -80,7 +80,7 @@ class CPU8000:
         self.display_current_register.simulation_mode = mode
         self.fault_register.simulation_mode = mode
 
-    def __str__(self):
+    def __repr__(self):
         return f"CPU8000:\n {self.power_register}\n {self.display_current_register}\n {self.fault_register}\n"
 
 
@@ -195,6 +195,8 @@ class MCPU800:
     def start_propagating(self):
         """Start the propagation of the laser.
 
+        If used while the laser is propagating, no discernable effect occurs.
+
         Returns
         -------
         None
@@ -203,7 +205,10 @@ class MCPU800:
         self.power_register_2.set_register_value("ON")
 
     def stop_propagating(self):
-        """Stop the propagation of the laser
+        """Stop the propagation of the laser.
+
+        If used while the laser is not propagating, no discernable effect
+        occurs.
 
         Returns
         -------
@@ -264,7 +269,7 @@ class MCPU800:
         self.synchronization_mode_register.simulation_mode = mode
         self.burst_length_register.simulation_mode = mode
 
-    def __str__(self):
+    def __repr__(self):
         return (f"M_CPU800:\n {self.power_register}\n {self.display_current_register}\n"
                 f"{self.fault_register}\n {self.power_register_2}\n {self.display_current_register_2}\n"
                 f"{self.fault_register_2}\n {self.continous_burst_mode_trigger_burst_register}\n"
@@ -316,7 +321,7 @@ class LLPMKU:
     def set_simulation_mode(self, mode):
         self.power_register.simulation_mode = mode
 
-    def __str__(self):
+    def __repr__(self):
         return f"11PMKu:\n {self.power_register}"
 
 
@@ -417,7 +422,7 @@ class MaxiOPG:
             self.wavelength_register.register_value = 425
         self.configuration_register.simulation_mode = mode
 
-    def __str__(self):
+    def __repr__(self):
         return f"{self.name}:\n {self.wavelength_register}\n {self.configuration_register}\n"
 
 
@@ -462,7 +467,7 @@ class MiniOPG:
     def set_simulation_mode(self, mode):
         self.error_code_register.simulation_mode = mode
 
-    def __str__(self):
+    def __repr__(self):
         return f"{self.name}:\n {self.error_code_register}\n"
 
 
@@ -537,7 +542,7 @@ class TK6:
         self.display_temperature_register_2.simulation_mode = mode
         self.set_temperature_register_2.simulation_mode = mode
 
-    def __str__(self):
+    def __repr__(self):
         return (f"{self.name}:\n {self.display_temperature_register}\n {self.set_temperature_register}\n"
                 f"{self.display_temperature_register_2}\n {self.set_temperature_register_2}\n")
 
@@ -584,7 +589,7 @@ class HV40W:
     def set_simulation_mode(self, mode):
         self.hv_voltage_register.simulation_mode = mode
 
-    def __str__(self):
+    def __repr__(self):
         return f"{self.name}:\n {self.hv_voltage_register}\n"
 
 
@@ -629,7 +634,7 @@ class DelayLin:
     def set_simulation_mode(self, mode):
         self.error_code_register.simulation_mode = mode
 
-    def __str__(self):
+    def __repr__(self):
         return f"{self.name}:\n {self.error_code_register}\n"
 
 
@@ -700,7 +705,7 @@ class LDCO48BP:
         self.display_temperature_register_2.simulation_mode = mode
         self.display_temperature_register_3.simulation_mode = mode
 
-    def __str__(self):
+    def __repr__(self):
         return (f"{self.name}:\n {self.display_temperature_register}\n"
                 f"{self.display_temperature_register_2}\n {self.display_temperature_register_3}\n")
 
@@ -761,5 +766,5 @@ class MLDCO48:
         self.display_temperature_register.simulation_mode = mode
         self.display_temperature_register_2.simulation_mode = mode
 
-    def __str__(self):
+    def __repr__(self):
         return f"{self.name}:\n {self.display_temperature_register}\n {self.display_temperature_register_2}\n"

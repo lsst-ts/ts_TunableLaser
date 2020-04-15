@@ -27,6 +27,6 @@ class TestCPU8000(unittest.TestCase):
             self.assertEqual(self.sim_cpu8000.display_current_register.simulation_mode, False)
             self.assertEqual(self.sim_cpu8000.fault_register.simulation_mode, False)
 
-    def test_str(self):
-        self.assertEqual(str(self.cpu8000),
+    def test_repr(self):
+        self.assertEqual(repr(self.cpu8000),
                          "CPU8000:\n Power: None\n Display Current: None\n Fault code: None\n")
