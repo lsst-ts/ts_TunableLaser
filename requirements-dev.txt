@@ -1,7 +1,0 @@
--r ./requirements.txt
-
-documenteer[pipelines]
-pytest
-pytest-flake8
-pytest-cov
-pytest-mock
