@@ -35,6 +35,7 @@ class SerialCommander:
     log : `logging.Logger`
 
     """
+
     def __init__(self, port, timeout=5, num_of_tries=3):
         self.log = logging.getLogger(__name__)
         self.num_of_tries = num_of_tries
@@ -54,7 +55,7 @@ class SerialCommander:
             The parsed reply returned by :meth:`parse_reply`.
 
         """
-        message = message.encode('ascii')
+        message = message.encode("ascii")
         for num_of_tries in range(self.num_of_tries):
             try:
                 self.commander.write(message)
@@ -88,7 +89,7 @@ class SerialCommander:
         """
         decoded_message = message.decode()
         self.log.debug(f"decoded message is {decoded_message}")
-        stripped_message = decoded_message.strip('nmC\r\n\x03')
+        stripped_message = decoded_message.strip("nmC\r\n\x03")
         self.log.debug(f"stripped message is {stripped_message}")
         if stripped_message.startswith("'''"):
             self.log.error(f"Port returned {stripped_message}")
@@ -150,9 +151,17 @@ class AsciiRegister:
         The value of the register as gotten by :meth:`get_register_value`.
 
     """
+
     def __init__(
-            self, port, module_name, module_id, register_name, read_only=True, accepted_values=None,
-            simulation_mode=False):
+        self,
+        port,
+        module_name,
+        module_id,
+        register_name,
+        read_only=True,
+        accepted_values=None,
+        simulation_mode=False,
+    ):
         self.log = logging.getLogger(f"{register_name.replace(' ','')}Register")
         self.port = port
         self.module_name = module_name
@@ -160,7 +169,9 @@ class AsciiRegister:
         self.register_name = register_name
         self.read_only = read_only
         if not self.read_only and accepted_values is None:
-            raise AttributeError("If read_only is false than accepted_values should not be None.")
+            raise AttributeError(
+                "If read_only is false than accepted_values should not be None."
+            )
         self.accepted_values = accepted_values
         self.simulation_mode = simulation_mode
         self.register_value = None
@@ -202,8 +213,10 @@ class AsciiRegister:
         if not self.read_only:
             if set_value not in self.accepted_values:
                 raise ValueError(f"{set_value} not in {self.accepted_values}")
-            set_message = (f"/{self.module_name}/{self.module_id}/{self.register_name}/"
-                           f"{set_value}\r")
+            set_message = (
+                f"/{self.module_name}/{self.module_id}/{self.register_name}/"
+                f"{set_value}\r"
+            )
             self.log.debug(f"set_message={set_message}")
             return set_message
         else:

@@ -24,9 +24,13 @@ class TestCPU8000(unittest.TestCase):
         with self.subTest("Test going out of simulation mode"):
             self.sim_cpu8000.set_simulation_mode(False)
             self.assertEqual(self.sim_cpu8000.power_register.simulation_mode, False)
-            self.assertEqual(self.sim_cpu8000.display_current_register.simulation_mode, False)
+            self.assertEqual(
+                self.sim_cpu8000.display_current_register.simulation_mode, False
+            )
             self.assertEqual(self.sim_cpu8000.fault_register.simulation_mode, False)
 
     def test_repr(self):
-        self.assertEqual(repr(self.cpu8000),
-                         "CPU8000:\n Power: None\n Display Current: None\n Fault code: None\n")
+        self.assertEqual(
+            repr(self.cpu8000),
+            "CPU8000:\n Power: None\n Display Current: None\n Fault code: None\n",
+        )
