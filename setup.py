@@ -29,7 +29,9 @@ setuptools.setup(
     package_dir={"": "python"},
     packages=setuptools.find_namespace_packages(where="python"),
     package_data={"": ["*.rst", "*.yaml"]},
-    data_files=[(os.path.join(data_files_path, "schema"), ["schema/CBP.yaml"])],
+    data_files=[
+        (os.path.join(data_files_path, "schema"), ["schema/TunableLaser.yaml"])
+    ],
     scripts=["bin/runTunableLaserCSC.py"],
     tests_require=test_reqs,
     license="GPL",
