@@ -16,19 +16,20 @@ Installation
 
 .. code::
 
-    pip install .
+    pip install .[dev]
     python runTunableLaserCSC.py
 
 Requirements
 ------------
-Install `docker <https://docker.com>`_.
-Use the latest release of the following docker image ``lsstts/develop-env:{cycle_tag}``
-This will provide all the necessary dependencies to develop/run this software
+This project uses the ``black`` linter.
+
+Run the following once in the repository
 
 .. code::
 
-    pip install .[dev]
-    pre-commit install # setup black commit hook
+    git config core.hooksPath .githooks
+    chmod +x .githooks/pre-commit
+    
 
 Usage
 =====
