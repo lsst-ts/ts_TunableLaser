@@ -1,5 +1,3 @@
-.. _Configuration_details:
-
 ##########################
 TunableLaser Configuration
 ##########################

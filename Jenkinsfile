@@ -58,7 +58,7 @@ pipeline {
                         source /home/saluser/.setup_dev.sh || echo loading env failed. Continuing...
                         pip install .[dev]
                         package-docs build
-                        ltd upload --product ts-tunable-laser --git-ref ${GIT_BRANCH} --dir doc/_build/html
+                        ltd upload --product ts-tunablelaser --git-ref ${GIT_BRANCH} --dir doc/_build/html
                     """
                 }
             }

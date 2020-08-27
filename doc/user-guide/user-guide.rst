@@ -1,45 +1,3 @@
-..
-  This is a template for the user-guide documentation that will accompany each CSC.
-  This template is provided to ensure that the documentation remains similar in look, feel, and contents to users.
-  The headings below are expected to be present for all CSCs, but for many CSCs, additional fields will be required.
-
-  ** All text in square brackets [] must be re-populated accordingly **
-
-  See https://developer.lsst.io/restructuredtext/style.html
-  for a guide to reStructuredText writing.
-
-  Use the following syntax for sections:
-
-  Sections
-  ========
-
-  and
-
-  Subsections
-  -----------
-
-  and
-
-  Subsubsections
-  ^^^^^^^^^^^^^^
-
-  To add images, add the image file (png, svg or jpeg preferred) to the
-  images/ directory. The reST syntax for adding the image is
-
-  .. figure:: /images/filename.ext
-   :name: fig-label
-
-   Caption text.
-
-  Feel free to delete this instructional comment.
-
-.. Fill out data so contacts section below is auto-populated
-.. add name and email between the *'s below e.g. *Marie Smith <msmith@lsst.org>*
-.. |CSC_developer| replace::  *Replace-with-name-and-email*
-.. |CSC_product_owner| replace:: *Replace-with-name-and-email*
-
-.. _User_Guide:
-
 #######################
 TunableLaser User Guide
 #######################
@@ -68,6 +26,7 @@ Otherwise, the beam would cause serious damage to the internals of the laser.
 The output holes are controlled by the CSC level as there are mirrors which control the direction of the beam in the laser.
 The laser has a range of 300 to 1100 nm for wavelength changing.
 
+.. _developer-guide:developer-guide:tunablelaser-interface:
 
 TunableLaser Interface
 ======================
@@ -91,6 +50,8 @@ Pertinent telemetry
 :ref:`ts_xml:TunableLaser:Telemetry:temperature`
 
 :ref:`ts_xml:TunableLaser:Telemetry:wavelength`
+
+.. _developer-guide:developer-guide:example-use-case:
 
 Example Use-Case
 ================
