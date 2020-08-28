@@ -11,9 +11,6 @@ TunableLaser
 .. image:: https://img.shields.io/badge/Jenkins-gray.svg
     :target: https://tssw-ci.lsst.org/job/LSST_Telescope-and-Site/job/ts_TunableLaser/
 
-.. Warning::
-
-   **This CSC documentation is under development and not ready for active use.**
 
 .. _Overview:
 
@@ -22,9 +19,10 @@ Overview
 
 :ref:`Contact info <ts_xml:index:master-csc-table:TunableLaser>`
 
-The Tunable Laser is a Ekspla Nanometer Tunable Laser.
-Its purpose is to provide a set wavelength of light directed towards the `Collimated Beam Projector <ts-cbp.lsst.io>`_ via a fibre optic cable.
+The Tunable Laser CSC is used to control an Ekspla NT-242 laser via the Rubin Observatory Control System.
+The laser is used to send light via a fiber to the `Collimated Beam Projector <https://ts-cbp.lsst.io>`_ and the Calibration Screen Illumination System, which is used to perform flat fielding.
 The CSC provides commands to change the wavelength, start and stop the propagation of the laser.
+It also provides the capability of selecting where the laser light is directed (CBP or Calibration Screen).
 
 .. note:: If you are interested in viewing other branches of this repository append a `/v` to the end of the url link. For example ``https://ts-tunable-laser.lsst.io/v/``
 

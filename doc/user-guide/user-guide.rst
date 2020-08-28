@@ -2,20 +2,19 @@
 TunableLaser User Guide
 #######################
 
-XML location can be found at the top of the :doc:`index </index>`
+XML location can be found at the top of the :doc:`top of this page </index>`.
 
 The laser is a class 4 laser system according to the international laser committee.
-This means that the laser must have an interlock system that prevents unintended propagation of the laser.
-As the beam is powerful enough to cause damage to the eyes of anyone who looks into the light.
+This means that the laser must have an interlock system that prevents unintended propagation of the laser as the beam is powerful enough to cause damage to the eyes of anyone who looks into the light.
 Various safety measures have been enacted to prevent this from happening.
-This guide does not cover that information as that is under the purview of the Laser Safety Officer.
-The CSC goes into a fault state when the interlock system is tripped.
-This means that the clearFaultState command should be sent in order to return the laser to its nominal state.
+This guide does not cover that information as that is under the purview of the Laser Safety Officer [Patrick Ingraham].
+If the interlock is tripped, then the laser will stop propagating and the CSC will transition to the fault state.
+Upon clearing the interlock, send the clearFaultState command in order to return the laser to its nominal state.
 Then the normal standby command should be issued to bring the CSC out of fault state.
 
 The TunableLaser CSC provides commands for changing the wavelength and configuration output of the laser.
 It has two output paths, one where the output goes through the Spectral Cleaning Unit(SCU) and one where it does not.
-Then there are three holes that the beam can come out of.
+Then there are three separate exit ports for the beam.
 
 * Straight-through
 * Fiber one

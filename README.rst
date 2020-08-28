@@ -5,6 +5,8 @@ ts-TunableLaser
 The TunableLaser is a CSC for the `Vera C. Rubin Observatory <https://www.lsst.org>`_.
 It controls a laser for the Main Telescope Calibration System.
 
+`Documentation <https://ts-tunablelaser.lsst.io>`_
+
 Installation
 ============
 

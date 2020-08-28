@@ -16,6 +16,8 @@ The hardware abstracts the hardware of the laser.
 The laser is logically divided into hardware modules that each report and control a different aspect of the laser.
 Each module has a register that it can read and write, not every register is writable.
 
+`Docushare Collection <https://docushare.lsst.org/docushare/dsweb/Get/Document-29133/>`_
+
 .. _:developer-guide:developer-guide:dependencies:
 
 Dependencies
