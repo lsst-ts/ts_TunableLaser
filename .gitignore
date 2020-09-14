@@ -115,3 +115,10 @@ venv.bak/
 .tests
 .swp
 version.py
+
+# pytest
+tests/.tests
+pytest_session.txt
+.cache/
+.pytest_cache
+.coverage
