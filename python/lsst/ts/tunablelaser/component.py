@@ -79,6 +79,7 @@ class LaserComponent:
         self.configuration = None
         self.connected = False
         self.is_propgating = False
+        self.simulation_mode = False
         self.log.info("Laser Component initialized.")
 
     def change_wavelength(self, wavelength):
@@ -172,12 +173,12 @@ class LaserComponent:
 
     def disconnect(self):
         if not self.simulation_mode:
-            self.serial.close()
+            self.serial.commander.close()
             self.connected = False
 
     def connect(self):
         if not self.simulation_mode:
-            self.serial.open()
+            self.serial.commander.open()
             self.connected = True
 
     def __str__(self):

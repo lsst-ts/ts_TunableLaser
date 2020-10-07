@@ -11,4 +11,4 @@
 # See Tech Note DMTN-001 for details on LSST_LIBRARY_PATH
 # Pure-Python packages only need the last line.
 envPrepend(PYTHONPATH, ${PRODUCT_DIR}/python)
-envPrepend(PATH, ${PRODUCT_DIR}/scripts)
+envPrepend(PATH, ${PRODUCT_DIR}/bin)

@@ -1,11 +1,14 @@
 """Implements CSC classes for the TunableLaser.
 
 """
-from .component import LaserComponent
-from lsst.ts import salobj
+
 import asyncio
 import pathlib
+
+from lsst.ts import salobj
 from lsst.ts.idl.enums import TunableLaser
+
+from .component import LaserComponent
 
 
 class LaserCSC(salobj.ConfigurableCsc):
@@ -28,12 +31,10 @@ class LaserCSC(salobj.ConfigurableCsc):
 
     """
 
+    valid_simulation_modes = [0]
+
     def __init__(
-        self,
-        index,
-        initial_state=salobj.State.STANDBY,
-        config_dir=None,
-        initial_simulation_mode=0,
+        self, initial_state=salobj.State.STANDBY, config_dir=None, simulation_mode=0,
     ):
         schema_path = (
             pathlib.Path(__file__)
@@ -43,17 +44,18 @@ class LaserCSC(salobj.ConfigurableCsc):
         )
         super().__init__(
             name="TunableLaser",
-            index=index,
             schema_path=schema_path,
+            index=None,
             config_dir=config_dir,
             initial_state=initial_state,
-            initial_simulation_mode=initial_simulation_mode,
+            simulation_mode=simulation_mode,
         )
         self.model = LaserComponent()
         self.evt_detailedState.set_put(
-            detailedState=TunableLaser.DetailedState.NONPROPAGATING
+            detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING
         )
         self.telemetry_rate = 1
+        self.telemetry_task = salobj.make_done_future()
 
     async def telemetry(self):
         """Send out the TunableLaser's telemetry.
@@ -182,7 +184,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                 code=TunableLaser.LaserErrorCode.timeout_error,
                 report="Timed out trying to propagate laser.",
             )
-        self.detailed_state = TunableLaser.LaserDetailedState.PROPAGATINGSTATE
+        self.detailed_state = TunableLaser.LaserDetailedState.PROPAGATING
 
     async def do_stopPropagateLaser(self, data):
         """Stop the Propagating State of the laser.

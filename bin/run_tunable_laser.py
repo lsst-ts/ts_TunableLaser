@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import asyncio
+
 from lsst.ts.tunablelaser.csc import LaserCSC
 
-LaserCSC.main(index=None)
+asyncio.run(LaserCSC.amain(index=None))
