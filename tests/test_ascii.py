@@ -100,15 +100,6 @@ class TestAsciiRegister(unittest.TestCase):
                     return_value=None
                 )
                 self.ascii_register.get_register_value()
-        with self.subTest("Check simulation mode handling"):
-            self.simulation_ascii_register.read_only = False
-            self.simulation_ascii_register.get_register_value()
-            self.assertTrue(
-                17.8 <= self.simulation_ascii_register.register_value <= 18.2
-            )
-        with self.subTest("Check read only simulation mode handling"):
-            self.simulation_ascii_register.read_only = True
-            self.simulation_ascii_register.get_register_value()
 
     def test_set_register_value(self):
         with self.assertRaises(PermissionError):
