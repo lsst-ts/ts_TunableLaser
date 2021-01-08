@@ -11,14 +11,18 @@ properties:
   optical_configuration:
     description: The mirror alignment configuration for the laser
     enum: ["straight-through","F1","F2"]
+    default: "straight-through"
   wavelength:
     description: The min and max wavelengths for the laser
     type: object
-    min:
-      type: int
-      exclusiveMinimum: 300
-      exclusiveMaximum: 1100
-    max:
-      type: int
-      exclusiveMinimum: 300
-      exclusiveMaximum: 1100
+    properties:
+      min:
+        type: integer
+        minimum: 300
+        maximum: 1100
+        default: 300
+      max:
+        type: integer
+        minimum: 300
+        maximum: 1100
+        default: 1100

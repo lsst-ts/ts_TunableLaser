@@ -26,12 +26,12 @@ class LaserCSC(salobj.ConfigurableCsc):
 
     Attributes
     ----------
-    model : `LaserModel`
+    model : `LaserComponent`
         The model of the laser component which handles the actual hardware.
 
     """
 
-    valid_simulation_modes = [0]
+    valid_simulation_modes = (0, 1)
 
     def __init__(
         self, initial_state=salobj.State.STANDBY, config_dir=None, simulation_mode=0,
@@ -50,7 +50,7 @@ class LaserCSC(salobj.ConfigurableCsc):
             initial_state=initial_state,
             simulation_mode=simulation_mode,
         )
-        self.model = LaserComponent()
+        self.model = LaserComponent(bool(simulation_mode))
         self.evt_detailedState.set_put(
             detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING
         )
@@ -61,54 +61,53 @@ class LaserCSC(salobj.ConfigurableCsc):
         """Send out the TunableLaser's telemetry.
 
         """
-        try:
-            while True:
-                try:
-                    self.model.publish()
-                except TimeoutError:
-                    self.fault(
-                        code=TunableLaser.LaserErrorCode.timeout_error,
-                        report="Timed out trying to get publishing data.",
-                    )
-                if (
-                    self.model.CPU8000.power_register.register_value == "FAULT"
-                    or self.model.M_CPU800.power_register.register_value == "FAULT"
-                    or self.model.M_CPU800.power_register_2.register_value == "FAULT"
-                ):
-                    self.fault(
-                        code=TunableLaser.LaserErrorCode.hw_cpu_error,
-                        report=(
-                            f"Code:{self.CPU8000.fault_register.fault}"
-                            f" Code:{self.M_CPU800.fault_register.fault}"
-                            f" Code:{self.M_CPU800.fault_register_2.fault}"
-                        ),
-                    )
-                self.tel_wavelength.set_put(
-                    wavelength=float(
-                        self.model.MaxiOPG.wavelength_register.register_value
-                    )
-                )
-                self.tel_temperature.set_put(
-                    tk6_temperature=self.model.TK6.display_temperature_register.register_value,
-                    tk6_temperature_2=self.model.TK6.display_temperature_register_2.register_value,
-                    ldco48bp_temperature=self.model.LDCO48BP.display_temperature_register.register_value,
-                    ldco48bp_temperature_2=self.model.LDCO48BP.display_temperature_register_2.register_value,
-                    ldco48bp_temperature_3=self.model.LDCO48BP.display_temperature_register_3.register_value,
-                    m_ldco48_temperature=self.model.M_LDCO48.display_temperature_register.register_value,
-                    m_ldco48_temperature_2=self.model.M_LDCO48.display_temperature_register_2.register_value,
-                )
-            await asyncio.sleep(self.telemetry_rate)
-        except TimeoutError:
-            self.fault(
-                code=TunableLaser.LaserErrorCode.timeout_error,
-                report="Timed out waiting to publish",
-            )
-        except Exception as e:
-            if self.summary_state is not salobj.State.FAULT:
+        while True:
+            self.log.debug("Telemetry updating")
+            self.model.publish()
+            self.log.debug(self.model)
+            self.log.debug(self.detailed_state)
+            if (
+                self.model.CPU8000.power_register.register_value == "FAULT"
+                or self.model.M_CPU800.power_register.register_value == "FAULT"
+                or self.model.M_CPU800.power_register_2.register_value == "FAULT"
+            ):
                 self.fault(
-                    code=TunableLaser.LaserErrorCode.hw_cpu_error,
-                    report=f"Hardware problem detected in telemetry loop. {e}",
+                    code=TunableLaser.LaserErrorCode.HW_CPU_ERROR,
+                    report=(
+                        f"Code:{self.CPU8000.fault_register.fault}"
+                        f" Code:{self.M_CPU800.fault_register.fault}"
+                        f" Code:{self.M_CPU800.fault_register_2.fault}"
+                    ),
                 )
+            self.tel_wavelength.set_put(
+                wavelength=float(self.model.MaxiOPG.wavelength_register.register_value)
+            )
+            self.tel_temperature.set_put(
+                tk6_temperature=float(
+                    self.model.TK6.display_temperature_register.register_value
+                ),
+                tk6_temperature_2=float(
+                    self.model.TK6.display_temperature_register_2.register_value
+                ),
+                ldco48bp_temperature=float(
+                    self.model.LDCO48BP.display_temperature_register.register_value
+                ),
+                ldco48bp_temperature_2=float(
+                    self.model.LDCO48BP.display_temperature_register_2.register_value
+                ),
+                ldco48bp_temperature_3=float(
+                    self.model.LDCO48BP.display_temperature_register_3.register_value
+                ),
+                m_ldco48_temperature=float(
+                    self.model.M_LDCO48.display_temperature_register.register_value
+                ),
+                m_ldco48_temperature_2=float(
+                    self.model.M_LDCO48.display_temperature_register_2.register_value
+                ),
+            )
+            self.log.debug("Telemetry updated")
+            # raise Exception("Intentional exception.")
+            await asyncio.sleep(self.telemetry_rate)
 
     def assert_substate(self, substates, action):
         """Assert that the action is happening while in the PropagatingState.
@@ -153,13 +152,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         data
         """
         self.assert_enabled("changeWavelength")
-        try:
-            self.model.change_wavelength(data.wavelength)
-        except TimeoutError:
-            self.fault(
-                code=TunableLaser.LaserErrorCode.timeout_error,
-                report="Timed out changing wavelength",
-            )
+        self.model.change_wavelength(data.wavelength)
         self.evt_wavelengthChanged.set_put(wavelength=data.wavelength)
 
     async def do_startPropagateLaser(self, data):
@@ -173,17 +166,9 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.assert_substate(
             [TunableLaser.LaserDetailedState.NONPROPAGATING], "startPropagateLaser"
         )
-        try:
-            self.model.MaxiOPG.set_configuration(
-                self.model.csc_configuration.optical_configuration
-            )
-            self.model.set_output_energy_level("MAX")
-            self.model.start_propagating()
-        except TimeoutError:
-            self.fault(
-                code=TunableLaser.LaserErrorCode.timeout_error,
-                report="Timed out trying to propagate laser.",
-            )
+        self.model.MaxiOPG.set_configuration(self.model.MaxiOPG.optical_alignment)
+        self.model.set_output_energy_level("MAX")
+        self.model.start_propagating()
         self.detailed_state = TunableLaser.LaserDetailedState.PROPAGATING
 
     async def do_stopPropagateLaser(self, data):
@@ -208,8 +193,8 @@ class LaserCSC(salobj.ConfigurableCsc):
         ----------
         data
         """
+        self.assert_enabled("clearFaultState")
         self.model.clear_fault()
-        self.do_standby(data)
 
     @property
     def detailed_state(self):
@@ -232,3 +217,8 @@ class LaserCSC(salobj.ConfigurableCsc):
     @staticmethod
     def get_config_pkg():
         return "ts_config_mtcalsys"
+
+    async def close_tasks(self):
+        await super().close_tasks()
+        self.telemetry_task.cancel()
+        self.model.disconnect()

@@ -2,8 +2,11 @@
 
 """
 import logging
+import pty
+import os
 from . import hardware
 from .ascii import SerialCommander
+from .mock_server import MockSerial
 
 
 class LaserComponent:
@@ -52,34 +55,19 @@ class LaserComponent:
     def __init__(self, simulation_mode=False):
         self.log = logging.getLogger(__name__)
         self.serial = SerialCommander(None)
-        self.CPU8000 = hardware.CPU8000(
-            port=self.serial, simulation_mode=simulation_mode
-        )
-        self.M_CPU800 = hardware.MCPU800(
-            port=self.serial, simulation_mode=simulation_mode
-        )
-        self.llPMKu = hardware.LLPMKU(port=self.serial, simulation_mode=simulation_mode)
-        self.MaxiOPG = hardware.MaxiOPG(
-            port=self.serial, simulation_mode=simulation_mode
-        )
-        self.TK6 = hardware.TK6(port=self.serial, simulation_mode=simulation_mode)
-        self.HV40W = hardware.HV40W(port=self.serial, simulation_mode=simulation_mode)
-        self.DelayLin = hardware.DelayLin(
-            port=self.serial, simulation_mode=simulation_mode
-        )
-        self.MiniOPG = hardware.MiniOPG(
-            port=self.serial, simulation_mode=simulation_mode
-        )
-        self.LDCO48BP = hardware.LDCO48BP(
-            port=self.serial, simulation_mode=simulation_mode
-        )
-        self.M_LDCO48 = hardware.MLDCO48(
-            port=self.serial, simulation_mode=simulation_mode
-        )
-        self.configuration = None
+        self.CPU8000 = hardware.CPU8000(port=self.serial)
+        self.M_CPU800 = hardware.MCPU800(port=self.serial)
+        self.llPMKu = hardware.LLPMKU(port=self.serial)
+        self.MaxiOPG = hardware.MaxiOPG(port=self.serial)
+        self.TK6 = hardware.TK6(port=self.serial)
+        self.HV40W = hardware.HV40W(port=self.serial)
+        self.DelayLin = hardware.DelayLin(port=self.serial)
+        self.MiniOPG = hardware.MiniOPG(port=self.serial)
+        self.LDCO48BP = hardware.LDCO48BP(port=self.serial)
+        self.M_LDCO48 = hardware.MLDCO48(port=self.serial)
         self.connected = False
         self.is_propgating = False
-        self.simulation_mode = False
+        self.simulation_mode = simulation_mode
         self.log.info("Laser Component initialized.")
 
     def change_wavelength(self, wavelength):
@@ -92,6 +80,7 @@ class LaserComponent:
 
             :Units: nanometers
         """
+        self.log.debug("Changing wavelength")
         self.MaxiOPG.change_wavelength(wavelength)
 
     def set_output_energy_level(self, output_energy_level):
@@ -106,6 +95,7 @@ class LaserComponent:
             * Adjust: A mode for calibrating the laser.
             * MAX: The maximum energy output of the laser.
         """
+        self.log.debug("Changing output energy level")
         self.M_CPU800.set_output_energy_level(output_energy_level)
 
     def start_propagating(self):
@@ -150,36 +140,41 @@ class LaserComponent:
         self.LDCO48BP.publish()
         self.M_LDCO48.publish()
 
-    def set_simulation_mode(self, mode):
-        self.simulation_mode = mode
-        self.CPU8000.set_simulation_mode(mode)
-        self.M_CPU800.set_simulation_mode(mode)
-        self.llPMKu.set_simulation_mode(mode)
-        self.MaxiOPG.set_simulation_mode(mode)
-        self.MiniOPG.set_simulation_mode(mode)
-        self.TK6.set_simulation_mode(mode)
-        self.HV40W.set_simulation_mode(mode)
-        self.DelayLin.set_simulation_mode(mode)
-        self.LDCO48BP.set_simulation_mode(mode)
-        self.M_LDCO48.set_simulation_mode(mode)
-
-    def set_configuration(self):
+    def set_configuration(self, config):
         if not self.simulation_mode:
-            self.serial.port = self.configuration.port
+            self.serial.port = config.port
         self.MaxiOPG.wavelength_register.accepted_values = range(
-            self.configuration.wavelength["min"], self.configuration.wavelength["max"]
+            config.wavelength["min"], config.wavelength["max"]
         )
-        self.MaxiOPG.optical_alignment = self.configuration.optical_configuration
+        self.MaxiOPG.optical_alignment = config.optical_configuration
 
     def disconnect(self):
-        if not self.simulation_mode:
+        if self.serial.commander is not None:
             self.serial.commander.close()
             self.connected = False
 
     def connect(self):
         if not self.simulation_mode:
-            self.serial.commander.open()
+            self.serial.commander.commander.open()
             self.connected = True
+        else:
+            main, reader = pty.openpty()
+            self.serial.commander = MockSerial(os.ttyname(main))
+            self._update_serial()
+            # self.serial.commander.open()
+            self.connected = True
+
+    def _update_serial(self):
+        self.CPU8000.port = self.serial
+        self.M_CPU800.port = self.serial
+        self.M_LDCO48.port = self.serial
+        self.MaxiOPG.port = self.serial
+        self.MiniOPG.port = self.serial
+        self.DelayLin.port = self.serial
+        self.LDCO48BP.port = self.serial
+        self.TK6.port = self.serial
+        self.HV40W.port = self.serial
+        self.llPMKu.port = self.serial
 
     def __str__(self):
         return (

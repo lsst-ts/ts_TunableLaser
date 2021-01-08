@@ -12,7 +12,6 @@ class as they contain the bulk of the functionality.
 __all__ = ["SerialCommander", "AsciiRegister", "AsciiError"]
 import logging
 import serial
-import random
 import enum
 
 
@@ -87,9 +86,9 @@ class SerialCommander:
         stripped_message : `str`
 
         """
-        decoded_message = message.decode()
+        decoded_message = message.decode("ascii")
         self.log.debug(f"decoded message is {decoded_message}")
-        stripped_message = decoded_message.strip("nmC\r\n\x03")
+        stripped_message = decoded_message.rstrip("nmC\r\n\x03")
         self.log.debug(f"stripped message is {stripped_message}")
         if stripped_message.startswith("'''"):
             self.log.error(f"Port returned {stripped_message}")
@@ -226,14 +225,10 @@ class AsciiRegister:
         """Get the value of the register.
 
         """
-        if not self.simulation_mode:
-            message = self.create_get_message()
-            self.register_value = self.port.send_command(message)
-            if self.register_value is None:
-                raise TimeoutError
-        else:
-            if self.accepted_values is None and not self.read_only:
-                self.register_value = random.uniform(17.8, 18.2)
+        message = self.create_get_message()
+        self.register_value = self.port.send_command(message)
+        if self.register_value is None:
+            raise TimeoutError
 
     def set_register_value(self, set_value):
         """Set the value of the register.
