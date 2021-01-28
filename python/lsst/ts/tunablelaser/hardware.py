@@ -194,7 +194,7 @@ class MCPU800:
             module_id=self.id_2,
             register_name="Power",
             read_only=False,
-            accepted_values=["OFF", "ON"],
+            accepted_values=["OFF", "ON", "FAULT"],
             simulation_mode=simulation_mode,
         )
         self.display_current_register_2 = AsciiRegister(

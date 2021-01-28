@@ -185,7 +185,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.model.stop_propagating()
         self.detailed_state = TunableLaser.LaserDetailedState.NONPROPAGATING
 
-    async def do_clearFaultState(self, data):
+    async def do_clearLaserFault(self, data):
         """Clear the hardware fault state of the laser by turning the power
         register off.
 

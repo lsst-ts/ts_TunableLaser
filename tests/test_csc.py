@@ -28,7 +28,7 @@ class TunableLaserCscTestCase(asynctest.TestCase, salobj.BaseCscTestCase):
                     "changeWavelength",
                     "startPropagateLaser",
                     "stopPropagateLaser",
-                    "clearFaultState",
+                    "clearLaserFault",
                 ]
             )
 
@@ -83,9 +83,9 @@ class TunableLaserCscTestCase(asynctest.TestCase, salobj.BaseCscTestCase):
                 detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING,
             )
 
-    async def test_clear_fault_state(self):
+    async def test_clear_laser_fault(self):
         async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
-            await self.remote.cmd_clearFaultState.set_start(timeout=STD_TIMEOUT)
+            await self.remote.cmd_clearLaserFault.set_start(timeout=STD_TIMEOUT)
 
 
 if __name__ == "__main__":
