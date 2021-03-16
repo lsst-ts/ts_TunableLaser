@@ -2,13 +2,12 @@ import unittest
 
 from lsst.ts import salobj, tunablelaser
 from lsst.ts.idl.enums import TunableLaser
-import asynctest
 
 
 STD_TIMEOUT = 10
 
 
-class TunableLaserCscTestCase(asynctest.TestCase, salobj.BaseCscTestCase):
+class TunableLaserCscTestCase(unittest.IsolatedAsyncioTestCase, salobj.BaseCscTestCase):
     def basic_make_csc(self, initial_state, simulation_mode, config_dir):
         return tunablelaser.LaserCSC(
             initial_state=initial_state,

@@ -99,20 +99,17 @@ class LaserComponent:
         self.M_CPU800.set_output_energy_level(output_energy_level)
 
     def start_propagating(self):
-        """Start propagating the beam of the laser.
-        """
+        """Start propagating the beam of the laser."""
         self.M_CPU800.start_propagating()
         self.is_propgating = True
 
     def stop_propagating(self):
-        """Stop propagating the beam of the laser
-        """
+        """Stop propagating the beam of the laser"""
         self.M_CPU800.stop_propagating()
         self.is_propgating = False
 
     def clear_fault(self):
-        """Clear the fault state of the laser.
-        """
+        """Clear the fault state of the laser."""
         if self.CPU8000.power_register.register_value == "FAULT":
             self.CPU8000.power_register.set_register_value("OFF")
         if self.M_CPU800.power_register.register_value == "FAULT":
