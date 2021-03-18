@@ -1,4 +1,4 @@
-import unittest
+import unittest.mock
 
 from lsst.ts.tunablelaser.ascii import SerialCommander, AsciiRegister
 

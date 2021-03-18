@@ -3,12 +3,13 @@
 """
 
 import asyncio
-import pathlib
 
 from lsst.ts import salobj
 from lsst.ts.idl.enums import TunableLaser
 
+from . import __version__
 from .component import LaserComponent
+from .config_schema import CONFIG_SCHEMA
 
 
 class LaserCSC(salobj.ConfigurableCsc):
@@ -32,19 +33,14 @@ class LaserCSC(salobj.ConfigurableCsc):
     """
 
     valid_simulation_modes = (0, 1)
+    version = __version__
 
     def __init__(
         self, initial_state=salobj.State.STANDBY, config_dir=None, simulation_mode=0,
     ):
-        schema_path = (
-            pathlib.Path(__file__)
-            .resolve()
-            .parents[4]
-            .joinpath("schema", "TunableLaser.yaml")
-        )
         super().__init__(
             name="TunableLaser",
-            schema_path=schema_path,
+            config_schema=CONFIG_SCHEMA,
             index=None,
             config_dir=config_dir,
             initial_state=initial_state,
@@ -58,9 +54,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.telemetry_task = salobj.make_done_future()
 
     async def telemetry(self):
-        """Send out the TunableLaser's telemetry.
-
-        """
+        """Send out the TunableLaser's telemetry."""
         while True:
             self.log.debug("Telemetry updating")
             self.model.publish()

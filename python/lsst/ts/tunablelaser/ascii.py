@@ -222,9 +222,7 @@ class AsciiRegister:
             raise PermissionError("This register is read only.")
 
     def get_register_value(self):
-        """Get the value of the register.
-
-        """
+        """Get the value of the register."""
         message = self.create_get_message()
         self.register_value = self.port.send_command(message)
         if self.register_value is None:

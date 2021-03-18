@@ -1,3 +1,9 @@
+__all__ = ["CONFIG_SCHEMA"]
+
+import yaml
+
+CONFIG_SCHEMA = yaml.safe_load(
+    """
 $schema: http://json-schema.org/draft-07/schema#
 $id: https://github.com/lsst-ts/ts_TunableLaser/blob/master/schema/TunableLaser.yaml
 title: TunableLaser v1
@@ -26,3 +32,5 @@ properties:
         minimum: 300
         maximum: 1100
         default: 1100
+"""
+)
