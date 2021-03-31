@@ -36,7 +36,10 @@ class LaserCSC(salobj.ConfigurableCsc):
     version = __version__
 
     def __init__(
-        self, initial_state=salobj.State.STANDBY, config_dir=None, simulation_mode=0,
+        self,
+        initial_state=salobj.State.STANDBY,
+        config_dir=None,
+        simulation_mode=0,
     ):
         super().__init__(
             name="TunableLaser",

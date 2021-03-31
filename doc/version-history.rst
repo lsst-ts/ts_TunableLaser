@@ -12,4 +12,5 @@ Unreleased
 * Added temperature and wavelength telemetry support
 * Added Jenkinsfile CI support
 * Uses the ``black`` linter
+* Upgrade to black 20.8
 
