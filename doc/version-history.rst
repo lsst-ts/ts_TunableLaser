@@ -13,4 +13,5 @@ Unreleased
 * Added Jenkinsfile CI support
 * Uses the ``black`` linter
 * Upgrade to black 20.8
+* Switch to TCP/IP communication
 

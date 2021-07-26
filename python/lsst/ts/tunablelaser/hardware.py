@@ -3,7 +3,7 @@
 These classes correspond to one module inside of the TunableLaser.
 Each class contains child registers that have values that can be read and
 sometimes set.
-Each class contains a method to publish its registers' values.
+Each class contains a method to update_register its registers' values.
 
 Notes
 -----
@@ -31,9 +31,9 @@ class CPU8000:
 
     Parameters
     ----------
-    port : `SerialCommander`
-        Hands off serial duty to this port.
-    simulation_mode : `bool`
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client.
+    simulation_mode : `bool`, optional
         False for normal operation, true for simulation operation.
 
     Attributes
@@ -44,8 +44,8 @@ class CPU8000:
         Name of the module.
     id : `int`
         The ID of the module.
-    port : `SerialCommander`
-        The port that handles reading and writing to the laser
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client.
     power_register : `AsciiRegister`
         Handles the "Power" register for this module.
     display_current_register : `AsciiRegister`
@@ -56,27 +56,27 @@ class CPU8000:
 
     """
 
-    def __init__(self, port, simulation_mode=False):
+    def __init__(self, commander, simulation_mode=False):
         self.log = logging.getLogger("CPU8000")
         self.name = "CPU8000"
         self.id = 16
-        self.port = port
+        self.commander = commander
         self.power_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id,
             register_name="Power",
             simulation_mode=simulation_mode,
         )
         self.display_current_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id,
             register_name="Display Current",
             simulation_mode=simulation_mode,
         )
         self.fault_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id,
             register_name="Fault code",
@@ -88,7 +88,7 @@ class CPU8000:
             self.fault_register.register_value = "0h"
         self.log.debug(f"{self.name} Module initialized")
 
-    def publish(self):
+    async def update_register(self):
         """Publish the registers located inside of this module.
 
         Returns
@@ -96,14 +96,19 @@ class CPU8000:
         None
 
         """
-        self.power_register.get_register_value()
-        self.display_current_register.get_register_value()
-        self.fault_register.get_register_value()
+        await self.power_register.read_register_value()
+        await self.display_current_register.read_register_value()
+        await self.fault_register.read_register_value()
 
     def set_simulation_mode(self, mode):
         self.power_register.simulation_mode = mode
         self.display_current_register.simulation_mode = mode
         self.fault_register.simulation_mode = mode
+
+    def update_commander(self):
+        self.power_register.commander = self.commander
+        self.display_current_register.commander = self.commander
+        self.fault_register.commander = self.commander
 
     def __repr__(self):
         return f"CPU8000:\n {self.power_register}\n {self.display_current_register}\n {self.fault_register}\n"
@@ -114,8 +119,8 @@ class MCPU800:
 
     Parameters
     ----------
-    port : `SerialCommander`
-        Connects the serial port to the module.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
 
@@ -127,9 +132,8 @@ class MCPU800:
         The id of the module.
     id_2 : `int`
         The second id of the module.
-    port : `SerialCommander`
-        A reference to the SerialCommander object that handles the serial
-        functionality.
+    commander : `TCPIPClient`
+        A reference to the TCP/IP client.
     power_register : `AsciiRegister`
         Handles the "Power" register.
     display_current_register : `AsciiRegister`
@@ -161,27 +165,27 @@ class MCPU800:
 
     """
 
-    def __init__(self, port, simulation_mode=False):
+    def __init__(self, commander, simulation_mode=False):
         self.name = "M_CPU800"
         self.id = 17
         self.id_2 = 18
-        self.port = port
+        self.commander = commander
         self.power_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id,
             register_name="Power",
             simulation_mode=simulation_mode,
         )
         self.display_current_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id,
             register_name="Display Current",
             simulation_mode=simulation_mode,
         )
         self.fault_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id,
             register_name="Fault code",
@@ -189,7 +193,7 @@ class MCPU800:
         )
 
         self.power_register_2 = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Power",
@@ -198,21 +202,21 @@ class MCPU800:
             simulation_mode=simulation_mode,
         )
         self.display_current_register_2 = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Display Current",
             simulation_mode=simulation_mode,
         )
         self.fault_register_2 = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Fault code",
             simulation_mode=simulation_mode,
         )
         self.continous_burst_mode_trigger_burst_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Continuous %2F Burst mode %2F Trigger burst",
@@ -221,7 +225,7 @@ class MCPU800:
             simulation_mode=simulation_mode,
         )
         self.output_energy_level_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Output Energy level",
@@ -230,7 +234,7 @@ class MCPU800:
             simulation_mode=simulation_mode,
         )
         self.frequency_divider_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Frequency divider",
@@ -239,35 +243,35 @@ class MCPU800:
             simulation_mode=simulation_mode,
         )
         self.burst_pulse_left_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Burst pulses to go",
             simulation_mode=simulation_mode,
         )
         self.qsw_adjustment_output_delay_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_2,
             register_name="QSW Adjustment output delay",
             simulation_mode=simulation_mode,
         )
         self.repetition_rate_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Repetition rate",
             simulation_mode=simulation_mode,
         )
         self.synchronization_mode_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Synchronization mode",
             simulation_mode=simulation_mode,
         )
         self.burst_length_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Burst length",
@@ -280,7 +284,7 @@ class MCPU800:
             self.display_current_register.register_value = "1.3A"
             self.fault_register.register_value = "0h"
 
-    def start_propagating(self):
+    async def start_propagating(self):
         """Start the propagation of the laser.
 
         If used while the laser is propagating, no discernable effect occurs.
@@ -290,9 +294,9 @@ class MCPU800:
         None
 
         """
-        self.power_register_2.set_register_value("ON")
+        await self.power_register_2.set_register_value("ON")
 
-    def stop_propagating(self):
+    async def stop_propagating(self):
         """Stop the propagation of the laser.
 
         If used while the laser is not propagating, no discernable effect
@@ -303,22 +307,22 @@ class MCPU800:
         None
 
         """
-        self.power_register_2.set_register_value("OFF")
+        await self.power_register_2.set_register_value("OFF")
 
-    def set_output_energy_level(self, value):
+    async def set_output_energy_level(self, value):
         """Set the output energy level for the laser.
 
         Parameters
         ----------
-        value: `str`, {OFF,Adjust,MAX}
+        value : `str`, {OFF,Adjust,MAX}
 
         Returns
         -------
         None
         """
-        self.output_energy_level_register.set_register_value(value)
+        await self.output_energy_level_register.set_register_value(value)
 
-    def publish(self):
+    async def update_register(self):
         """Publish the register values of the module.
 
         Returns
@@ -326,20 +330,20 @@ class MCPU800:
         None
 
         """
-        self.power_register.get_register_value()
-        self.display_current_register.get_register_value()
-        self.fault_register.get_register_value()
-        self.power_register_2.get_register_value()
-        self.display_current_register_2.get_register_value()
-        self.fault_register_2.get_register_value()
-        self.continous_burst_mode_trigger_burst_register.get_register_value()
-        self.output_energy_level_register.get_register_value()
-        self.frequency_divider_register.get_register_value()
-        self.burst_pulse_left_register.get_register_value()
-        self.qsw_adjustment_output_delay_register.get_register_value()
-        self.repetition_rate_register.get_register_value()
-        self.synchronization_mode_register.get_register_value()
-        self.burst_length_register.get_register_value()
+        await self.power_register.read_register_value()
+        await self.display_current_register.read_register_value()
+        await self.fault_register.read_register_value()
+        await self.power_register_2.read_register_value()
+        await self.display_current_register_2.read_register_value()
+        await self.fault_register_2.read_register_value()
+        await self.continous_burst_mode_trigger_burst_register.read_register_value()
+        await self.output_energy_level_register.read_register_value()
+        await self.frequency_divider_register.read_register_value()
+        await self.burst_pulse_left_register.read_register_value()
+        await self.qsw_adjustment_output_delay_register.read_register_value()
+        await self.repetition_rate_register.read_register_value()
+        await self.synchronization_mode_register.read_register_value()
+        await self.burst_length_register.read_register_value()
 
     def set_simulation_mode(self, mode):
         self.power_register.simulation_mode = mode
@@ -374,8 +378,8 @@ class LLPMKU:
 
     Parameters
     ----------
-    port : `SerialCommander`
-        A reference to the serial port
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
 
@@ -385,26 +389,26 @@ class LLPMKU:
         The name of the module.
     id : `int`
         The id of the module.
-    port : `SerialCommander`
-        A reference to the serial port.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client.
     power_register : `AsciiRegister`
         Handles the "Power" register.
 
     """
 
-    def __init__(self, port, simulation_mode=False):
+    def __init__(self, commander, simulation_mode=False):
         self.name = "11PMKu"
         self.id = 54
-        self.port = port
+        self.commander = commander
         self.power_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id,
             register_name="Power",
             simulation_mode=simulation_mode,
         )
 
-    def publish(self):
+    async def update_register(self):
         """Publish the register values of the module.
 
         Returns
@@ -412,7 +416,7 @@ class LLPMKU:
         None
 
         """
-        self.power_register.get_register_value()
+        await self.power_register.read_register_value()
 
     def set_simulation_mode(self, mode):
         self.power_register.simulation_mode = mode
@@ -426,8 +430,8 @@ class MaxiOPG:
 
     Parameters
     ----------
-    port : `SerialCommander`
-        A reference to the serial port.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
 
@@ -437,21 +441,22 @@ class MaxiOPG:
         The name of the module.
     id : `int`
         The id of the module.
-    port : `SerialCommander`
-        The reference to the serial port.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client.
     wavelength_register : `AsciiRegister`
         Handles the "WaveLength" register.
     configuration_register : `AsciiRegister`
         Handles the "Configuration" register.
     """
 
-    def __init__(self, port, simulation_mode=False):
+    def __init__(self, commander, simulation_mode=False):
         self.name = "MaxiOPG"
         self.id = 31
-        self.port = port
+        self.commander = commander
         self.configuration = "No SCU"
+        self.optical_alignment = "straight-through"
         self.wavelength_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id,
             register_name="WaveLength",
@@ -461,7 +466,7 @@ class MaxiOPG:
         )
         if self.configuration == "No SCU":
             self.configuration_register = AsciiRegister(
-                port=port,
+                commander=commander,
                 module_name=self.name,
                 module_id=self.id,
                 register_name="Configuration",
@@ -471,7 +476,7 @@ class MaxiOPG:
             )
         elif self.configuration == "SCU":
             self.configuration_register = AsciiRegister(
-                port=port,
+                commander=commander,
                 module_name=self.name,
                 module_id=self.id,
                 register_name="Configuration",
@@ -482,7 +487,7 @@ class MaxiOPG:
         else:
             raise ValueError("Invalid configuration value")
 
-    def change_wavelength(self, wavelength):
+    async def change_wavelength(self, wavelength):
         """Change the wavelength of the laser.
 
         Parameters
@@ -494,9 +499,9 @@ class MaxiOPG:
         None
 
         """
-        self.wavelength_register.set_register_value(wavelength)
+        await self.wavelength_register.set_register_value(wavelength)
 
-    def set_configuration(self, configuration):
+    async def set_configuration(self, configuration):
         """Set the configuration of the output of the laser
 
         Parameters
@@ -513,13 +518,13 @@ class MaxiOPG:
 
         """
         if self.optical_alignment == "straight-through":
-            self.configuration_register.set_register_value(self.configuration)
+            await self.configuration_register.set_register_value(self.configuration)
         else:
-            self.configuration_register.set_register_value(
+            await self.configuration_register.set_register_value(
                 f"{self.optical_alignment} {self.configuration}"
             )
 
-    def publish(self):
+    async def update_register(self):
         """Publish the register values of the modules.
 
         Returns
@@ -527,8 +532,8 @@ class MaxiOPG:
         None
 
         """
-        self.wavelength_register.get_register_value()
-        self.configuration_register.get_register_value()
+        await self.wavelength_register.read_register_value()
+        await self.configuration_register.read_register_value()
 
     def set_simulation_mode(self, mode):
         self.wavelength_register.simulation_mode = mode
@@ -545,8 +550,8 @@ class MiniOPG:
 
     Parameters
     ----------
-    port : `SerialCommander`
-        A reference to the serial port.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
     Attributes
@@ -555,26 +560,26 @@ class MiniOPG:
         The name of the module.
     id : `int`
         The id of the module.
-    port : `SerialCommander`
-        A reference to the serial port.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client.
     error_code_register : `AsciiRegister`
         Corresponds to the "Error code" register.
 
     """
 
-    def __init__(self, port, simulation_mode=False):
+    def __init__(self, commander, simulation_mode=False):
         self.name = "MiniOPG"
         self.id = 56
-        self.port = port
+        self.commander = commander
         self.error_code_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id,
             register_name="Error Code",
             simulation_mode=simulation_mode,
         )
 
-    def publish(self):
+    async def update_register(self):
         """Publish the register values of the module.
 
         Returns
@@ -582,7 +587,7 @@ class MiniOPG:
         None
 
         """
-        self.error_code_register.get_register_value()
+        await self.error_code_register.read_register_value()
 
     def set_simulation_mode(self, mode):
         self.error_code_register.simulation_mode = mode
@@ -596,8 +601,8 @@ class TK6:
 
     Parameters
     ----------
-    port : `SerialCommander`
-        A reference to the serial port.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
 
@@ -609,8 +614,8 @@ class TK6:
         The id of the module.
     id_2 : `int`
         The second id of the module.
-    port : `SerialCommander`
-        A reference to the serial port.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client.
     display_temperature_register : `AsciiRegister`
         Handles the "Display temperature" register.
     set_temperature_register : `AsciiRegister`
@@ -622,34 +627,34 @@ class TK6:
 
     """
 
-    def __init__(self, port, simulation_mode=False):
+    def __init__(self, commander, simulation_mode=False):
         self.name = "TK6"
         self.id = 44
         self.id_2 = 45
-        self.port = port
+        self.commander = commander
         self.display_temperature_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id,
             register_name="Display temperature",
             simulation_mode=simulation_mode,
         )
         self.set_temperature_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id,
             register_name="Set temperature",
             simulation_mode=simulation_mode,
         )
         self.display_temperature_register_2 = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Display temperature",
             simulation_mode=simulation_mode,
         )
         self.set_temperature_register_2 = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Set temperature",
@@ -659,7 +664,7 @@ class TK6:
             self.display_temperature_register.register_value = "45C"
             self.display_temperature_register_2.register_value = "19C"
 
-    def publish(self):
+    async def update_register(self):
         """Publish the register values of the module.
 
         Returns
@@ -667,10 +672,10 @@ class TK6:
         None
 
         """
-        self.display_temperature_register.get_register_value()
-        self.set_temperature_register.get_register_value()
-        self.display_temperature_register_2.get_register_value()
-        self.set_temperature_register_2.get_register_value()
+        await self.display_temperature_register.read_register_value()
+        await self.set_temperature_register.read_register_value()
+        await self.display_temperature_register_2.read_register_value()
+        await self.set_temperature_register_2.read_register_value()
 
     def set_simulation_mode(self, mode):
         self.display_temperature_register.simulation_mode = mode
@@ -690,8 +695,8 @@ class HV40W:
 
     Parameters
     ----------
-    port : `SerialCommander`
-        A reference to the serial port.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
 
@@ -701,26 +706,26 @@ class HV40W:
         The name of the module.
     id : `int`
         The id of the module.
-    port : `SerialCommander`
-        A reference to the serial port.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client.
     hv_voltage_register : `AsciiRegister`
         Handles the "HV Voltage" register.
 
     """
 
-    def __init__(self, port, simulation_mode=False):
+    def __init__(self, commander, simulation_mode=False):
         self.name = "HV40W"
         self.id = 41
-        self.port = port
+        self.commander = commander
         self.hv_voltage_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id,
             register_name="HV voltage",
             simulation_mode=simulation_mode,
         )
 
-    def publish(self):
+    async def update_register(self):
         """Publishes the register values of the module.
 
         Returns
@@ -728,7 +733,7 @@ class HV40W:
         None
 
         """
-        self.hv_voltage_register.get_register_value()
+        await self.hv_voltage_register.read_register_value()
 
     def set_simulation_mode(self, mode):
         self.hv_voltage_register.simulation_mode = mode
@@ -742,8 +747,8 @@ class DelayLin:
 
     Parameters
     ----------
-    port : `SerialCommander`
-        A reference to the serial port.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
 
@@ -753,25 +758,25 @@ class DelayLin:
         The name of the module.
     id : `int`
         The id of the module.
-    port : `SerialCommander`
-        A reference to the serial port.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client.
     error_code_register : `AsciiRegister`
         Handles the "Error code" register.
     """
 
-    def __init__(self, port, simulation_mode=False):
+    def __init__(self, commander, simulation_mode=False):
         self.name = "DelayLin"
         self.id = 40
-        self.port = port
+        self.commander = commander
         self.error_code_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id,
             register_name="Error Code",
             simulation_mode=simulation_mode,
         )
 
-    def publish(self):
+    async def update_register(self):
         """Publish the register values of the module.
 
         Returns
@@ -779,7 +784,7 @@ class DelayLin:
         None
 
         """
-        self.error_code_register.get_register_value()
+        await self.error_code_register.read_register_value()
 
     def set_simulation_mode(self, mode):
         self.error_code_register.simulation_mode = mode
@@ -793,8 +798,8 @@ class LDCO48BP:
 
     Parameters
     ----------
-    port : `SerialCommander`
-        A reference to the serial port.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
     Attributes
@@ -807,8 +812,8 @@ class LDCO48BP:
         The second id of the module.
     id_3 : `int`
         The third id of the module.
-    port : `SerialCommander`
-        A reference to the serial port.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client.
     display_temperature_register : `AsciiRegister`
         Handles the "Display temperature" register.
     display_temperature_register_2 : `AsciiRegister`
@@ -818,28 +823,28 @@ class LDCO48BP:
 
     """
 
-    def __init__(self, port, simulation_mode=False):
+    def __init__(self, commander, simulation_mode=False):
         self.name = "LDCO48BP"
         self.id = 30
         self.id_2 = 29
         self.id_3 = 24
-        self.port = port
+        self.commander = commander
         self.display_temperature_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id,
             register_name="Display temperature",
             simulation_mode=simulation_mode,
         )
         self.display_temperature_register_2 = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Display temperature",
             simulation_mode=simulation_mode,
         )
         self.display_temperature_register_3 = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_3,
             register_name="Display temperature",
@@ -850,16 +855,16 @@ class LDCO48BP:
             self.display_temperature_register_2.register_value = "25C"
             self.display_temperature_register_3.register_value = "6C"
 
-    def publish(self):
+    async def update_register(self):
         """Publish the register values of the module.
 
         Returns
         -------
         None
         """
-        self.display_temperature_register.get_register_value()
-        self.display_temperature_register_2.get_register_value()
-        self.display_temperature_register_3.get_register_value()
+        await self.display_temperature_register.read_register_value()
+        await self.display_temperature_register_2.read_register_value()
+        await self.display_temperature_register_3.read_register_value()
 
     def set_simulation_mode(self, mode):
         self.display_temperature_register.simulation_mode = mode
@@ -878,8 +883,8 @@ class MLDCO48:
 
     Parameters
     ----------
-    port : `SerialCommander`
-        A reference to the serial port.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
 
@@ -891,28 +896,28 @@ class MLDCO48:
         The id of the module.
     id_2 : `int`
         The second id of the module.
-    port : `SerialCommander`
-        A reference to the serial port.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client.
     display_temperature_register : `AsciiRegister`
         Handles the "Display temperature" register.
     display_temperature_register_2 : `AsciiRegister`
         Handles the "Display temperature" register.
     """
 
-    def __init__(self, port, simulation_mode=False):
+    def __init__(self, commander, simulation_mode=False):
         self.name = "M_LDCO48"
         self.id = 33
         self.id_2 = 34
-        self.port = port
+        self.commander = commander
         self.display_temperature_register = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id,
             register_name="Display temperature",
             simulation_mode=simulation_mode,
         )
         self.display_temperature_register_2 = AsciiRegister(
-            port=port,
+            commander=commander,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Display temperature",
@@ -922,7 +927,7 @@ class MLDCO48:
             self.display_temperature_register.register_value = "13C"
             self.display_temperature_register_2.register_value = "19C"
 
-    def publish(self):
+    async def update_register(self):
         """Publish the register values of the module.
 
         Returns
@@ -930,8 +935,8 @@ class MLDCO48:
         None
 
         """
-        self.display_temperature_register.get_register_value()
-        self.display_temperature_register_2.get_register_value()
+        await self.display_temperature_register.read_register_value()
+        await self.display_temperature_register_2.read_register_value()
 
     def set_simulation_mode(self, mode):
         self.display_temperature_register.simulation_mode = mode

@@ -2,11 +2,8 @@
 
 """
 import logging
-import pty
-import os
+from .ascii import TCPIPClient
 from . import hardware
-from .ascii import SerialCommander
-from .mock_server import MockSerial
 
 
 class LaserComponent:
@@ -14,11 +11,7 @@ class LaserComponent:
 
     Parameters
     ----------
-    port: `str`
-        The name of the USB port that the laser connection is located.
-    configuration: `dict`
-        A dict that is created from :func:`laser_configuration`
-    simulation_mode: `bool`
+    simulation_mode : `bool`
         A flag which tells the component to initialize into simulation mode or
         not.
 
@@ -26,27 +19,27 @@ class LaserComponent:
     ----------
     log : `logging.Logger`
         logger for this class.
-    serial : `AsciiSerial`
-        serial connection to the laser
-    CPU8000 : `CPU8000`
+    commander : `TCPIPClient`
+        TCP/IP client.
+    cpu8000 : `CPU8000`
         Controls the CPU8000 laser :term:`module`.
-    M_CPU800 : `M_CPU800`
+    m_cpu800 : `MCPU800`
         Controls the M_CPU800 laser module.
-    llPMKu : `llPMKU`
+    llpmku : `LLPMKU`
         Controls the llPKMu laser module.
-    MaxiOPG : `MaxiOPG`
+    maxi_opg : `MaxiOPG`
         Controls the MaxiOPG laser module.
-    TK6 : `TK6`
+    tk6 : `TK6`
         Controls the TK6 laser module.
-    HV40W : `HV40W`
+    hv40w : `HV40W`
         Controls the HV40W laser module.
-    DelayLin : `DelayLin`
+    delay_lin : `DelayLin`
         Controls the DelayLin laser module.
-    MiniOPG : `MiniOPG`
+    mini_opg : `MiniOPG`
         Controls the MiniOPG laser module.
-    LDCO48BP : `LDCO48BP`
+    ldco48bp : `LDCO48BP`
         Controls the LDCO48BP laser module.
-    M_LDCO48 : `M_LDCO48`
+    m_ldco48 : `M_LDCO48`
         Controls the LDCO48 laser module.
 
 
@@ -54,23 +47,28 @@ class LaserComponent:
 
     def __init__(self, simulation_mode=False):
         self.log = logging.getLogger(__name__)
-        self.serial = SerialCommander(None)
-        self.CPU8000 = hardware.CPU8000(port=self.serial)
-        self.M_CPU800 = hardware.MCPU800(port=self.serial)
-        self.llPMKu = hardware.LLPMKU(port=self.serial)
-        self.MaxiOPG = hardware.MaxiOPG(port=self.serial)
-        self.TK6 = hardware.TK6(port=self.serial)
-        self.HV40W = hardware.HV40W(port=self.serial)
-        self.DelayLin = hardware.DelayLin(port=self.serial)
-        self.MiniOPG = hardware.MiniOPG(port=self.serial)
-        self.LDCO48BP = hardware.LDCO48BP(port=self.serial)
-        self.M_LDCO48 = hardware.MLDCO48(port=self.serial)
-        self.connected = False
+        self.commander = None
+        self.cpu8000 = hardware.CPU8000(commander=self.commander)
+        self.m_cpu800 = hardware.MCPU800(commander=self.commander)
+        self.llpmku = hardware.LLPMKU(commander=self.commander)
+        self.maxi_opg = hardware.MaxiOPG(commander=self.commander)
+        self.tk6 = hardware.TK6(commander=self.commander)
+        self.hv40w = hardware.HV40W(commander=self.commander)
+        self.delay_lin = hardware.DelayLin(commander=self.commander)
+        self.mini_opg = hardware.MiniOPG(commander=self.commander)
+        self.ldco48bp = hardware.LDCO48BP(commander=self.commander)
+        self.m_ldcO48 = hardware.MLDCO48(commander=self.commander)
         self.is_propgating = False
         self.simulation_mode = simulation_mode
         self.log.info("Laser Component initialized.")
 
-    def change_wavelength(self, wavelength):
+    @property
+    def connected(self):
+        if self.commander is None:
+            return False
+        return self.commander.connected
+
+    async def change_wavelength(self, wavelength):
         """Change the wavelength of the laser.
 
         Parameters
@@ -81,9 +79,9 @@ class LaserComponent:
             :Units: nanometers
         """
         self.log.debug("Changing wavelength")
-        self.MaxiOPG.change_wavelength(wavelength)
+        await self.maxi_opg.change_wavelength(wavelength)
 
-    def set_output_energy_level(self, output_energy_level):
+    async def set_output_energy_level(self, output_energy_level):
         """Set the output energy level of the laser.
 
         Parameters
@@ -96,85 +94,85 @@ class LaserComponent:
             * MAX: The maximum energy output of the laser.
         """
         self.log.debug("Changing output energy level")
-        self.M_CPU800.set_output_energy_level(output_energy_level)
+        await self.m_cpu800.set_output_energy_level(output_energy_level)
 
-    def start_propagating(self):
+    async def start_propagating(self):
         """Start propagating the beam of the laser."""
-        self.M_CPU800.start_propagating()
+        await self.m_cpu800.start_propagating()
         self.is_propgating = True
 
-    def stop_propagating(self):
+    async def stop_propagating(self):
         """Stop propagating the beam of the laser"""
-        self.M_CPU800.stop_propagating()
+        await self.m_cpu800.stop_propagating()
         self.is_propgating = False
 
-    def clear_fault(self):
+    async def clear_fault(self):
         """Clear the fault state of the laser."""
-        if self.CPU8000.power_register.register_value == "FAULT":
-            self.CPU8000.power_register.set_register_value("OFF")
-        if self.M_CPU800.power_register.register_value == "FAULT":
-            self.M_CPU800.power_register.set_register_value("OFF")
-        if self.M_CPU800.power_register_2.register_value == "FAULT":
-            self.M_CPU800.power_register_2.set_register_value("OFF")
+        if self.cpu8000.power_register.register_value == "FAULT":
+            await self.cpu8000.power_register.set_register_value("OFF")
+        if self.m_cpu800.power_register.register_value == "FAULT":
+            await self.m_cpu800.power_register.set_register_value("OFF")
+        if self.m_cpu800.power_register_2.register_value == "FAULT":
+            await self.m_cpu800.power_register_2.set_register_value("OFF")
 
-    def publish(self):
-        """Publish the module's registers' values.
+    async def read_all_registers(self):
+        """Publish the module's registers' values."""
+        await self.cpu8000.update_register()
+        await self.m_cpu800.update_register()
+        await self.llpmku.update_register()
+        await self.maxi_opg.update_register()
+        await self.mini_opg.update_register()
+        await self.tk6.update_register()
+        await self.hv40w.update_register()
+        await self.delay_lin.update_register()
+        await self.ldco48bp.update_register()
+        await self.m_ldcO48.update_register()
 
-        Notes
-        -----
-        This method is designed for integrating with the CSC class and so
-        serves as a auxiliary to "publish" to the CSC :meth:`publish` the
-        updated values of the component. Hence why it is called publish.
-        """
-        self.CPU8000.publish()
-        self.M_CPU800.publish()
-        self.llPMKu.publish()
-        self.MaxiOPG.publish()
-        self.MiniOPG.publish()
-        self.TK6.publish()
-        self.HV40W.publish()
-        self.DelayLin.publish()
-        self.LDCO48BP.publish()
-        self.M_LDCO48.publish()
-
-    def set_configuration(self, config):
-        if not self.simulation_mode:
-            self.serial.port = config.port
-        self.MaxiOPG.wavelength_register.accepted_values = range(
+    async def set_configuration(self, config):
+        """Set the configuration for the TunableLaser."""
+        self.config = config
+        self.maxi_opg.wavelength_register.accepted_values = range(
             config.wavelength["min"], config.wavelength["max"]
         )
-        self.MaxiOPG.optical_alignment = config.optical_configuration
+        self.maxi_opg.optical_alignment = config.optical_configuration
 
-    def disconnect(self):
-        if self.serial.commander is not None:
-            self.serial.commander.close()
-            self.connected = False
+    async def disconnect(self):
+        """Disconnect from the hardware."""
+        if self.connected:
+            await self.commander.disconnect()
 
-    def connect(self):
-        if not self.simulation_mode:
-            self.serial.commander.commander.open()
-            self.connected = True
+    async def connect(self, host, port):
+        """Connect to the hardware.
+
+        Parameters
+        ----------
+        host : `str`
+            The host that the terminal server is hosted on.
+        port : `int`
+            The port that the terminal server is hosted on.
+        """
+        if not self.connected:
+            self.commander = TCPIPClient(host, port, self.config.timeout)
+            self._update_commander()
+            await self.commander.connect()
         else:
-            main, reader = pty.openpty()
-            self.serial.commander = MockSerial(os.ttyname(main))
-            self._update_serial()
-            # self.serial.commander.open()
-            self.connected = True
+            raise RuntimeError("Already connected.")
 
-    def _update_serial(self):
-        self.CPU8000.port = self.serial
-        self.M_CPU800.port = self.serial
-        self.M_LDCO48.port = self.serial
-        self.MaxiOPG.port = self.serial
-        self.MiniOPG.port = self.serial
-        self.DelayLin.port = self.serial
-        self.LDCO48BP.port = self.serial
-        self.TK6.port = self.serial
-        self.HV40W.port = self.serial
-        self.llPMKu.port = self.serial
+    def _update_commander(self):
+        """Update the commander configuration."""
+        self.cpu8000 = hardware.CPU8000(commander=self.commander)
+        self.m_cpu800 = hardware.MCPU800(commander=self.commander)
+        self.llpmku = hardware.LLPMKU(commander=self.commander)
+        self.maxi_opg = hardware.MaxiOPG(commander=self.commander)
+        self.tk6 = hardware.TK6(commander=self.commander)
+        self.hv40w = hardware.HV40W(commander=self.commander)
+        self.delay_lin = hardware.DelayLin(commander=self.commander)
+        self.mini_opg = hardware.MiniOPG(commander=self.commander)
+        self.ldco48bp = hardware.LDCO48BP(commander=self.commander)
+        self.m_ldcO48 = hardware.MLDCO48(commander=self.commander)
 
     def __str__(self):
         return (
-            f"{self.CPU8000} {self.M_CPU800} {self.llPMKu} {self.MaxiOPG} {self.MiniOPG} {self.TK6}"
-            f"{self.HV40W} {self.DelayLin} {self.LDCO48BP} {self.M_LDCO48}"
+            f"{self.cpu8000} {self.m_cpu800} {self.llpmku} {self.maxi_opg} {self.mini_opg} {self.tk6}"
+            f"{self.hv40w} {self.delay_lin} {self.ldco48bp} {self.m_ldcO48}"
         )
