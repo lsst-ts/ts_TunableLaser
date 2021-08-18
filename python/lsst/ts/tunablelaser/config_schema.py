@@ -10,10 +10,18 @@ title: TunableLaser v1
 description: Schema for TunableLaser configuration files
 type: object
 properties:
-  port:
-    description: USB port for the serial interface
+  host:
+    description: Host for the TCPIP server
     type: string
-    default: "/dev/ttyACM0"
+    default: "127.0.0.1"
+  port:
+    description: Port for the TCPIP server.
+    type: integer
+    default: 9999
+  timeout:
+    description: Timeout for the TCPIP client.
+    type: number
+    default: 1
   optical_configuration:
     description: The mirror alignment configuration for the laser
     enum: ["straight-through","F1","F2"]

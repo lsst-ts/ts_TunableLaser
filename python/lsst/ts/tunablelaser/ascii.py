@@ -5,95 +5,136 @@ spec used by Ekspla to communicate with the TunableLaser.
 
 Notes
 -----
-The most important classes are the `AsciiSerial` class and the `AsciiRegister`
+The most important classes are the `TCPIPClient` class and the `AsciiRegister`
 class as they contain the bulk of the functionality.
 
 """
-__all__ = ["SerialCommander", "AsciiRegister", "AsciiError"]
+__all__ = ["AsciiRegister", "AsciiError", "TCPIPClient"]
 import logging
-import serial
 import enum
+import asyncio
+
+from lsst.ts import tcpip
 
 
-class SerialCommander:
-    """A class which inherits serial.Serial in order to provide helper
-    functions for communicating with the laser.
-
-    This class extends the class `serial.Serial` in order to provide
-    helper methods in order to parse the expected reply and then return the
-    reply for handling by `AsciiRegister`.
+class TCPIPClient:
+    """Implements the TCP/IP connection for the TunableLaser
 
     Parameters
     ----------
-    port : `str`
-    timeout : `int`
-        The amount of time to wait before reporting the port as timed out.
+    host : `str`
+        The host of the TunableLaser server.
+    port : `int`
+        The port of the TunableLaser server.
+    timeout : `float`, optional
+        The amount of time that the client waits for reading until timing out
+        in seconds.
 
     Attributes
     ----------
+    timeout : `float`
+    host : `str`
+    port : `int`
+    reader : `None` or `StreamReader`
+    writer : `None` or `StreamWriter`
     log : `logging.Logger`
-
     """
 
-    def __init__(self, port, timeout=5, num_of_tries=3):
+    def __init__(self, host, port, timeout=1) -> None:
+        self.timeout = timeout
+        self.host = host
+        self.port = port
+        self.reader = None
+        self.writer = None
         self.log = logging.getLogger(__name__)
-        self.num_of_tries = num_of_tries
-        self.commander = serial.Serial(port=port, baudrate=19200, timeout=timeout)
+        self.lock = asyncio.Lock()
 
-    def send_command(self, message):
-        """Write the message to the serial port, parses the reply and then
-        returns it for processing by `AsciiRegister`.
-
-        Parameters
-        ----------
-        message : `bytes`
+    @property
+    def connected(self) -> bool:
+        """Return True if a client is connected to this server.
 
         Returns
         -------
-        reply : `str`
-            The parsed reply returned by :meth:`parse_reply`.
-
+        bool
         """
-        message = message.encode("ascii")
-        for num_of_tries in range(self.num_of_tries):
-            try:
-                self.commander.write(message)
-                reply = self.parse_reply(self.commander.read_until(b"\x03"))
-            except TimeoutError:
-                reply = None
-                self.commander.flush()
-                self.log.exception("Port Timed out")
-            except Exception as e:
-                self.log.exception(e)
-                raise
-            else:
-                return reply
+        return not (
+            self.reader is None
+            or self.writer is None
+            or self.reader.at_eof()
+            or self.writer.is_closing()
+        )
 
-    def parse_reply(self, message):
-        """Parse the reply as expected by Ascii spec provided by the vendor.
+    async def connect(self):
+        """Connect to the server."""
+        if not self.connected:
+            async with self.lock:
+                connect_task = asyncio.open_connection(self.host, self.port)
+                self.reader, self.writer = await asyncio.wait_for(
+                    connect_task, self.timeout
+                )
+
+    async def disconnect(self):
+        """Disconnect from the server.
+
+        Safe to call even if disconnected.
+        """
+        if self.writer is None:
+            return
+        try:
+            await tcpip.close_stream_writer(self.writer)
+        except Exception:
+            self.log.exception("disconnect failed, continuing")
+        finally:
+            self.writer = None
+            self.reader = None
+
+    async def send_command(self, message):
+        """Send a command to server and receive a reply.
 
         Parameters
         ----------
-        message : `bytes`
+        message : `str`
+            The command to send to the server.
+
+        Returns
+        -------
+        reply : `bytes`
+            The reply from the server.
 
         Raises
         ------
-        AsciiError
+        `RuntimeError`
+            Raised if the client is not connected.
+        """
+        if not self.connected:
+            raise RuntimeError("Client not connected.")
+        async with self.lock:
+            self.log.debug(f"message={message.encode('ascii')}")
+            message = message.encode("ascii")
+            self.writer.write(message)
+            await self.writer.drain()
+            reply = await self.reader.readuntil(b"\x03")
+            reply = self.parse_reply(reply)
+            self.log.debug(f"reply={reply.encode('ascii')}")
+            return reply
 
+    def parse_reply(self, reply):
+        """Return the parsed reply.
+
+        Parameters
+        ----------
+        reply : `bytes`
+            The reply from the server
 
         Returns
         -------
-        stripped_message : `str`
-
+        decoded_message : `str`
+            The decoded and boilerplate stripped string.
         """
-        decoded_message = message.decode("ascii")
-        self.log.debug(f"decoded message is {decoded_message}")
-        stripped_message = decoded_message.rstrip("nmC\r\n\x03")
-        self.log.debug(f"stripped message is {stripped_message}")
-        if stripped_message.startswith("'''"):
-            self.log.error(f"Port returned {stripped_message}")
-            raise Exception(stripped_message)
-        return stripped_message
+        decoded_message = reply.decode("ascii").rstrip("nmC\r\n\x03")
+        if decoded_message.startswith("'''"):
+            raise Exception(decoded_message)
+        return decoded_message
 
 
 class AsciiRegister:
@@ -102,13 +143,12 @@ class AsciiRegister:
     The class corresponds to a register within a module of a laser. A register
     can be read only or writable.
     If it is read only then the ``accepted_values`` argument is ignored.
-    The simulation_mode has not been implemented at this time.
 
     Parameters
     ----------
-    port : `AsciiSerial`
-        A serial port that writes and reads from the TunableLaser converter
-        module.
+    commander : `TCPIPClient`
+        A TCP/IP stream that writes and reads from the TunableLaser terminal
+        server.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -117,7 +157,7 @@ class AsciiRegister:
         The name of the register.
     read_only : `bool`, optional
         Whether the register is read only or writable.
-    accepted_values : `list` [`str`] or `list` [`int`] or `None`
+    accepted_values : `list` [`str`] or `list` [`int`] or `None`, optional
         If read_only is set to true then this parameter can be None. If not,
         this parameter must contain a list of values accepted by this
         register and can be of int or str.
@@ -129,8 +169,8 @@ class AsciiRegister:
     ----------
     log : `logging.Logger`
         The log for this class.
-    port : `SerialCommander`
-        A serial port for communicating with the TunableLaser.
+    commander : `TCPIPClient`
+        A TCP/IP client for communicating with the TunableLaser.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -153,7 +193,7 @@ class AsciiRegister:
 
     def __init__(
         self,
-        port,
+        commander,
         module_name,
         module_id,
         register_name,
@@ -162,7 +202,7 @@ class AsciiRegister:
         simulation_mode=False,
     ):
         self.log = logging.getLogger(f"{register_name.replace(' ','')}Register")
-        self.port = port
+        self.commander = commander
         self.module_name = module_name
         self.module_id = module_id
         self.register_name = register_name
@@ -185,7 +225,7 @@ class AsciiRegister:
 
         """
         get_message = f"/{self.module_name}/{self.module_id}/{self.register_name}\r"
-        self.log.debug(f"{get_message}")
+        self.log.debug(f"get_message={get_message}")
         return get_message
 
     def create_set_message(self, set_value):
@@ -221,15 +261,20 @@ class AsciiRegister:
         else:
             raise PermissionError("This register is read only.")
 
-    def get_register_value(self):
-        """Get the value of the register."""
+    async def read_register_value(self):
+        """Read the value of the register.
+
+        Returns
+        -------
+        None
+        """
         message = self.create_get_message()
-        self.register_value = self.port.send_command(message)
+        self.register_value = await self.commander.send_command(message)
         if self.register_value is None:
             raise TimeoutError
 
-    def set_register_value(self, set_value):
-        """Set the value of the register.
+    async def set_register_value(self, set_value):
+        """Set the value of the register and read the new value.
 
         Parameters
         ----------
@@ -250,8 +295,9 @@ class AsciiRegister:
         if not self.simulation_mode:
             try:
                 message = self.create_set_message(set_value)
-                self.log.debug("sending message to serial port.")
-                self.port.send_command(message)
+                self.log.debug(f"sending message {message}.")
+                await self.commander.send_command(message)
+                await self.read_register_value()
             except TimeoutError:
                 self.log.exception("Response timed out.")
                 raise

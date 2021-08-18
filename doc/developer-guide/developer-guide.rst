@@ -3,12 +3,12 @@ TunableLaser Developer Guide
 #########################################
 
 The CSC is a standard salobj CSC.
-The TunableLaser's communication with the hardware is written in Python using the PySerial library.
-The laser is connected to a Raspberry Pi using an RS-232 to USB converter cable.
+The TunableLaser's communication with the hardware is written in Python using the async TCP/IP library.
+The laser is connected to a terminal server.
 There is a UDev rule running on the computer that symlinks the serial port to ``/dev/laser`` for consistent access.
 
 The modules are divided into ascii, component, csc and hardware.
-The ascii module deals with the serial communication of the software.
+The ascii module deals with the TCP/IP communication of the software.
 The component provides abstraction for controlling the hardware.
 The csc implements the CSC.
 The hardware abstracts the hardware of the laser.
@@ -23,9 +23,9 @@ Each module has a register that it can read and write, not every register is wri
 Dependencies
 ============
 
-* `SAL <https://ts-sal.lsst.io>`_ - v4.0.0
-* `ts_salobj <https://ts-salobj.lsst.io>`_ - v5.x.0
-* PySerial - 3.4.0
+* `SAL <https://ts-sal.lsst.io>`_ - v5.1.x
+* `ts_salobj <https://ts-salobj.lsst.io>`_ - v6.x.0
+* `ts_tcpip <https://ts-tcpip.lsst.io`_ - v0.x.0
 
 .. _:developer-guide:developer-guide:api:
 
@@ -67,13 +67,13 @@ An alternative
 Usage
 =====
 
-The laser is connected via a RS-232 serial port.
+The laser is connected via a terminal server.
 The CSC is started using the following python script located in the ``bin`` directory.
 
 
 .. prompt:: bash
 
-    python runTunableLaserCSC.py
+    python run_tunable_laser.py
 
 .. _:developer-guide:developer-guide:simulator:
 
