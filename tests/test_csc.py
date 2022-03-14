@@ -1,11 +1,13 @@
 import unittest
 import os
+import pathlib
 
 from lsst.ts import salobj, tunablelaser
 from lsst.ts.idl.enums import TunableLaser
 
 
 STD_TIMEOUT = 10
+TEST_CONFIG_DIR = pathlib.Path(__file__).parents[1].joinpath("tests", "data", "config")
 
 
 class TunableLaserCscTestCase(unittest.IsolatedAsyncioTestCase, salobj.BaseCscTestCase):
@@ -17,7 +19,7 @@ class TunableLaserCscTestCase(unittest.IsolatedAsyncioTestCase, salobj.BaseCscTe
         return tunablelaser.LaserCSC(
             initial_state=initial_state,
             simulation_mode=simulation_mode,
-            config_dir=config_dir,
+            config_dir=TEST_CONFIG_DIR,
         )
 
     async def test_check_bin_script(self):
