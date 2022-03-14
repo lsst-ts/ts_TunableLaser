@@ -1,4 +1,5 @@
 import unittest
+import os
 
 from lsst.ts import salobj, tunablelaser
 from lsst.ts.idl.enums import TunableLaser
@@ -8,6 +9,10 @@ STD_TIMEOUT = 10
 
 
 class TunableLaserCscTestCase(unittest.IsolatedAsyncioTestCase, salobj.BaseCscTestCase):
+    def setUp(self) -> None:
+        os.environ["LSST_SITE"] = "tunablelaser"
+        return super().setUp()
+
     def basic_make_csc(self, initial_state, simulation_mode, config_dir):
         return tunablelaser.LaserCSC(
             initial_state=initial_state,
@@ -70,8 +75,10 @@ class TunableLaserCscTestCase(unittest.IsolatedAsyncioTestCase, salobj.BaseCscTe
 
     async def test_stop_propagate_laser(self):
         async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
-            self.csc.detailed_state = TunableLaser.LaserDetailedState.PROPAGATING
             self.remote.evt_detailedState.flush()
+            await self.csc.publish_new_detailed_state(
+                TunableLaser.LaserDetailedState.PROPAGATING
+            )
             await self.assert_next_sample(
                 topic=self.remote.evt_detailedState,
                 detailedState=TunableLaser.LaserDetailedState.PROPAGATING,
