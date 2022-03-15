@@ -1,0 +1,6 @@
+port: 9999
+wavelength:
+  min: 300
+  max: 1100
+optical_configuration: "straight-through"
+timeout: 1

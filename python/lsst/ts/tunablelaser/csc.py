@@ -7,6 +7,7 @@ import asyncio
 from lsst.ts import salobj
 from lsst.ts.idl.enums import TunableLaser
 from lsst.ts import tcpip
+from lsst.ts import utils
 
 from . import __version__
 from .component import LaserComponent
@@ -55,11 +56,8 @@ class LaserCSC(salobj.ConfigurableCsc):
             simulation_mode=simulation_mode,
         )
         self.model = LaserComponent(bool(simulation_mode))
-        self.evt_detailedState.set_put(
-            detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING
-        )
         self.telemetry_rate = 0.5
-        self.telemetry_task = salobj.make_done_future()
+        self.telemetry_task = utils.make_done_future()
         self.simulator = None
 
     @property
@@ -75,7 +73,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                 self.log.debug("Telemetry updating")
                 await self.model.read_all_registers()
                 self.log.debug(f"model={self.model}")
-                self.log.debug(f"detailed_state={self.detailed_state}")
+                self.log.debug(
+                    f"detailed_state={self.evt_detailedState.data.detailedState}"
+                )
                 if (
                     self.model.cpu8000.power_register.register_value == "FAULT"
                     or self.model.m_cpu800.power_register.register_value == "FAULT"
@@ -89,12 +89,12 @@ class LaserCSC(salobj.ConfigurableCsc):
                             f" Code:{self.model.m_cpu800.fault_register_2.fault}"
                         ),
                     )
-                self.tel_wavelength.set_put(
+                await self.tel_wavelength.set_write(
                     wavelength=float(
                         self.model.maxi_opg.wavelength_register.register_value
                     )
                 )
-                self.tel_temperature.set_put(
+                await self.tel_temperature.set_write(
                     tk6_temperature=float(
                         self.model.tk6.display_temperature_register.register_value
                     ),
@@ -142,7 +142,7 @@ class LaserCSC(salobj.ConfigurableCsc):
             Raised when an action is not allowed in a substate.
 
         """
-        if self.detailed_state not in [
+        if self.evt_detailedState.data.detailedState not in [
             TunableLaser.LaserDetailedState(substate) for substate in substates
         ]:
             raise salobj.ExpectedError(
@@ -162,6 +162,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                 host = self.model.config.host
                 port = self.model.config.port
             if not self.connected:
+                await self.evt_detailedState.set_write(
+                    detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING
+                )
                 await self.model.connect(host, port)
             if self.telemetry_task.done():
                 self.telemetry_task = asyncio.create_task(self.telemetry())
@@ -183,7 +186,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         """
         self.assert_enabled("changeWavelength")
         await self.model.change_wavelength(data.wavelength)
-        self.evt_wavelengthChanged.set_put(wavelength=data.wavelength)
+        await self.evt_wavelengthChanged.set_write(wavelength=data.wavelength)
 
     async def do_startPropagateLaser(self, data):
         """Change the state to the Propagating State of the laser.
@@ -201,7 +204,9 @@ class LaserCSC(salobj.ConfigurableCsc):
         )
         await self.model.set_output_energy_level("MAX")
         await self.model.start_propagating()
-        self.detailed_state = TunableLaser.LaserDetailedState.PROPAGATING
+        await self.publish_new_detailed_state(
+            TunableLaser.LaserDetailedState.PROPAGATING
+        )
 
     async def do_stopPropagateLaser(self, data):
         """Stop the Propagating State of the laser.
@@ -215,7 +220,9 @@ class LaserCSC(salobj.ConfigurableCsc):
             [TunableLaser.LaserDetailedState.PROPAGATING], "stopPropagateLaser"
         )
         await self.model.stop_propagating()
-        self.detailed_state = TunableLaser.LaserDetailedState.NONPROPAGATING
+        await self.publish_new_detailed_state(
+            TunableLaser.LaserDetailedState.NONPROPAGATING
+        )
 
     async def do_clearLaserFault(self, data):
         """Clear the hardware fault state of the laser by turning the power
@@ -228,24 +235,9 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.assert_enabled("clearFaultState")
         await self.model.clear_fault()
 
-    @property
-    def detailed_state(self):
-        """Return the current substate of the laser and when it changes
-        publish an event.
-
-        Parameters
-        ----------
-        new_sub_state : `lsst.ts.idl.TunableLaser.LaserDetailedState`
-            The substate to change to.
-        """
-        return TunableLaser.LaserDetailedState(
-            self.evt_detailedState.data.detailedState
-        )
-
-    @detailed_state.setter
-    def detailed_state(self, new_sub_state):
+    async def publish_new_detailed_state(self, new_sub_state):
         new_sub_state = TunableLaser.LaserDetailedState(new_sub_state)
-        self.evt_detailedState.set_put(detailedState=new_sub_state)
+        await self.evt_detailedState.set_write(detailedState=new_sub_state)
 
     async def configure(self, config):
         """Configure the CSC."""
