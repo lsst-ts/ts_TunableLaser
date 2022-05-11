@@ -13,19 +13,15 @@ properties:
   host:
     description: Host for the TCPIP server
     type: string
-    default: "127.0.0.1"
   port:
     description: Port for the TCPIP server.
     type: integer
-    default: 9999
   timeout:
-    description: Timeout for the TCPIP client.
+    description: Timeout for the TCP/IP client.
     type: number
-    default: 1
   optical_configuration:
     description: The mirror alignment configuration for the laser
     enum: ["straight-through","F1","F2"]
-    default: "straight-through"
   wavelength:
     description: The min and max wavelengths for the laser
     type: object
@@ -34,11 +30,9 @@ properties:
         type: integer
         minimum: 300
         maximum: 1100
-        default: 300
       max:
         type: integer
         minimum: 300
         maximum: 1100
-        default: 1100
 """
 )

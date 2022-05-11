@@ -168,7 +168,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                 await self.model.connect(host, port)
                 await self.model.maxi_opg.set_configuration(
                     self.model.maxi_opg.optical_alignment
-            )
+                )
             if self.telemetry_task.done():
                 self.telemetry_task = asyncio.create_task(self.telemetry())
         else:
