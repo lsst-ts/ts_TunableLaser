@@ -166,6 +166,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                     detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING
                 )
                 await self.model.connect(host, port)
+                await self.model.maxi_opg.set_configuration(
+                    self.model.maxi_opg.optical_alignment
+            )
             if self.telemetry_task.done():
                 self.telemetry_task = asyncio.create_task(self.telemetry())
         else:
@@ -198,9 +201,6 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.assert_enabled("startPropagateLaser")
         self.assert_substate(
             [TunableLaser.LaserDetailedState.NONPROPAGATING], "startPropagateLaser"
-        )
-        await self.model.maxi_opg.set_configuration(
-            self.model.maxi_opg.optical_alignment
         )
         await self.model.set_output_energy_level("MAX")
         await self.model.start_propagating()

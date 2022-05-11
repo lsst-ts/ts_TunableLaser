@@ -15,4 +15,5 @@ Unreleased
 * Upgrade to black 20.8
 * Switch to TCP/IP communication
 * Update to salobj 7
+* Change optical configuration to occur when transitioning to Disabled or Enabled state instead of just before propagating the beam
 
