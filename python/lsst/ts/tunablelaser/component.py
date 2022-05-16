@@ -45,8 +45,11 @@ class LaserComponent:
 
     """
 
-    def __init__(self, simulation_mode=False):
-        self.log = logging.getLogger(__name__)
+    def __init__(self, simulation_mode=False, log=None):
+        if log is None:
+            self.log = logging.getLogger(__name__)
+        else:
+            self.log = log
         self.commander = None
         self.cpu8000 = hardware.CPU8000(commander=self.commander)
         self.m_cpu800 = hardware.MCPU800(commander=self.commander)
@@ -93,7 +96,7 @@ class LaserComponent:
             * Adjust: A mode for calibrating the laser.
             * MAX: The maximum energy output of the laser.
         """
-        self.log.debug("Changing output energy level")
+        self.log.debug(f"Changing output energy level={output_energy_level}")
         await self.m_cpu800.set_output_energy_level(output_energy_level)
 
     async def start_propagating(self):
@@ -131,10 +134,16 @@ class LaserComponent:
     async def set_configuration(self, config):
         """Set the configuration for the TunableLaser."""
         self.config = config
+        self.log.info("Setting config.")
         self.maxi_opg.wavelength_register.accepted_values = range(
             config.wavelength["min"], config.wavelength["max"]
         )
+        self.log.info(
+            f"Set min={config.wavelength['min']} & max={config.wavelength['max']} wavelength range."
+        )
         self.maxi_opg.optical_alignment = config.optical_configuration
+        self.log.info(f"Set optical alignment to {config.optical_configuration}")
+        self.log.info(f"Optical alignment is {self.maxi_opg.optical_alignment}")
 
     async def disconnect(self):
         """Disconnect from the hardware."""
@@ -154,6 +163,7 @@ class LaserComponent:
         if not self.connected:
             self.commander = TCPIPClient(host, port, self.config.timeout)
             self._update_commander()
+            await self.set_configuration(self.config)
             await self.commander.connect()
         else:
             raise RuntimeError("Already connected.")

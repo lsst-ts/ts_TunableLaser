@@ -501,7 +501,7 @@ class MaxiOPG:
         """
         await self.wavelength_register.set_register_value(wavelength)
 
-    async def set_configuration(self, configuration):
+    async def set_configuration(self):
         """Set the configuration of the output of the laser
 
         Parameters

@@ -4,8 +4,8 @@
 Version History
 ===============
 
-Unreleased
-==========
+v0.1.0
+======
 
 * Added documentation
 * Added change_wavelength, propagate and stop propagate functionality

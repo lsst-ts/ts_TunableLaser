@@ -55,7 +55,7 @@ class LaserCSC(salobj.ConfigurableCsc):
             initial_state=initial_state,
             simulation_mode=simulation_mode,
         )
-        self.model = LaserComponent(bool(simulation_mode))
+        self.model = LaserComponent(simulation_mode=bool(simulation_mode), log=self.log)
         self.telemetry_rate = 0.5
         self.telemetry_task = utils.make_done_future()
         self.simulator = None
@@ -166,9 +166,10 @@ class LaserCSC(salobj.ConfigurableCsc):
                     detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING
                 )
                 await self.model.connect(host, port)
-                await self.model.maxi_opg.set_configuration(
-                    self.model.maxi_opg.optical_alignment
+                self.log.info(
+                    f"Model optical alignment={self.model.maxi_opg.optical_alignment}"
                 )
+                await self.model.maxi_opg.set_configuration()
             if self.telemetry_task.done():
                 self.telemetry_task = asyncio.create_task(self.telemetry())
         else:
@@ -242,6 +243,7 @@ class LaserCSC(salobj.ConfigurableCsc):
     async def configure(self, config):
         """Configure the CSC."""
         self.log.debug(f"config={config}")
+        self.optical_alignment = config.optical_configuration
         await self.model.set_configuration(config)
 
     @staticmethod
