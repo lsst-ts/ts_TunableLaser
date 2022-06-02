@@ -1,3 +1,24 @@
+# This file is part of ts_tunablelaser.
+#
+# Developed for the Vera Rubin Observatory Telescope and Site Software.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """Implements the component class for the TunableLaser.
 
 """
@@ -142,8 +163,10 @@ class LaserComponent:
             f"Set min={config.wavelength['min']} & max={config.wavelength['max']} wavelength range."
         )
         self.maxi_opg.optical_alignment = config.optical_configuration
-        self.log.info(f"Set optical alignment to {config.optical_configuration}")
-        self.log.info(f"Optical alignment is {self.maxi_opg.optical_alignment}")
+        self.log.debug(
+            f"Set optical alignment to {config.optical_configuration}"
+            f"Optical alignment is {self.maxi_opg.optical_alignment}"
+        )
 
     async def disconnect(self):
         """Disconnect from the hardware."""

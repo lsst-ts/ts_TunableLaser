@@ -16,4 +16,5 @@ v0.1.0
 * Switch to TCP/IP communication
 * Update to salobj 7
 * Change optical configuration to occur when transitioning to Disabled or Enabled state instead of just before propagating the beam
-
+* Fix eups package name
+* Move to pyproject.toml
