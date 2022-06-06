@@ -1,3 +1,24 @@
+# This file is part of ts_tunablelaser.
+#
+# Developed for the Vera Rubin Observatory Telescope and Site Software.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """Implements the component class for the TunableLaser.
 
 """
@@ -45,8 +66,11 @@ class LaserComponent:
 
     """
 
-    def __init__(self, simulation_mode=False):
-        self.log = logging.getLogger(__name__)
+    def __init__(self, simulation_mode=False, log=None):
+        if log is None:
+            self.log = logging.getLogger(__name__)
+        else:
+            self.log = log
         self.commander = None
         self.cpu8000 = hardware.CPU8000(commander=self.commander)
         self.m_cpu800 = hardware.MCPU800(commander=self.commander)
@@ -93,7 +117,7 @@ class LaserComponent:
             * Adjust: A mode for calibrating the laser.
             * MAX: The maximum energy output of the laser.
         """
-        self.log.debug("Changing output energy level")
+        self.log.debug(f"Changing output energy level={output_energy_level}")
         await self.m_cpu800.set_output_energy_level(output_energy_level)
 
     async def start_propagating(self):
@@ -131,10 +155,18 @@ class LaserComponent:
     async def set_configuration(self, config):
         """Set the configuration for the TunableLaser."""
         self.config = config
+        self.log.info("Setting config.")
         self.maxi_opg.wavelength_register.accepted_values = range(
             config.wavelength["min"], config.wavelength["max"]
         )
+        self.log.info(
+            f"Set min={config.wavelength['min']} & max={config.wavelength['max']} wavelength range."
+        )
         self.maxi_opg.optical_alignment = config.optical_configuration
+        self.log.debug(
+            f"Set optical alignment to {config.optical_configuration}"
+            f"Optical alignment is {self.maxi_opg.optical_alignment}"
+        )
 
     async def disconnect(self):
         """Disconnect from the hardware."""
@@ -154,6 +186,7 @@ class LaserComponent:
         if not self.connected:
             self.commander = TCPIPClient(host, port, self.config.timeout)
             self._update_commander()
+            await self.set_configuration(self.config)
             await self.commander.connect()
         else:
             raise RuntimeError("Already connected.")

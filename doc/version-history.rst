@@ -4,8 +4,8 @@
 Version History
 ===============
 
-Unreleased
-==========
+v0.1.0
+======
 
 * Added documentation
 * Added change_wavelength, propagate and stop propagate functionality
@@ -15,4 +15,6 @@ Unreleased
 * Upgrade to black 20.8
 * Switch to TCP/IP communication
 * Update to salobj 7
-
+* Change optical configuration to occur when transitioning to Disabled or Enabled state instead of just before propagating the beam
+* Fix eups package name
+* Move to pyproject.toml

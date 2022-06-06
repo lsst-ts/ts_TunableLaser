@@ -1,3 +1,24 @@
+# This file is part of ts_tunablelaser.
+#
+# Developed for the Vera Rubin Observatory Telescope and Site Software.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """Implements CSC classes for the TunableLaser.
 
 """
@@ -55,7 +76,7 @@ class LaserCSC(salobj.ConfigurableCsc):
             initial_state=initial_state,
             simulation_mode=simulation_mode,
         )
-        self.model = LaserComponent(bool(simulation_mode))
+        self.model = LaserComponent(simulation_mode=bool(simulation_mode), log=self.log)
         self.telemetry_rate = 0.5
         self.telemetry_task = utils.make_done_future()
         self.simulator = None
@@ -166,6 +187,10 @@ class LaserCSC(salobj.ConfigurableCsc):
                     detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING
                 )
                 await self.model.connect(host, port)
+                self.log.info(
+                    f"Model optical alignment={self.model.maxi_opg.optical_alignment}"
+                )
+                await self.model.maxi_opg.set_configuration()
             if self.telemetry_task.done():
                 self.telemetry_task = asyncio.create_task(self.telemetry())
         else:
@@ -198,9 +223,6 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.assert_enabled("startPropagateLaser")
         self.assert_substate(
             [TunableLaser.LaserDetailedState.NONPROPAGATING], "startPropagateLaser"
-        )
-        await self.model.maxi_opg.set_configuration(
-            self.model.maxi_opg.optical_alignment
         )
         await self.model.set_output_energy_level("MAX")
         await self.model.start_propagating()
@@ -242,6 +264,7 @@ class LaserCSC(salobj.ConfigurableCsc):
     async def configure(self, config):
         """Configure the CSC."""
         self.log.debug(f"config={config}")
+        self.optical_alignment = config.optical_configuration
         await self.model.set_configuration(config)
 
     @staticmethod
