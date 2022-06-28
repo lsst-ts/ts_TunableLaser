@@ -102,12 +102,12 @@ class LaserCSC(salobj.ConfigurableCsc):
                     or self.model.m_cpu800.power_register.register_value == "FAULT"
                     or self.model.m_cpu800.power_register_2.register_value == "FAULT"
                 ):
-                    self.fault(
+                    await self.fault(
                         code=TunableLaser.LaserErrorCode.HW_CPU_ERROR,
                         report=(
-                            f"Code:{self.model.cpu8000.fault_register.fault}"
-                            f" Code:{self.model.m_cpu800.fault_register.fault}"
-                            f" Code:{self.model.m_cpu800.fault_register_2.fault}"
+                            f"cpu8000 fault:{self.model.cpu8000.fault_register.register_value}"
+                            f"m_cpu800 fault:{self.model.m_cpu800.fault_register.register_value}"
+                            f"m_cpu800 fault2:{self.model.m_cpu800.fault_register_2.register_value}"
                         ),
                     )
                 await self.tel_wavelength.set_write(
@@ -167,7 +167,7 @@ class LaserCSC(salobj.ConfigurableCsc):
             TunableLaser.LaserDetailedState(substate) for substate in substates
         ]:
             raise salobj.ExpectedError(
-                f"{action} not allowed in state {self.detailed_state!r}"
+                f"{action} not allowed in state {self.evt_detailedState.data.detailedState!r}"
             )
 
     async def handle_summary_state(self):
@@ -202,6 +202,21 @@ class LaserCSC(salobj.ConfigurableCsc):
             await self.model.disconnect()
             self.telemetry_task.cancel()
 
+    async def do_setBurstMode(self, data):
+        self.assert_enabled()
+        await self.model.set_burst_mode()
+        await self.evt_burstModeSet.set_write()
+
+    async def do_setContinuousMode(self, data):
+        self.assert_enabled()
+        await self.model.set_continuous_mode()
+        await self.evt_continuousModeSet.set_write()
+
+    async def do_setBurstCount(self, data):
+        self.assert_enabled()
+        await self.model.set_burst_count(count=data.count)
+        await self.evt_burstCountSet.set_write(count=data.count)
+
     async def do_changeWavelength(self, data):
         """Change the wavelength of the laser.
 
@@ -209,7 +224,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         ----------
         data
         """
-        self.assert_enabled("changeWavelength")
+        self.assert_enabled()
         await self.model.change_wavelength(data.wavelength)
         await self.evt_wavelengthChanged.set_write(wavelength=data.wavelength)
 
@@ -220,7 +235,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         ----------
         data
         """
-        self.assert_enabled("startPropagateLaser")
+        self.assert_enabled()
         self.assert_substate(
             [TunableLaser.LaserDetailedState.NONPROPAGATING], "startPropagateLaser"
         )
@@ -237,7 +252,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         ----------
         data
         """
-        self.assert_enabled("stopPropagateLaser")
+        self.assert_enabled()
         self.assert_substate(
             [TunableLaser.LaserDetailedState.PROPAGATING], "stopPropagateLaser"
         )
@@ -254,7 +269,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         ----------
         data
         """
-        self.assert_enabled("clearFaultState")
+        self.assert_enabled()
         await self.model.clear_fault()
 
     async def publish_new_detailed_state(self, new_sub_state):

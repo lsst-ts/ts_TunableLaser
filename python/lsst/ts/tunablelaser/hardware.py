@@ -103,10 +103,6 @@ class CPU8000:
             register_name="Fault code",
             simulation_mode=simulation_mode,
         )
-        if simulation_mode:
-            self.power_register.register_value = "ON"
-            self.display_current_register.register_value = "1.5A"
-            self.fault_register.register_value = "0h"
         self.log.debug(f"{self.name} Module initialized")
 
     async def update_register(self):
@@ -120,16 +116,6 @@ class CPU8000:
         await self.power_register.read_register_value()
         await self.display_current_register.read_register_value()
         await self.fault_register.read_register_value()
-
-    def set_simulation_mode(self, mode):
-        self.power_register.simulation_mode = mode
-        self.display_current_register.simulation_mode = mode
-        self.fault_register.simulation_mode = mode
-
-    def update_commander(self):
-        self.power_register.commander = self.commander
-        self.display_current_register.commander = self.commander
-        self.fault_register.commander = self.commander
 
     def __repr__(self):
         return f"CPU8000:\n {self.power_register}\n {self.display_current_register}\n {self.fault_register}\n"
@@ -183,6 +169,7 @@ class MCPU800:
         Handles the "Synchronization mode" register.
     burst_length_register : `AsciiRegister`
         Handles the "Burst length" register.
+        Accepts values between 1 and 50,000
 
     """
 
@@ -300,10 +287,6 @@ class MCPU800:
             accepted_values=range(1, 50001),
             simulation_mode=simulation_mode,
         )
-        if simulation_mode:
-            self.power_register.register_value = "ON"
-            self.display_current_register.register_value = "1.3A"
-            self.fault_register.register_value = "0h"
 
     async def start_propagating(self):
         """Start the propagation of the laser.
@@ -343,6 +326,27 @@ class MCPU800:
         """
         await self.output_energy_level_register.set_register_value(value)
 
+    async def set_propagation_mode(self, value):
+        """Set the propagation mode of the laser.
+
+        value : `str`, {Continuous, Burst, Trigger}
+            The mode to be set
+            Continuous: Continuous pulse
+            Burst: Pulses a set number of times at regular interval
+            Trigger: Trigger a pulse using an external device (Not been used)
+        """
+        await self.continous_burst_mode_trigger_burst_register.set_register_value(value)
+
+    async def set_burst_count(self, value):
+        """Set the burst count for the laser when in burst mode.
+
+        Parameters
+        value : `int`
+            The amount of pulses to perform.
+            Accepts values between 1 and 50000
+        """
+        await self.burst_length_register.set_register_value(value)
+
     async def update_register(self):
         """Publish the register values of the module.
 
@@ -365,22 +369,6 @@ class MCPU800:
         await self.repetition_rate_register.read_register_value()
         await self.synchronization_mode_register.read_register_value()
         await self.burst_length_register.read_register_value()
-
-    def set_simulation_mode(self, mode):
-        self.power_register.simulation_mode = mode
-        self.display_current_register.simulation_mode = mode
-        self.fault_register.simulation_mode = mode
-        self.power_register_2.simulation_mode = mode
-        self.display_current_register_2.simulation_mode = mode
-        self.fault_register_2.simulation_mode = mode
-        self.continous_burst_mode_trigger_burst_register.simulation_mode = mode
-        self.output_energy_level_register.simulation_mode = mode
-        self.frequency_divider_register.simulation_mode = mode
-        self.burst_pulse_left_register.simulation_mode = mode
-        self.qsw_adjustment_output_delay_register.simulation_mode = mode
-        self.repetition_rate_register.simulation_mode = mode
-        self.synchronization_mode_register.simulation_mode = mode
-        self.burst_length_register.simulation_mode = mode
 
     def __repr__(self):
         return (
@@ -439,9 +427,6 @@ class LLPMKU:
         """
         await self.power_register.read_register_value()
 
-    def set_simulation_mode(self, mode):
-        self.power_register.simulation_mode = mode
-
     def __repr__(self):
         return f"11PMKu:\n {self.power_register}"
 
@@ -455,6 +440,11 @@ class MaxiOPG:
         A reference to the tcp/ip client
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
+    configuration : `str`
+        Used for unit testing, changes the laser direction between the
+        spectral cleaning unit or not
+        Requires a physical change on the hardware which is why it's hardcoded
+        in the class.
 
     Attributes
     ----------
@@ -470,11 +460,11 @@ class MaxiOPG:
         Handles the "Configuration" register.
     """
 
-    def __init__(self, commander, simulation_mode=False):
+    def __init__(self, commander, simulation_mode=False, configuration="No SCU"):
         self.name = "MaxiOPG"
         self.id = 31
         self.commander = commander
-        self.configuration = "No SCU"
+        self.configuration = configuration
         self.optical_alignment = "straight-through"
         self.wavelength_register = AsciiRegister(
             commander=commander,
@@ -556,12 +546,6 @@ class MaxiOPG:
         await self.wavelength_register.read_register_value()
         await self.configuration_register.read_register_value()
 
-    def set_simulation_mode(self, mode):
-        self.wavelength_register.simulation_mode = mode
-        if mode:
-            self.wavelength_register.register_value = 425
-        self.configuration_register.simulation_mode = mode
-
     def __repr__(self):
         return f"{self.name}:\n {self.wavelength_register}\n {self.configuration_register}\n"
 
@@ -609,9 +593,6 @@ class MiniOPG:
 
         """
         await self.error_code_register.read_register_value()
-
-    def set_simulation_mode(self, mode):
-        self.error_code_register.simulation_mode = mode
 
     def __repr__(self):
         return f"{self.name}:\n {self.error_code_register}\n"
@@ -681,9 +662,6 @@ class TK6:
             register_name="Set temperature",
             simulation_mode=simulation_mode,
         )
-        if simulation_mode:
-            self.display_temperature_register.register_value = "45C"
-            self.display_temperature_register_2.register_value = "19C"
 
     async def update_register(self):
         """Publish the register values of the module.
@@ -697,12 +675,6 @@ class TK6:
         await self.set_temperature_register.read_register_value()
         await self.display_temperature_register_2.read_register_value()
         await self.set_temperature_register_2.read_register_value()
-
-    def set_simulation_mode(self, mode):
-        self.display_temperature_register.simulation_mode = mode
-        self.set_temperature_register.simulation_mode = mode
-        self.display_temperature_register_2.simulation_mode = mode
-        self.set_temperature_register_2.simulation_mode = mode
 
     def __repr__(self):
         return (
@@ -756,9 +728,6 @@ class HV40W:
         """
         await self.hv_voltage_register.read_register_value()
 
-    def set_simulation_mode(self, mode):
-        self.hv_voltage_register.simulation_mode = mode
-
     def __repr__(self):
         return f"{self.name}:\n {self.hv_voltage_register}\n"
 
@@ -806,9 +775,6 @@ class DelayLin:
 
         """
         await self.error_code_register.read_register_value()
-
-    def set_simulation_mode(self, mode):
-        self.error_code_register.simulation_mode = mode
 
     def __repr__(self):
         return f"{self.name}:\n {self.error_code_register}\n"
@@ -871,10 +837,6 @@ class LDCO48BP:
             register_name="Display temperature",
             simulation_mode=simulation_mode,
         )
-        if simulation_mode:
-            self.display_temperature_register.register_value = "27C"
-            self.display_temperature_register_2.register_value = "25C"
-            self.display_temperature_register_3.register_value = "6C"
 
     async def update_register(self):
         """Publish the register values of the module.
@@ -886,11 +848,6 @@ class LDCO48BP:
         await self.display_temperature_register.read_register_value()
         await self.display_temperature_register_2.read_register_value()
         await self.display_temperature_register_3.read_register_value()
-
-    def set_simulation_mode(self, mode):
-        self.display_temperature_register.simulation_mode = mode
-        self.display_temperature_register_2.simulation_mode = mode
-        self.display_temperature_register_3.simulation_mode = mode
 
     def __repr__(self):
         return (
@@ -944,9 +901,6 @@ class MLDCO48:
             register_name="Display temperature",
             simulation_mode=simulation_mode,
         )
-        if simulation_mode:
-            self.display_temperature_register.register_value = "13C"
-            self.display_temperature_register_2.register_value = "19C"
 
     async def update_register(self):
         """Publish the register values of the module.
@@ -958,10 +912,6 @@ class MLDCO48:
         """
         await self.display_temperature_register.read_register_value()
         await self.display_temperature_register_2.read_register_value()
-
-    def set_simulation_mode(self, mode):
-        self.display_temperature_register.simulation_mode = mode
-        self.display_temperature_register_2.simulation_mode = mode
 
     def __repr__(self):
         return f"{self.name}:\n {self.display_temperature_register}\n {self.display_temperature_register_2}\n"

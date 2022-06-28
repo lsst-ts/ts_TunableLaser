@@ -27,4 +27,5 @@ from . import LaserCSC
 
 
 def execute_csc():
+    """Execute the CSC."""
     asyncio.run(LaserCSC.amain(index=None))
