@@ -27,6 +27,10 @@ import asyncio
 
 from lsst.ts import tcpip
 
+from .enums import Power, Mode, Output, SCU, NoSCU
+
+TERMINATOR = "\r\n\x03"
+
 
 class MockServer(tcpip.OneClientServer):
     """Simulates the TunableLaser.
@@ -71,6 +75,7 @@ class MockServer(tcpip.OneClientServer):
                 self.writer.close()
                 return
             reply = self.device.parse_message(reply)
+            reply += TERMINATOR
             self.log.debug(f"reply={reply.encode('ascii')}")
             self.writer.write(reply.encode("ascii"))
             await self.writer.drain()
@@ -91,7 +96,7 @@ class MockMessage:
     """
 
     def __init__(self, msg):
-        msg = msg.decode("ascii").strip("\r\n\x03")
+        msg = msg.decode("ascii").strip(TERMINATOR)
         split_msg = msg.split("/")
         if len(split_msg) == 4:
             self.register_name = split_msg[1]
@@ -135,16 +140,20 @@ class MockNT900:
     """
 
     def __init__(self):
+        self.scu = False
         self.wavelength = 650
         self.temperature = 19
         self.cpu8000_current = "19A"
         self.m_cpu800_current = "19A"
-        self.cpu8000_power = "ON"
-        self.m_cpu800_power = "ON"
-        self.propagating = "OFF"
-        self.output_energy_level = "OFF"
-        self.configuration = "No SCU"
-        self.propagation_mode = "Continuous"
+        self.cpu8000_power = Power.ON
+        self.m_cpu800_power = Power.ON
+        self.propagating = Power.OFF
+        self.output_energy_level = Output.OFF
+        if not self.scu:
+            self.configuration = NoSCU.NO_SCU
+        else:
+            self.configuration = SCU.SCU
+        self.propagation_mode = Mode.CONTINUOUS
         self.burst_length = 1
         self.log = logging.getLogger(__name__)
         self.log.debug("MockNT900 initialized")
@@ -169,13 +178,13 @@ class MockNT900:
             if successful: return empty message
         """
         if int(value) < min:
-            reply = "'''Error: (12) Violating bottom value limit\r\n\x03"
+            reply = "'''Error: (12) Violating bottom value limit"
             return reply
         if int(value) > max:
-            reply = "'''Error: (11) Violating top value limit\r\n\x03"
+            reply = "'''Error: (11) Violating top value limit"
             return reply
         else:
-            reply = "\r\n\x03"
+            reply = ""
             return reply
 
     def parse_message(self, msg):
@@ -238,7 +247,7 @@ class MockNT900:
                     self.log.debug(f"reply: {reply}")
                     return reply
             self.log.error(f"command {command_name} not implemented")
-            return "NA\r\n\x03"
+            return "NA"
         except Exception:
             self.log.exception("Unexpected exception occurred.")
             raise
@@ -251,8 +260,9 @@ class MockNT900:
         Returns
         -------
         `str`
+            The current wavelength.
         """
-        return f"{self.wavelength}nm\r\n\x03"
+        return f"{self.wavelength}nm"
 
     def do_set_maxiopg_31_wavelength(self, wavelength):
         """Set wavelength.
@@ -274,20 +284,45 @@ class MockNT900:
         return reply
 
     def do_cpu8000_16_power(self):
-        """Return the power state of the module"""
-        return f"{self.cpu8000_power}\r\n\x03"
+        """Return the power state of the module
+
+        Returns
+        -------
+        `str`
+            The current power state of the module.
+        """
+        return f"{self.cpu8000_power}"
 
     def do_m_cpu800_17_power(self):
-        """Return the power state of the module"""
-        return f"{self.m_cpu800_power}\r\n\x03"
+        """Return the power state of the module
+
+        Returns
+        -------
+        `str`
+            The current power state of the module
+        """
+        return f"{self.m_cpu800_power}"
 
     def do_m_cpu800_17_fault_code(self):
-        """Return the fault code of the module"""
-        return "0\r\n\x03"
+        """Return the fault code of the module
+
+        Returns
+        -------
+        `str`
+            The current fault code.
+            Always returns 0.
+        """
+        return "0"
 
     def do_m_cpu800_17_display_current(self):
-        """Return the power current of the module"""
-        return "{self.m_cpu800_current}\r\n\x03"
+        """Return the power current of the module
+
+        Returns
+        -------
+        `str`
+            The displayed current.
+        """
+        return f"{self.m_cpu800_current}"
 
     def do_set_m_cpu800_18_power(self, state):
         """Set the propagation state of the laser.
@@ -306,8 +341,12 @@ class MockNT900:
         `str`
             An empty message
         """
-        self.propagating = state
-        return "\r\n\x03"
+        try:
+            self.propagating = Power(state)
+            return ""
+        except ValueError:
+            self.log.error(f"{state} not in {list(Power)}")
+            return "'''Error: (13) Wrong value, not included in allowed values list"
 
     def do_m_cpu800_18_power(self):
         """Return propagation state.
@@ -316,15 +355,15 @@ class MockNT900:
         -------
         `str`
         """
-        return f"{self.propagating}\r\n\x03"
+        return f"{self.propagating}"
 
     def do_m_cpu800_18_fault_code(self):
         """Return the fault code of the module."""
-        return "0\r\n\x03"
+        return "0"
 
     def do_m_cpu800_18_display_current(self):
         """Return the power current of the module."""
-        return f"{self.m_cpu800_current}\r\n\x03"
+        return f"{self.m_cpu800_current}"
 
     def do_cpu8000_16_display_current(self):
         """Return current as formatted string.
@@ -333,7 +372,7 @@ class MockNT900:
         -------
         `str`
         """
-        return f"{self.cpu8000_current}\r\n\x03"
+        return f"{self.cpu8000_current}"
 
     def do_cpu8000_16_fault_code(self):
         """Return fault code of the module.
@@ -342,7 +381,7 @@ class MockNT900:
         -------
         `str`
         """
-        return "0\r\n\x03"
+        return "0"
 
     def do_m_cpu800_18_continuous_burst_mode_trigger_burst(self):
         """Return laser propagation mode.
@@ -351,7 +390,7 @@ class MockNT900:
         -------
         `str`
         """
-        return "{self.propagation_mode}\r\n\x03"
+        return f"{self.propagation_mode}"
 
     def do_set_m_cpu800_18_continuous_burst_mode_trigger_burst(self, mode):
         """Set the propagation mode of the laser.
@@ -367,11 +406,12 @@ class MockNT900:
             An empty message if successful or an error message
             if mode not in accepted values.
         """
-        if mode in ["Continuous", "Burst", "Trigger"]:
-            self.propagation_mode = mode
-            return "\r\n\x03"
-        else:
-            return "'''Error: (13) Wrong value, not included in allowed values list\r\n\x03"
+        try:
+            self.propagation_mode = Mode(mode)
+            return ""
+        except ValueError:
+            self.log.error(f"{mode} not in {list(Mode)}")
+            return "'''Error: (13) Wrong value, not included in allowed values list"
 
     def do_m_cpu800_18_output_energy_level(self):
         """Return current output energy level as formatted string.
@@ -380,7 +420,7 @@ class MockNT900:
         -------
         `str`
         """
-        return f"{self.output_energy_level}\r\n\x03"
+        return f"{self.output_energy_level}"
 
     def do_set_m_cpu800_18_output_energy_level(self, energy_level):
         """Change output energy level as formatted string.
@@ -390,7 +430,7 @@ class MockNT900:
         `str`
         """
         self.output_energy_level = energy_level
-        return "\r\n\x03"
+        return ""
 
     def do_m_cpu800_18_frequency_divider(self):
         """Return current frequency divider as formatted string.
@@ -399,7 +439,7 @@ class MockNT900:
         -------
         `str`
         """
-        return "0\r\n\x03"
+        return "0"
 
     def do_m_cpu800_18_burst_pulses_to_go(self):
         """Return current burst pulses left as formatted string.
@@ -408,7 +448,7 @@ class MockNT900:
         -------
         `str`
         """
-        return "0\r\n\x03"
+        return "0"
 
     def do_m_cpu800_18_qsw_adjustment_output_delay(self):
         """Return current qsw adjustment output delay as formatted string.
@@ -417,7 +457,7 @@ class MockNT900:
         -------
         `str`
         """
-        return "0\r\n\x03"
+        return "0"
 
     def do_m_cpu800_18_repetition_rate(self):
         """Return current repetition rate as formatted string.
@@ -426,7 +466,7 @@ class MockNT900:
         -------
         `str`
         """
-        return "1\r\n\x03"
+        return "1"
 
     def do_m_cpu800_18_synchronization_mode(self):
         """Return current synchronization mode as formatted string.
@@ -435,7 +475,7 @@ class MockNT900:
         -------
         `str`
         """
-        return "0\r\n\x03"
+        return "0"
 
     def do_m_cpu800_18_burst_length(self):
         """Return current burst length as formatted string.
@@ -444,14 +484,14 @@ class MockNT900:
         -------
         `str`
         """
-        return f"{self.burst_length}\r\n\x03"
+        return f"{self.burst_length}"
 
     def do_set_m_cpu800_18_burst_length(self, count):
         self.burst_length = count
-        return "\r\n\x03"
+        return ""
 
     def do_11pmku_54_power(self):
-        return "19A\r\n\x03"
+        return "19A"
 
     def do_maxiopg_31_configuration(self):
         """Return current configuration as formatted string.
@@ -460,7 +500,7 @@ class MockNT900:
         -------
         `str`
         """
-        return f"{self.configuration}\r\n\x03"
+        return f"{self.configuration}"
 
     def do_set_maxiopg_31_configuration(self, configuration):
         """Change the configuration as formatted string.
@@ -469,8 +509,12 @@ class MockNT900:
         -------
         `str`
         """
-        self.configuration = configuration
-        return "\r\n\x03"
+        if not self.scu:
+            self.configuration = NoSCU(configuration)
+            return ""
+        else:
+            self.configuration = SCU(configuration)
+            return ""
 
     def do_miniopg_56_error_code(self):
         """Return current error code as formatted string.
@@ -479,13 +523,13 @@ class MockNT900:
         -------
         `str`
         """
-        return "0\r\n\x03"
+        return "0"
 
     def do_tk6_44_display_temperature(self):
-        return f"{self.temperature}\r\n\x03"
+        return f"{self.temperature}"
 
     def do_tk6_45_display_temperature(self):
-        return f"{self.temperature}\r\n\x03"
+        return f"{self.temperature}"
 
     def do_set_temperature(self):
         """Change setpoint temperature as formatted string.
@@ -494,7 +538,7 @@ class MockNT900:
         -------
         `str`
         """
-        return f"{self.temperature}C\r\n\x03"
+        return f"{self.temperature}C"
 
     def do_hv40w_41_hv_voltage(self):
         """Return current hv voltage as formatted string.
@@ -503,28 +547,28 @@ class MockNT900:
         -------
         `str`
         """
-        return "10\r\n\x03"
+        return "10"
 
     def do_delaylin_40_error_code(self):
         """Return error code from module"""
-        return "0\r\n\x03"
+        return "0"
 
     def do_ldco48bp_30_display_temperature(self):
         """Return temperature from module"""
-        return f"{self.temperature}\r\n\x03"
+        return f"{self.temperature}"
 
     def do_ldco48bp_29_display_temperature(self):
         """Return temperature from module"""
-        return f"{self.temperature}\r\n\x03"
+        return f"{self.temperature}"
 
     def do_ldco48bp_24_display_temperature(self):
         """Return temperature from module"""
-        return f"{self.temperature}\r\n\x03"
+        return f"{self.temperature}"
 
     def do_m_ldco48_33_display_temperature(self):
         """Return temperature from module"""
-        return f"{self.temperature}\r\n\x03"
+        return f"{self.temperature}"
 
     def do_m_ldco48_34_display_temperature(self):
         """Return temperature from module"""
-        return f"{self.temperature}\r\n\x03"
+        return f"{self.temperature}"

@@ -79,11 +79,14 @@ class TunableLaserCscTestCase(unittest.IsolatedAsyncioTestCase, salobj.BaseCscTe
                 m_ldco48_temperature=19,
                 m_ldco48_temperature_2=19,
             )
+            await self.assert_next_sample(
+                topic=self.remote.evt_summaryState,
+                summaryState=salobj.State.ENABLED,
+            )
             self.csc.simulator.device.do_set_m_cpu800_18_power("FAULT")
             await self.assert_next_sample(
                 topic=self.remote.evt_summaryState,
                 summaryState=salobj.State.FAULT,
-                flush=True,
             )
 
     async def test_change_wavelength(self):
@@ -98,8 +101,19 @@ class TunableLaserCscTestCase(unittest.IsolatedAsyncioTestCase, salobj.BaseCscTe
                 topic=self.remote.tel_wavelength, wavelength=700, flush=True
             )
             with pytest.raises(salobj.AckError):
+                wavelength = (
+                    max(self.csc.model.maxi_opg.wavelength_register.accepted_values) + 1
+                )
                 await self.remote.cmd_changeWavelength.set_start(
-                    wavelength=1200, timeout=STD_TIMEOUT
+                    wavelength=wavelength, timeout=STD_TIMEOUT
+                )
+
+            with pytest.raises(salobj.AckError):
+                wavelength = (
+                    min(self.csc.model.maxi_opg.wavelength_register.accepted_values) - 1
+                )
+                await self.remote.cmd_changeWavelength.set_start(
+                    wavelength=wavelength, timeout=STD_TIMEOUT
                 )
 
     async def test_start_propagate_laser(self):
@@ -132,8 +146,16 @@ class TunableLaserCscTestCase(unittest.IsolatedAsyncioTestCase, salobj.BaseCscTe
             with pytest.raises(salobj.AckError):
                 await self.remote.cmd_stopPropagateLaser.set_start(timeout=STD_TIMEOUT)
             await self.remote.cmd_startPropagateLaser.set_start(timeout=STD_TIMEOUT)
+            await self.assert_next_sample(
+                topic=self.remote.evt_detailedState,
+                detailedState=TunableLaser.LaserDetailedState.PROPAGATING,
+            )
             await self.remote.cmd_disable.set_start(timeout=STD_TIMEOUT)
             await self.remote.cmd_standby.set_start(timeout=STD_TIMEOUT)
+            await self.assert_next_sample(
+                topic=self.remote.evt_detailedState,
+                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING,
+            )
 
     async def test_clear_laser_fault(self):
         async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
@@ -156,8 +178,7 @@ class TunableLaserCscTestCase(unittest.IsolatedAsyncioTestCase, salobj.BaseCscTe
             await self.assert_next_sample(topic=self.remote.evt_burstCountSet, count=60)
 
     async def test_get_config_pkg(self):
-        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
-            assert self.csc.get_config_pkg() == "ts_config_mtcalsys"
+        assert tunablelaser.LaserCSC.get_config_pkg() == "ts_config_mtcalsys"
 
 
 if __name__ == "__main__":

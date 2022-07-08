@@ -45,6 +45,7 @@ __all__ = [
 ]
 import logging
 from .ascii import AsciiRegister
+from .enums import Power, Mode, Output
 
 
 class CPU8000:
@@ -154,7 +155,7 @@ class MCPU800:
     fault_register_2 : `AsciiRegister`
         Handles the "Fault code" register.
     continous_burst_mode_trigger_burst_register : `AsciiRegister`
-        Handles the "Continous %f Burst mode %f Trigger burst" register.
+        Handles the "Continuous %f Burst mode %f Trigger burst" register.
     output_energy_level_register : `AsciiRegister`
         Handles the "Output energy level" register.
     frequency_divider_register : `AsciiRegister`
@@ -169,6 +170,7 @@ class MCPU800:
         Handles the "Synchronization mode" register.
     burst_length_register : `AsciiRegister`
         Handles the "Burst length" register.
+        Set the count of bursts during propagation.
         Accepts values between 1 and 50,000
 
     """
@@ -206,7 +208,7 @@ class MCPU800:
             module_id=self.id_2,
             register_name="Power",
             read_only=False,
-            accepted_values=["OFF", "ON", "FAULT"],
+            accepted_values=list(Power),
             simulation_mode=simulation_mode,
         )
         self.display_current_register_2 = AsciiRegister(
@@ -229,7 +231,7 @@ class MCPU800:
             module_id=self.id_2,
             register_name="Continuous %2F Burst mode %2F Trigger burst",
             read_only=False,
-            accepted_values=["Continuous", "Burst", "Trigger"],
+            accepted_values=list(Mode),
             simulation_mode=simulation_mode,
         )
         self.output_energy_level_register = AsciiRegister(
@@ -238,7 +240,7 @@ class MCPU800:
             module_id=self.id_2,
             register_name="Output Energy level",
             read_only=False,
-            accepted_values=["OFF", "Adjust", "MAX"],
+            accepted_values=list(Output),
             simulation_mode=simulation_mode,
         )
         self.frequency_divider_register = AsciiRegister(
@@ -298,7 +300,7 @@ class MCPU800:
         None
 
         """
-        await self.power_register_2.set_register_value("ON")
+        await self.power_register_2.set_register_value(Power(Power.ON))
 
     async def stop_propagating(self):
         """Stop the propagation of the laser.
@@ -311,7 +313,7 @@ class MCPU800:
         None
 
         """
-        await self.power_register_2.set_register_value("OFF")
+        await self.power_register_2.set_register_value(Power(Power.OFF))
 
     async def set_output_energy_level(self, value):
         """Set the output energy level for the laser.
@@ -333,9 +335,12 @@ class MCPU800:
             The mode to be set
             Continuous: Continuous pulse
             Burst: Pulses a set number of times at regular interval
-            Trigger: Trigger a pulse using an external device (Not been used)
+            Trigger: Trigger a pulse using an external device
+            Trigger has not been used as we have no source.
         """
-        await self.continous_burst_mode_trigger_burst_register.set_register_value(value)
+        await self.continous_burst_mode_trigger_burst_register.set_register_value(
+            Mode(value)
+        )
 
     async def set_burst_count(self, value):
         """Set the burst count for the laser when in burst mode.

@@ -25,6 +25,7 @@
 import logging
 from .ascii import TCPIPClient
 from . import hardware
+from .enums import Mode
 
 
 class LaserComponent:
@@ -122,11 +123,11 @@ class LaserComponent:
 
     async def set_burst_mode(self):
         """Set the propagation mode to pulse the laser at regular intervals."""
-        await self.m_cpu800.set_propagation_mode("Burst")
+        await self.m_cpu800.set_propagation_mode(Mode.BURST)
 
     async def set_continuous_mode(self):
         """Set the propagation mode to continuously pulse the laser."""
-        await self.m_cpu800.set_propagation_mode("Continuous")
+        await self.m_cpu800.set_propagation_mode(Mode.CONTINUOUS)
 
     async def set_burst_count(self, count):
         """Set the burst count of the laser.
@@ -151,7 +152,7 @@ class LaserComponent:
     async def clear_fault(self):
         """Clear the fault state of the laser."""
         if self.m_cpu800.power_register_2.register_value == "FAULT":
-            await self.m_cpu800.power_register_2.set_register_value("OFF")
+            await self.m_cpu800.power_register_2.set_register_value()
 
     async def read_all_registers(self):
         """Publish the module's registers' values."""

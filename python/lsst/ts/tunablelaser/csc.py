@@ -196,10 +196,13 @@ class LaserCSC(salobj.ConfigurableCsc):
         else:
             if self.model.is_propgating:
                 await self.model.stop_propagating()
+                await self.publish_new_detailed_state(
+                    TunableLaser.LaserDetailedState.NONPROPAGATING
+                )
+            await self.model.disconnect()
             if self.simulator is not None:
                 await self.simulator.close()
                 self.simulator = None
-            await self.model.disconnect()
             self.telemetry_task.cancel()
 
     async def do_setBurstMode(self, data):
@@ -290,7 +293,9 @@ class LaserCSC(salobj.ConfigurableCsc):
     async def close_tasks(self):
         await super().close_tasks()
         self.telemetry_task.cancel()
+        if self.model.is_propgating:
+            await self.model.stop_propagating()
+        await self.model.disconnect()
         if self.simulator is not None:
             await self.simulator.close()
             self.simulator = None
-        await self.model.disconnect()
