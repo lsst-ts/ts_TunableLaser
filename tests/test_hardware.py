@@ -54,6 +54,12 @@ class TestMaxiOPG(unittest.IsolatedAsyncioTestCase):
             "F1 SCU",
             "F2 SCU",
         ]
+        self.maxiopg = MaxiOPG(None)
+        assert self.maxiopg.configuration_register.accepted_values == [
+            "No SCU",
+            "F1 No SCU",
+            "F2 No SCU",
+        ]
 
     def test_invalid_configuration(self):
         with pytest.raises(ValueError):

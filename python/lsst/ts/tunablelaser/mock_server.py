@@ -27,7 +27,7 @@ import asyncio
 
 from lsst.ts import tcpip
 
-from .enums import Power, Mode, Output, SCU, NoSCU
+from .enums import Power, Mode, Output, SCUConfiguration, NoSCU
 
 TERMINATOR = "\r\n\x03"
 
@@ -152,7 +152,7 @@ class MockNT900:
         if not self.scu:
             self.configuration = NoSCU.NO_SCU
         else:
-            self.configuration = SCU.SCU
+            self.configuration = SCUConfiguration.SCU
         self.propagation_mode = Mode.CONTINUOUS
         self.burst_length = 1
         self.log = logging.getLogger(__name__)
@@ -513,7 +513,7 @@ class MockNT900:
             self.configuration = NoSCU(configuration)
             return ""
         else:
-            self.configuration = SCU(configuration)
+            self.configuration = SCUConfiguration(configuration)
             return ""
 
     def do_miniopg_56_error_code(self):

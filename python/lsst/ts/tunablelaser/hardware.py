@@ -45,7 +45,7 @@ __all__ = [
 ]
 import logging
 from .ascii import AsciiRegister
-from .enums import Power, Mode, Output
+from .enums import Power, Mode, Output, NoSCU, SCUConfiguration
 
 
 class CPU8000:
@@ -300,7 +300,7 @@ class MCPU800:
         None
 
         """
-        await self.power_register_2.set_register_value(Power(Power.ON))
+        await self.power_register_2.set_register_value(Power.ON)
 
     async def stop_propagating(self):
         """Stop the propagation of the laser.
@@ -313,7 +313,7 @@ class MCPU800:
         None
 
         """
-        await self.power_register_2.set_register_value(Power(Power.OFF))
+        await self.power_register_2.set_register_value(Power.OFF)
 
     async def set_output_energy_level(self, value):
         """Set the output energy level for the laser.
@@ -465,7 +465,7 @@ class MaxiOPG:
         Handles the "Configuration" register.
     """
 
-    def __init__(self, commander, simulation_mode=False, configuration="No SCU"):
+    def __init__(self, commander, simulation_mode=False, configuration=NoSCU.NO_SCU):
         self.name = "MaxiOPG"
         self.id = 31
         self.commander = commander
@@ -480,24 +480,24 @@ class MaxiOPG:
             accepted_values=range(300, 1100),
             simulation_mode=simulation_mode,
         )
-        if self.configuration == "No SCU":
+        if self.configuration == NoSCU.NO_SCU:
             self.configuration_register = AsciiRegister(
                 commander=commander,
                 module_name=self.name,
                 module_id=self.id,
                 register_name="Configuration",
                 read_only=False,
-                accepted_values=["No SCU", "F1 No SCU", "F2 No SCU"],
+                accepted_values=list(NoSCU),
                 simulation_mode=simulation_mode,
             )
-        elif self.configuration == "SCU":
+        elif self.configuration == SCUConfiguration.SCU:
             self.configuration_register = AsciiRegister(
                 commander=commander,
                 module_name=self.name,
                 module_id=self.id,
                 register_name="Configuration",
                 read_only=False,
-                accepted_values=["SCU", "F1 SCU", "F2 SCU"],
+                accepted_values=list(SCUConfiguration),
                 simulation_mode=simulation_mode,
             )
         else:

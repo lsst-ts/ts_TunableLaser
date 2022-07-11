@@ -151,7 +151,6 @@ class TunableLaserCscTestCase(unittest.IsolatedAsyncioTestCase, salobj.BaseCscTe
                 detailedState=TunableLaser.LaserDetailedState.PROPAGATING,
             )
             await self.remote.cmd_disable.set_start(timeout=STD_TIMEOUT)
-            await self.remote.cmd_standby.set_start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(
                 topic=self.remote.evt_detailedState,
                 detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING,
