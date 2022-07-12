@@ -17,7 +17,7 @@ version = { attr = "setuptools_scm.get_version" }
 where = [ "python" ]
 
 [project.scripts]
-run_tunablelaser = "lsst.ts.tunablelaser.cli:execute_csc"
+run_tunablelaser = "lsst.ts.tunablelaser:run_tunablelaser"
 
 [tool.setuptools_scm]
 write_to = "python/lsst/ts/tunablelaser/version.py"
@@ -30,7 +30,7 @@ __version__ = "{version}"
 [tool.pytest.ini_options]
 addopts = "--flake8 --black"
 flake8-ignore = ["E133", "E203", "E226", "E228", "N802", "N803", "N806", "N812", "N813", "N815", "N816", "W503", "doc/conf.py ALL", "__init__.py ALL", "version.py ALL", "tests/.tests ALL"]
-log_level = "DEBUG"
+log_level = "INFO"
 asyncio_mode = "auto"
 flake8-max-line-length = "110"
 flake8-max-doc-length = "79"

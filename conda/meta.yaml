@@ -10,7 +10,7 @@ build:
     noarch: generic
     script: python -m pip install --no-deps --ignore-installed .
     entry_points:
-        - run_tunablelaser = lsst.ts.tunablelaser.cli:execute_csc
+        - run_tunablelaser = lsst.ts.tunablelaser:run_tunablelaser
     script_env:
         - PATH
         - PYTHONPATH

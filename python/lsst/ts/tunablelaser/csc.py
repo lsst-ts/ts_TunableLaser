@@ -22,6 +22,7 @@
 """Implements CSC classes for the TunableLaser.
 
 """
+__all__ = ["run_tunablelaser", "LaserCSC"]
 
 import asyncio
 
@@ -34,6 +35,10 @@ from . import __version__
 from .component import LaserComponent
 from .config_schema import CONFIG_SCHEMA
 from .mock_server import MockServer
+
+
+def run_tunablelaser():
+    asyncio.run(LaserCSC.amain(index=None))
 
 
 class LaserCSC(salobj.ConfigurableCsc):
@@ -102,12 +107,12 @@ class LaserCSC(salobj.ConfigurableCsc):
                     or self.model.m_cpu800.power_register.register_value == "FAULT"
                     or self.model.m_cpu800.power_register_2.register_value == "FAULT"
                 ):
-                    self.fault(
+                    await self.fault(
                         code=TunableLaser.LaserErrorCode.HW_CPU_ERROR,
                         report=(
-                            f"Code:{self.model.cpu8000.fault_register.fault}"
-                            f" Code:{self.model.m_cpu800.fault_register.fault}"
-                            f" Code:{self.model.m_cpu800.fault_register_2.fault}"
+                            f"cpu8000 fault:{self.model.cpu8000.fault_register.register_value}"
+                            f"m_cpu800 fault:{self.model.m_cpu800.fault_register.register_value}"
+                            f"m_cpu800 fault2:{self.model.m_cpu800.fault_register_2.register_value}"
                         ),
                     )
                 await self.tel_wavelength.set_write(
@@ -167,7 +172,7 @@ class LaserCSC(salobj.ConfigurableCsc):
             TunableLaser.LaserDetailedState(substate) for substate in substates
         ]:
             raise salobj.ExpectedError(
-                f"{action} not allowed in state {self.detailed_state!r}"
+                f"{action} not allowed in state {self.evt_detailedState.data.detailedState!r}"
             )
 
     async def handle_summary_state(self):
@@ -191,16 +196,61 @@ class LaserCSC(salobj.ConfigurableCsc):
                     f"Model optical alignment={self.model.maxi_opg.optical_alignment}"
                 )
                 await self.model.maxi_opg.set_configuration()
+            if self.summary_state == salobj.State.DISABLED and self.model.is_propgating:
+                await self.model.stop_propagating()
+                await self.publish_new_detailed_state(
+                    TunableLaser.LaserDetailedState.NONPROPAGATING
+                )
             if self.telemetry_task.done():
                 self.telemetry_task = asyncio.create_task(self.telemetry())
         else:
-            if self.model.is_propgating:
-                await self.model.stop_propagating()
+            await self.model.disconnect()
             if self.simulator is not None:
                 await self.simulator.close()
                 self.simulator = None
-            await self.model.disconnect()
             self.telemetry_task.cancel()
+
+    async def do_setBurstMode(self, data):
+        """Set burst mode for the laser.
+
+        Burst mode changes the propagation to pulse the laser with increased
+        power at a regular interval.
+
+        Parameters
+        ----------
+        data : `DataType`
+            The command data.
+        """
+        self.assert_enabled()
+        await self.model.set_burst_mode()
+        await self.evt_burstModeSet.set_write()
+
+    async def do_setContinuousMode(self, data):
+        """Set continuous mode for the laser.
+
+        Continuous mode changes the propagation to pulse continuously at a
+        regular power level.
+
+        Parameters
+        ----------
+        data : `DataType`
+            The command data.
+        """
+        self.assert_enabled()
+        await self.model.set_continuous_mode()
+        await self.evt_continuousModeSet.set_write()
+
+    async def do_setBurstCount(self, data):
+        """Set the burst count.
+
+        Parameters
+        ----------
+        data : `DataType`
+            The command data which contains the count argument.
+        """
+        self.assert_enabled()
+        await self.model.set_burst_count(count=data.count)
+        await self.evt_burstCountSet.set_write(count=data.count)
 
     async def do_changeWavelength(self, data):
         """Change the wavelength of the laser.
@@ -209,7 +259,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         ----------
         data
         """
-        self.assert_enabled("changeWavelength")
+        self.assert_enabled()
         await self.model.change_wavelength(data.wavelength)
         await self.evt_wavelengthChanged.set_write(wavelength=data.wavelength)
 
@@ -220,7 +270,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         ----------
         data
         """
-        self.assert_enabled("startPropagateLaser")
+        self.assert_enabled()
         self.assert_substate(
             [TunableLaser.LaserDetailedState.NONPROPAGATING], "startPropagateLaser"
         )
@@ -237,7 +287,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         ----------
         data
         """
-        self.assert_enabled("stopPropagateLaser")
+        self.assert_enabled()
         self.assert_substate(
             [TunableLaser.LaserDetailedState.PROPAGATING], "stopPropagateLaser"
         )
@@ -254,7 +304,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         ----------
         data
         """
-        self.assert_enabled("clearFaultState")
+        self.assert_enabled()
         await self.model.clear_fault()
 
     async def publish_new_detailed_state(self, new_sub_state):
@@ -273,9 +323,18 @@ class LaserCSC(salobj.ConfigurableCsc):
         return "ts_config_mtcalsys"
 
     async def close_tasks(self):
+        """Tasks to perform before closing the CSC.
+
+        * Cancel telemetry
+        * If laser is propagating, stop it.
+        * Disconnect from the laser
+        * If simulator is running, shut it off
+        """
         await super().close_tasks()
         self.telemetry_task.cancel()
+        if self.model.is_propgating:
+            await self.model.stop_propagating()
+        await self.model.disconnect()
         if self.simulator is not None:
             await self.simulator.close()
             self.simulator = None
-        await self.model.disconnect()

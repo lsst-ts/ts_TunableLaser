@@ -25,6 +25,7 @@
 import logging
 from .ascii import TCPIPClient
 from . import hardware
+from .enums import Mode
 
 
 class LaserComponent:
@@ -120,6 +121,24 @@ class LaserComponent:
         self.log.debug(f"Changing output energy level={output_energy_level}")
         await self.m_cpu800.set_output_energy_level(output_energy_level)
 
+    async def set_burst_mode(self):
+        """Set the propagation mode to pulse the laser at regular intervals."""
+        await self.m_cpu800.set_propagation_mode(Mode.BURST)
+
+    async def set_continuous_mode(self):
+        """Set the propagation mode to continuously pulse the laser."""
+        await self.m_cpu800.set_propagation_mode(Mode.CONTINUOUS)
+
+    async def set_burst_count(self, count):
+        """Set the burst count of the laser.
+
+        Parameters
+        ----------
+        count : `int`
+            The amount to pulse the laser.
+        """
+        await self.m_cpu800.set_burst_count(count)
+
     async def start_propagating(self):
         """Start propagating the beam of the laser."""
         await self.m_cpu800.start_propagating()
@@ -132,12 +151,8 @@ class LaserComponent:
 
     async def clear_fault(self):
         """Clear the fault state of the laser."""
-        if self.cpu8000.power_register.register_value == "FAULT":
-            await self.cpu8000.power_register.set_register_value("OFF")
-        if self.m_cpu800.power_register.register_value == "FAULT":
-            await self.m_cpu800.power_register.set_register_value("OFF")
         if self.m_cpu800.power_register_2.register_value == "FAULT":
-            await self.m_cpu800.power_register_2.set_register_value("OFF")
+            await self.m_cpu800.power_register_2.set_register_value()
 
     async def read_all_registers(self):
         """Publish the module's registers' values."""

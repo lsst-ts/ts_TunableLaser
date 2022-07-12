@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from lsst.ts.tunablelaser.cli import execute_csc
+from lsst.ts.tunablelaser import run_tunablelaser
 
 
-execute_csc()
+run_tunablelaser()

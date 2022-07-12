@@ -23,7 +23,7 @@ pipeline {
     stages {
         stage ('Install Requirements') {
             steps {
-                withEnv(["HOME=${env.WORKSPACE}"]) {
+                withEnv(["WHOME=${env.WORKSPACE}"]) {
                     sh """
                         source /home/saluser/.setup_dev.sh || echo loading env failed. Continuing...
                         cd /home/saluser/repos/ts_xml && /home/saluser/.checkout_repo.sh ${work_branches} && git pull
@@ -31,8 +31,6 @@ pipeline {
                         cd /home/saluser/repos/ts_sal && /home/saluser/.checkout_repo.sh ${work_branches} && git pull
                         cd /home/saluser/repos/ts_config_mtcalsys && /home/saluser/.checkout_repo.sh ${work_branches} && git pull
                         make_idl_files.py TunableLaser
-                        cd $HOME
-                        pip install .[dev]
                     """
                 }
             }
@@ -41,7 +39,7 @@ pipeline {
             
         stage ('Unit Tests and Coverage Analysis') {
             steps {
-                withEnv(["HOME=${env.WORKSPACE}"]) {
+                withEnv(["WHOME=${env.WORKSPACE}"]) {
                     sh """
                         source /home/saluser/.setup_dev.sh || echo loading env failed. Continuing...
                         pip install .[dev]
@@ -53,7 +51,7 @@ pipeline {
         
         stage('Build and Upload Documentation') {
             steps {
-                withEnv(["HOME=${env.WORKSPACE}"]) {
+                withEnv(["WHOME=${env.WORKSPACE}"]) {
                     sh """
                         source /home/saluser/.setup_dev.sh || echo loading env failed. Continuing...
                         pip install .[dev]

@@ -29,4 +29,4 @@ from .component import *
 from .csc import *
 from .hardware import *
 from .mock_server import *
-from .cli import *
+from .enums import *
