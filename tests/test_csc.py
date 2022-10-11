@@ -33,7 +33,7 @@ STD_TIMEOUT = 10
 TEST_CONFIG_DIR = pathlib.Path(__file__).parents[1].joinpath("tests", "data", "config")
 
 
-class TunableLaserCscTestCase(unittest.IsolatedAsyncioTestCase, salobj.BaseCscTestCase):
+class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         os.environ["LSST_SITE"] = "tunablelaser"
         return super().setUp()
