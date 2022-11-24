@@ -22,10 +22,15 @@
 """Implements the component class for the TunableLaser.
 
 """
+
+import asyncio
+
 import logging
 from .ascii import TCPIPClient
 from . import hardware
 from .enums import Mode
+
+from lsst.ts.idl.enums.TunableLaser import LaserDetailedState
 
 
 class LaserComponent:
@@ -41,6 +46,8 @@ class LaserComponent:
     ----------
     log : `logging.Logger`
         logger for this class.
+    csc : `LaserCSC`
+        Reference to the CSC object.
     commander : `TCPIPClient`
         TCP/IP client.
     cpu8000 : `CPU8000`
@@ -63,15 +70,18 @@ class LaserComponent:
         Controls the LDCO48BP laser module.
     m_ldco48 : `M_LDCO48`
         Controls the LDCO48 laser module.
+    laser_warmup_delay : `int`
+        The warmup delay before stating that the laser is propagating.
 
 
     """
 
-    def __init__(self, simulation_mode=False, log=None):
+    def __init__(self, csc, simulation_mode=False, log=None):
         if log is None:
             self.log = logging.getLogger(__name__)
         else:
             self.log = log
+        self.csc = csc
         self.commander = None
         self.cpu8000 = hardware.CPU8000(commander=self.commander)
         self.m_cpu800 = hardware.MCPU800(commander=self.commander)
@@ -86,6 +96,7 @@ class LaserComponent:
         self.is_propgating = False
         self.simulation_mode = simulation_mode
         self.log.info("Laser Component initialized.")
+        self.laser_warmup_delay = 10
 
     @property
     def connected(self):
@@ -121,9 +132,39 @@ class LaserComponent:
         self.log.debug(f"Changing output energy level={output_energy_level}")
         await self.m_cpu800.set_output_energy_level(output_energy_level)
 
-    async def set_burst_mode(self):
-        """Set the propagation mode to pulse the laser at regular intervals."""
+    async def trigger_burst(self):
+        """Trigger a burst.
+
+        Raises
+        ------
+        ValueError
+            Raised when mode parameter is not in list of accepted values.
+        """
+        await self.m_cpu800.set_propagation_mode(Mode.TRIGGER)
+        await self.csc.publish_new_detailed_state(
+            LaserDetailedState.PROPAGATING_BURST_MODE_TRIGGERED
+        )
+        await self.csc.publish_new_detailed_state(
+            LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER
+        )
+
+    async def set_burst_mode(self, count):
+        """Set the propagation mode to pulse the laser at regular intervals.
+
+        Parameters
+        ----------
+        count : `int`
+            The amount of times to pulse the laser.
+            Range is from 1 to 50000.
+
+        Raises
+        ------
+        ValueError
+            Raised when the count parameter falls outside of the
+            accepted range.
+        """
         await self.m_cpu800.set_propagation_mode(Mode.BURST)
+        await self.m_cpu800.set_burst_count(count)
 
     async def set_continuous_mode(self):
         """Set the propagation mode to continuously pulse the laser."""
@@ -138,11 +179,29 @@ class LaserComponent:
             The amount to pulse the laser.
         """
         await self.m_cpu800.set_burst_count(count)
+        await self.csc.evt_burstCountSet.set_write(count=count)
 
     async def start_propagating(self):
         """Start propagating the beam of the laser."""
         await self.m_cpu800.start_propagating()
-        self.is_propgating = True
+        mode = self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value
+        await asyncio.sleep(self.laser_warmup_delay)  # laser warmup delay
+        if (
+            self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value
+            == Mode.BURST
+        ):
+            await self.csc.publish_new_detailed_state(
+                LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER
+            )
+            self.is_propgating = True
+        elif (
+            self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value
+            == Mode.CONTINUOUS
+        ):
+            await self.csc.publish_new_detailed_state(LaserDetailedState.PROPAGATING)
+            self.is_propgating = True
+        else:
+            raise RuntimeError(f"{mode} not in list of {list(Mode)} valid laser modes.")
 
     async def stop_propagating(self):
         """Stop propagating the beam of the laser"""

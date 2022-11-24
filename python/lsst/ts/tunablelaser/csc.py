@@ -46,10 +46,6 @@ class LaserCSC(salobj.ConfigurableCsc):
 
     Parameters
     ----------
-    address : `str`
-        The physical usb port string where the laser is located.
-    frequency : `float`, optional
-        The amount of time that the telemetry stream is published.
     initial_state : `lsst.ts.salobj.State`, optional
         The initial state that a CSC will start up in. Only useful for unit
         tests as most CSCs will start in `salobj.State.STANDBY`
@@ -81,7 +77,9 @@ class LaserCSC(salobj.ConfigurableCsc):
             initial_state=initial_state,
             simulation_mode=simulation_mode,
         )
-        self.model = LaserComponent(simulation_mode=bool(simulation_mode), log=self.log)
+        self.model = LaserComponent(
+            csc=self, simulation_mode=bool(simulation_mode), log=self.log
+        )
         self.telemetry_rate = 0.5
         self.telemetry_task = utils.make_done_future()
         self.simulator = None
@@ -222,7 +220,7 @@ class LaserCSC(salobj.ConfigurableCsc):
             The command data.
         """
         self.assert_enabled()
-        await self.model.set_burst_mode()
+        await self.model.set_burst_mode(data.count)
         await self.evt_burstModeSet.set_write()
 
     async def do_setContinuousMode(self, data):
@@ -239,18 +237,6 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.assert_enabled()
         await self.model.set_continuous_mode()
         await self.evt_continuousModeSet.set_write()
-
-    async def do_setBurstCount(self, data):
-        """Set the burst count.
-
-        Parameters
-        ----------
-        data : `DataType`
-            The command data which contains the count argument.
-        """
-        self.assert_enabled()
-        await self.model.set_burst_count(count=data.count)
-        await self.evt_burstCountSet.set_write(count=data.count)
 
     async def do_changeWavelength(self, data):
         """Change the wavelength of the laser.
@@ -276,9 +262,6 @@ class LaserCSC(salobj.ConfigurableCsc):
         )
         await self.model.set_output_energy_level("MAX")
         await self.model.start_propagating()
-        await self.publish_new_detailed_state(
-            TunableLaser.LaserDetailedState.PROPAGATING
-        )
 
     async def do_stopPropagateLaser(self, data):
         """Stop the Propagating State of the laser.
@@ -289,7 +272,11 @@ class LaserCSC(salobj.ConfigurableCsc):
         """
         self.assert_enabled()
         self.assert_substate(
-            [TunableLaser.LaserDetailedState.PROPAGATING], "stopPropagateLaser"
+            [
+                TunableLaser.LaserDetailedState.PROPAGATING,
+                TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER,
+            ],
+            "stopPropagateLaser",
         )
         await self.model.stop_propagating()
         await self.publish_new_detailed_state(
@@ -306,6 +293,16 @@ class LaserCSC(salobj.ConfigurableCsc):
         """
         self.assert_enabled()
         await self.model.clear_fault()
+
+    async def do_triggerBurst(self, data):
+        self.assert_enabled()
+        self.assert_substate(
+            [
+                TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER
+            ],
+            "trigger",
+        )
+        await self.model.trigger_burst()
 
     async def publish_new_detailed_state(self, new_sub_state):
         new_sub_state = TunableLaser.LaserDetailedState(new_sub_state)
