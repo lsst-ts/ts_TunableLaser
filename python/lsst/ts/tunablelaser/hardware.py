@@ -300,7 +300,12 @@ class MCPU800:
         None
 
         """
-        await self.power_register_2.set_register_value(Power.ON)
+        await self.continous_burst_mode_trigger_burst_register.read_register_value()
+        rv = self.continous_burst_mode_trigger_burst_register.register_value
+        if rv in list(Mode):
+            await self.power_register_2.set_register_value(Power.ON)
+        else:
+            raise RuntimeError(f"{rv} is not in one of accepted values")
 
     async def stop_propagating(self):
         """Stop the propagation of the laser.

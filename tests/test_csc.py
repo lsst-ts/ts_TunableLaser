@@ -29,7 +29,7 @@ from lsst.ts import salobj, tunablelaser
 from lsst.ts.idl.enums import TunableLaser
 
 
-STD_TIMEOUT = 10
+STD_TIMEOUT = 15
 TEST_CONFIG_DIR = pathlib.Path(__file__).parents[1].joinpath("tests", "data", "config")
 
 
@@ -127,6 +127,17 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                 topic=self.remote.evt_detailedState,
                 detailedState=TunableLaser.LaserDetailedState.PROPAGATING,
             )
+            await self.remote.cmd_stopPropagateLaser.set_start(timeout=STD_TIMEOUT)
+            await self.assert_next_sample(
+                topic=self.remote.evt_detailedState,
+                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING,
+            )
+            await self.remote.cmd_setBurstMode.set_start(count=1, timeout=STD_TIMEOUT)
+            await self.remote.cmd_startPropagateLaser.set_start(timeout=STD_TIMEOUT)
+            await self.assert_next_sample(
+                topic=self.remote.evt_detailedState,
+                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER,
+            )
 
     async def test_stop_propagate_laser(self):
         async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
@@ -163,7 +174,7 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
 
     async def test_set_burst_mode(self):
         async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
-            await self.remote.cmd_setBurstMode.set_start(timeout=STD_TIMEOUT)
+            await self.remote.cmd_setBurstMode.set_start(count=1, timeout=STD_TIMEOUT)
             await self.assert_next_sample(topic=self.remote.evt_burstModeSet)
 
     async def test_set_continuous_mode(self):
@@ -171,13 +182,30 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
             await self.remote.cmd_setContinuousMode.set_start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(topic=self.remote.evt_continuousModeSet)
 
-    async def test_set_burst_count(self):
-        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
-            await self.remote.cmd_setBurstCount.set_start(count=60, timeout=STD_TIMEOUT)
-            await self.assert_next_sample(topic=self.remote.evt_burstCountSet, count=60)
-
     async def test_get_config_pkg(self):
         assert tunablelaser.LaserCSC.get_config_pkg() == "ts_config_mtcalsys"
+
+    async def test_trigger_burst(self):
+        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
+            await self.assert_next_sample(
+                topic=self.remote.evt_detailedState,
+                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING,
+            )
+            await self.remote.cmd_setBurstMode.set_start(count=1, timeout=STD_TIMEOUT)
+            await self.remote.cmd_startPropagateLaser.set_start(timeout=STD_TIMEOUT)
+            await self.assert_next_sample(
+                topic=self.remote.evt_detailedState,
+                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER,
+            )
+            await self.remote.cmd_triggerBurst.set_start(timeout=STD_TIMEOUT)
+            await self.assert_next_sample(
+                topic=self.remote.evt_detailedState,
+                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE_TRIGGERED,
+            )
+            await self.assert_next_sample(
+                topic=self.remote.evt_detailedState,
+                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER,
+            )
 
 
 if __name__ == "__main__":

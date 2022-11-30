@@ -18,3 +18,5 @@ v0.1.0
 * Change optical configuration to occur when transitioning to Disabled or Enabled state instead of just before propagating the beam
 * Fix eups package name
 * Move to pyproject.toml
+* Add triggerBurst command
+* Add Burst mode
