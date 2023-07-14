@@ -27,7 +27,7 @@ CONFIG_SCHEMA = yaml.safe_load(
     """
 $schema: http://json-schema.org/draft-07/schema#
 $id: https://github.com/lsst-ts/ts_TunableLaser/blob/master/schema/TunableLaser.yaml
-title: TunableLaser v1
+title: TunableLaser v2
 description: Schema for TunableLaser configuration files
 type: object
 properties:
@@ -55,5 +55,16 @@ properties:
         type: integer
         minimum: 300
         maximum: 1100
+    required:
+      - min
+      - max
+    addtionalProperties: false
+required:
+  - host
+  - port
+  - timeout
+  - optical_configuration
+  - wavelength
+additionalProperties: false
 """
 )

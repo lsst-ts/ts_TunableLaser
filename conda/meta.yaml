@@ -1,53 +1,43 @@
 {% set data= load_setup_py_data() %}
 package:
-    name: ts-tunablelaser
-    version: {{ data.get('version') }}
+  name: ts-tunablelaser
+  version: {{ data.get('version') }}
 
 source:
-    path: ../
+  path: ../
 
 build:
-    noarch: generic
-    script: python -m pip install --no-deps --ignore-installed .
-    entry_points:
-        - run_tunablelaser = lsst.ts.tunablelaser:run_tunablelaser
-    script_env:
-        - PATH
-        - PYTHONPATH
-        - LD_LIBRARY_PATH
-        - OSPL_HOME
-        - PYTHON_BUILD_VERSION
-        - PYTHON_BUILD_LOCATION
-        - LSST_DDS_DOMAIN
-        - TS_CONFIG_MTCALSYS_DIR
+  noarch: python
+  script: {{PYTHON}} -m pip install --no-deps --ignore-installed .
+  entry_points:
+    - run_tunablelaser = lsst.ts.tunablelaser:run_tunablelaser
 
 test:
-    requires:
-        - ts-conda-build =0.3
-        - ts-dds
-        - ts-idl {{ idl_version }}
-        - ts-salobj {{ salobj_version }}
-        - ts-tcpip
-    source_files:
-        - python
-        - bin
-        - tests
-        - setup.cfg
-        - pyproject.toml
-    commands:
-        - py.test
+  requires:
+    - ts-conda-build =0.3
+    - ts-idl {{ idl_version }}
+    - ts-salobj {{ salobj_version }}
+  source_files:
+    - python
+    - bin
+    - tests
+    - setup.cfg
+    - pyproject.toml
+  commands:
+    - pytest
 
 requirements:
-    host:
-        - python
-        - pip
-        - setuptools_scm
-        - setuptools
-        - pytest-runner
-    run:
-        - python
-        - setuptools
-        - setuptools_scm
-        - ts-salobj
-        - ts-idl
-        - ts-tcpip
+  host:
+    - python {{python}}
+    - setuptools_scm
+    - setuptools
+  build:
+    - python {{python}}
+    - ts-conda-build =0.3
+  run:
+      - python {{python}}
+      - setuptools
+      - setuptools_scm
+      - ts-salobj
+      - ts-idl
+      - ts-tcpip

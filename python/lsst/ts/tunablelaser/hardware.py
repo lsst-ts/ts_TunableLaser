@@ -303,7 +303,7 @@ class MCPU800:
         await self.continous_burst_mode_trigger_burst_register.read_register_value()
         rv = self.continous_burst_mode_trigger_burst_register.register_value
         if rv in list(Mode):
-            await self.power_register_2.set_register_value(Power.ON)
+            await self.power_register_2.set_register_value(Power.ON.value)
         else:
             raise RuntimeError(f"{rv} is not in one of accepted values")
 
@@ -318,7 +318,7 @@ class MCPU800:
         None
 
         """
-        await self.power_register_2.set_register_value(Power.OFF)
+        await self.power_register_2.set_register_value(Power.OFF.value)
 
     async def set_output_energy_level(self, value):
         """Set the output energy level for the laser.
@@ -344,7 +344,7 @@ class MCPU800:
             Trigger has not been used as we have no source.
         """
         await self.continous_burst_mode_trigger_burst_register.set_register_value(
-            Mode(value)
+            Mode(value).value
         )
 
     async def set_burst_count(self, value):
@@ -470,7 +470,9 @@ class MaxiOPG:
         Handles the "Configuration" register.
     """
 
-    def __init__(self, commander, simulation_mode=False, configuration=NoSCU.NO_SCU):
+    def __init__(
+        self, commander, simulation_mode=False, configuration=NoSCU.NO_SCU.value
+    ):
         self.name = "MaxiOPG"
         self.id = 31
         self.commander = commander
@@ -485,7 +487,7 @@ class MaxiOPG:
             accepted_values=range(300, 1100),
             simulation_mode=simulation_mode,
         )
-        if self.configuration == NoSCU.NO_SCU:
+        if self.configuration == NoSCU.NO_SCU.value:
             self.configuration_register = AsciiRegister(
                 commander=commander,
                 module_name=self.name,
@@ -495,7 +497,7 @@ class MaxiOPG:
                 accepted_values=list(NoSCU),
                 simulation_mode=simulation_mode,
             )
-        elif self.configuration == SCUConfiguration.SCU:
+        elif self.configuration == SCUConfiguration.SCU.value:
             self.configuration_register = AsciiRegister(
                 commander=commander,
                 module_name=self.name,

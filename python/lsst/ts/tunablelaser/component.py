@@ -140,7 +140,7 @@ class LaserComponent:
         ValueError
             Raised when mode parameter is not in list of accepted values.
         """
-        await self.m_cpu800.set_propagation_mode(Mode.TRIGGER)
+        await self.m_cpu800.set_propagation_mode(Mode.TRIGGER.value)
         await self.csc.publish_new_detailed_state(
             LaserDetailedState.PROPAGATING_BURST_MODE_TRIGGERED
         )
@@ -163,12 +163,12 @@ class LaserComponent:
             Raised when the count parameter falls outside of the
             accepted range.
         """
-        await self.m_cpu800.set_propagation_mode(Mode.BURST)
+        await self.m_cpu800.set_propagation_mode(Mode.BURST.value)
         await self.m_cpu800.set_burst_count(count)
 
     async def set_continuous_mode(self):
         """Set the propagation mode to continuously pulse the laser."""
-        await self.m_cpu800.set_propagation_mode(Mode.CONTINUOUS)
+        await self.m_cpu800.set_propagation_mode(Mode.CONTINUOUS.value)
 
     async def set_burst_count(self, count):
         """Set the burst count of the laser.
