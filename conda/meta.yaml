@@ -21,7 +21,6 @@ test:
     - python
     - bin
     - tests
-    - setup.cfg
     - pyproject.toml
   commands:
     - pytest
@@ -35,9 +34,9 @@ requirements:
     - python {{python}}
     - ts-conda-build =0.3
   run:
-      - python {{python}}
-      - setuptools
-      - setuptools_scm
-      - ts-salobj
-      - ts-idl
-      - ts-tcpip
+    - python {{python}}
+    - setuptools
+    - setuptools_scm
+    - ts-salobj
+    - ts-idl
+    - ts-tcpip
