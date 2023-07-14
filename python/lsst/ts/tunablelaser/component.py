@@ -24,13 +24,13 @@
 """
 
 import asyncio
-
 import logging
-from .ascii import TCPIPClient
-from . import hardware
-from .enums import Mode
 
 from lsst.ts.idl.enums.TunableLaser import LaserDetailedState
+
+from . import hardware
+from .ascii import TCPIPClient
+from .enums import Mode
 
 
 class LaserComponent:

@@ -44,8 +44,9 @@ __all__ = [
     "DelayLin",
 ]
 import logging
+
 from .ascii import AsciiRegister
-from .enums import Power, Mode, Output, NoSCU, SCUConfiguration
+from .enums import Mode, NoSCU, Output, Power, SCUConfiguration
 
 
 class CPU8000:

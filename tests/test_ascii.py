@@ -23,7 +23,6 @@ import unittest
 import unittest.mock
 
 import pytest
-
 from lsst.ts.tunablelaser.ascii import AsciiRegister
 
 

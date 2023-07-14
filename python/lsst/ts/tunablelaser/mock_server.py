@@ -21,13 +21,13 @@
 
 __all__ = ["MockServer", "MockMessage", "MockNT900"]
 
-import logging
-import inspect
 import asyncio
+import inspect
+import logging
 
 from lsst.ts import tcpip
 
-from .enums import Power, Mode, Output, SCUConfiguration, NoSCU
+from .enums import Mode, NoSCU, Output, Power, SCUConfiguration
 
 TERMINATOR = "\r\n\x03"
 

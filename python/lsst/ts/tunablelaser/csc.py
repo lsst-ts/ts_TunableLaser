@@ -26,10 +26,8 @@ __all__ = ["run_tunablelaser", "LaserCSC"]
 
 import asyncio
 
-from lsst.ts import salobj
+from lsst.ts import salobj, tcpip, utils
 from lsst.ts.idl.enums import TunableLaser
-from lsst.ts import tcpip
-from lsst.ts import utils
 
 from . import __version__
 from .component import LaserComponent

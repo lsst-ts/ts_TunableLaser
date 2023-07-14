@@ -2,5 +2,4 @@
 
 from lsst.ts.tunablelaser import run_tunablelaser
 
-
 run_tunablelaser()
