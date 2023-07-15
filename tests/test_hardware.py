@@ -19,11 +19,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import unittest.mock
 import unittest
+import unittest.mock
 
 import pytest
-
 from lsst.ts.tunablelaser.hardware import CPU8000, MaxiOPG
 
 

@@ -21,13 +21,13 @@
 
 __all__ = ["MockServer", "MockMessage", "MockNT900"]
 
-import logging
-import inspect
 import asyncio
+import inspect
+import logging
 
 from lsst.ts import tcpip
 
-from .enums import Power, Mode, Output, SCUConfiguration, NoSCU
+from .enums import Mode, NoSCU, Output, Power, SCUConfiguration
 
 TERMINATOR = "\r\n\x03"
 
@@ -145,15 +145,15 @@ class MockNT900:
         self.temperature = 19
         self.cpu8000_current = "19A"
         self.m_cpu800_current = "19A"
-        self.cpu8000_power = Power.ON
-        self.m_cpu800_power = Power.ON
-        self.propagating = Power.OFF
-        self.output_energy_level = Output.OFF
+        self.cpu8000_power = Power.ON.value
+        self.m_cpu800_power = Power.ON.value
+        self.propagating = Power.OFF.value
+        self.output_energy_level = Output.OFF.value
         if not self.scu:
-            self.configuration = NoSCU.NO_SCU
+            self.configuration = NoSCU.NO_SCU.value
         else:
-            self.configuration = SCUConfiguration.SCU
-        self.propagation_mode = Mode.CONTINUOUS
+            self.configuration = SCUConfiguration.SCU.value
+        self.propagation_mode = Mode.CONTINUOUS.value
         self.burst_length = 1
         self.log = logging.getLogger(__name__)
         self.log.debug("MockNT900 initialized")
@@ -342,7 +342,7 @@ class MockNT900:
             An empty message
         """
         try:
-            self.propagating = Power(state)
+            self.propagating = Power(state).value
             return ""
         except ValueError:
             self.log.error(f"{state} not in {list(Power)}")
@@ -407,7 +407,7 @@ class MockNT900:
             if mode not in accepted values.
         """
         try:
-            self.propagation_mode = Mode(mode)
+            self.propagation_mode = Mode(mode).value
             return ""
         except ValueError:
             self.log.error(f"{mode} not in {list(Mode)}")

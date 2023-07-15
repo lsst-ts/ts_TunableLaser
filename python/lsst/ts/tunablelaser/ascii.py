@@ -31,9 +31,9 @@ class as they contain the bulk of the functionality.
 
 """
 __all__ = ["AsciiRegister", "AsciiError", "TCPIPClient"]
-import logging
-import enum
 import asyncio
+import enum
+import logging
 
 from lsst.ts import tcpip
 

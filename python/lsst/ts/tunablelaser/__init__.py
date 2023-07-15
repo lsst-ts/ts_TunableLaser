@@ -27,6 +27,6 @@ except ImportError:
 from .ascii import *
 from .component import *
 from .csc import *
+from .enums import *
 from .hardware import *
 from .mock_server import *
-from .enums import *

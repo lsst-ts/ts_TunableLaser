@@ -19,15 +19,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import unittest
 import os
 import pathlib
+import unittest
 
 import pytest
-
 from lsst.ts import salobj, tunablelaser
 from lsst.ts.idl.enums import TunableLaser
-
 
 STD_TIMEOUT = 15
 TEST_CONFIG_DIR = pathlib.Path(__file__).parents[1].joinpath("tests", "data", "config")
