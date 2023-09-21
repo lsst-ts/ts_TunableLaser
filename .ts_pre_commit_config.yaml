@@ -4,3 +4,5 @@ black: true
 flake8: true
 isort: true
 mypy: false
+clang-format: false
+ruff: true
