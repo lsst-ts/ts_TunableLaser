@@ -53,7 +53,7 @@ class MockServer(tcpip.OneClientServer):
             connect_callback=self.connect_callback,
         )
 
-    def connect_callback(self, server):
+    async def connect_callback(self, server):
         """Call when the client connects.
 
         Starts the command loop for the simulator.
@@ -70,15 +70,14 @@ class MockServer(tcpip.OneClientServer):
         """Return reply based on messaged received."""
         while self.connected:
             self.log.debug("inside cmd_loop")
-            reply = await self.reader.readuntil(b"\r")
+            reply = await self.readuntil(b"\r")
             if not reply:
                 self.writer.close()
                 return
             reply = self.device.parse_message(reply)
             reply += TERMINATOR
             self.log.debug(f"reply={reply.encode('ascii')}")
-            self.writer.write(reply.encode("ascii"))
-            await self.writer.drain()
+            await self.write(reply.encode("ascii"))
 
 
 class MockMessage:
