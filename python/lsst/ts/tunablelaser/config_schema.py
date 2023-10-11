@@ -50,11 +50,11 @@ properties:
       min:
         type: integer
         minimum: 300
-        maximum: 1100
+        maximum: 1250
       max:
         type: integer
         minimum: 300
-        maximum: 1100
+        maximum: 1250
     required:
       - min
       - max
