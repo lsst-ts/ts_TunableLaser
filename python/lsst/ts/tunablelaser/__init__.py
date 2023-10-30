@@ -24,9 +24,10 @@ try:
 except ImportError:
     __version__ = "?"
 
-from .ascii import *
+from .canbus_modules import *
 from .component import *
 from .csc import *
 from .enums import *
-from .hardware import *
+from .interfaces import *
 from .mock_server import *
+from .register import *

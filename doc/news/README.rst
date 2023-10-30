@@ -1,0 +1,1 @@
+Store news fragements here.

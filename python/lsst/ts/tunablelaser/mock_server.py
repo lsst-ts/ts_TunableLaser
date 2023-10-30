@@ -19,20 +19,54 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["MockServer", "MockMessage", "MockNT900"]
+__all__ = [
+    "StubbsLaserServer",
+    "MainLaserServer",
+    "MockNT252",
+    "MockMessage",
+    "MockNT900",
+]
 
 import asyncio
 import inspect
 import logging
+import random
 
 from lsst.ts import tcpip
 
 from .enums import Mode, NoSCU, Output, Power, SCUConfiguration
 
-TERMINATOR = "\r\n\x03"
+TERMINATOR = b"\r\n\x03"
 
 
-class MockServer(tcpip.OneClientServer):
+class StubbsLaserServer(tcpip.OneClientReadLoopServer):
+    """Implement Stubbs mock server.
+
+    Attributes
+    ----------
+    device : `MockNT252`
+        The mock NT252 device.
+    """
+
+    def __init__(self) -> None:
+        self.device = MockNT252()
+        super().__init__(
+            port=0,
+            host=tcpip.LOCAL_HOST,
+            log=logging.getLogger(__name__),
+            name="Stubbs Mock Laser",
+            encoding="ascii",
+            terminator=TERMINATOR,
+        )
+
+    async def read_and_dispatch(self):
+        reply = await self.readuntil(b"\r")
+        reply = reply.strip(self.terminator).decode(self.encoding)
+        reply = self.device.parse_command(reply)
+        await self.write_str(reply)
+
+
+class MainLaserServer(tcpip.OneClientReadLoopServer):
     """Simulates the TunableLaser.
 
     Parameters
@@ -50,34 +84,16 @@ class MockServer(tcpip.OneClientServer):
             host=tcpip.LOCAL_HOST,
             port=port,
             log=self.log,
-            connect_callback=self.connect_callback,
+            terminator=TERMINATOR,
+            encoding="ascii",
         )
 
-    async def connect_callback(self, server):
-        """Call when the client connects.
-
-        Starts the command loop for the simulator.
-
-        Parameters
-        ----------
-        server : `lsst.ts.tcpip.OneClientServer`
-        """
-        self.read_loop_task.cancel()
-        if server.connected:
-            self.read_loop_task = asyncio.create_task(self.cmd_loop())
-
-    async def cmd_loop(self):
+    async def read_and_dispatch(self):
         """Return reply based on messaged received."""
-        while self.connected:
-            self.log.debug("inside cmd_loop")
-            reply = await self.readuntil(b"\r")
-            if not reply:
-                self.writer.close()
-                return
-            reply = self.device.parse_message(reply)
-            reply += TERMINATOR
-            self.log.debug(f"reply={reply.encode('ascii')}")
-            await self.write(reply.encode("ascii"))
+        reply = await self.readuntil(b"\r")
+        reply = reply.strip(self.terminator).decode(self.encoding)
+        reply = self.device.parse_message(reply)
+        await self.write_str(reply)
 
 
 class MockMessage:
@@ -95,7 +111,6 @@ class MockMessage:
     """
 
     def __init__(self, msg):
-        msg = msg.decode("ascii").strip(TERMINATOR)
         split_msg = msg.split("/")
         if len(split_msg) == 4:
             self.register_name = split_msg[1]
@@ -115,6 +130,152 @@ class MockMessage:
 
     def __repr__(self):
         return f"{self.register_name}\n{self.register_id}\n{self.register_field}\n"
+
+
+class MockNT252:
+    """Implement the mock NT252 device.
+
+    Attributes
+    ----------
+    log : `logging.Logger`
+        The log.
+    wavelength : `int`
+        The wavelength.
+    temperature : `int`
+        The temperature.
+    propagating : `Power`
+        The propagation state of the laser.
+    propagation_mode : `Mode`
+        The propagation mode.
+    output : `Output`
+        The output energy level.
+    display_current : `int`
+        The display current.
+    burst_length : `int`
+        The burst length.
+    """
+
+    def __init__(self) -> None:
+        self.log = logging.getLogger(__name__)
+        self.wavelength = random.randrange(1, 1100)
+        self.temperature = random.randrange(19, 21)
+        self.propagating = Power.OFF
+        self.propagation_mode = Mode.CONTINUOUS
+        self.output = Output.OFF
+        self.display_current = random.randrange(19, 21)
+        self.burst_length = 0
+        self.log.debug("MockNT252 initialized")
+
+    def parse_command(self, msg):
+        """Parse the message received and return response.
+
+        Parameters
+        ----------
+        msg : `str`
+            The message.
+        """
+        split_msg = MockMessage(msg)
+        command_name = "do_" + split_msg.register_field
+        self.log.debug(f"{command_name=}")
+        try:
+            command = getattr(self, command_name)
+        except Exception:
+            if command_name == "do_continuous_%2f_burst_mode_%2f_trigger_burst":
+                command = getattr(self, "do_continuous_burst_mode_trigger_burst")
+            else:
+                raise NotImplementedError(f"{command_name} is not implemented")
+        try:
+            parameter = split_msg.register_parameter
+        except Exception:
+            parameter = None
+        if parameter:
+            try:
+                response = command(parameter)
+            except Exception:
+                raise NotImplementedError(f"{command} needs to implement parameter.")
+        else:
+            response = command()
+        return response
+
+    def do_power(self, parameter=None):
+        """Return or set the power status."""
+        if parameter is not None:
+            self.propagating = Power(parameter)
+            return ""
+        return self.propagating
+
+    def do_display_temperature(self):
+        """Return display temperature."""
+        return f"{self.temperature} C"
+
+    def do_set_temperature(self):
+        """Return set temperature."""
+        return f"{self.temperature} C"
+
+    def do_wavelength(self, parameter=None):
+        """Return or set wavelength."""
+        if parameter is not None:
+            self.wavelength = parameter
+            return ""
+        return f"{self.wavelength} nm"
+
+    def do_display_current(self):
+        """Return the display current."""
+        return f"{self.display_current} A"
+
+    def do_fault_code(self):
+        """Return the fault code."""
+        return "0"
+
+    def do_continuous_burst_mode_trigger_burst(self, parameter=None):
+        """Return or set the propagation mode."""
+        if parameter is not None:
+            self.propagation_mode = Mode(parameter)
+            return ""
+        return f"{self.propagation_mode}"
+
+    def do_output_energy_level(self, parameter=None):
+        """Return or set the output energy level."""
+        if parameter is not None:
+            self.output = Output(parameter)
+            return ""
+        else:
+            return self.output
+
+    def do_frequency_divider(self):
+        """Return frequency divider."""
+        return "0"
+
+    def do_burst_pulses_to_go(self):
+        """Return burst pulses to go."""
+        return "0"
+
+    def do_qsw_adjustment_output_delay(self):
+        """Return qsw adjustment output delay."""
+        return "0"
+
+    def do_repetition_rate(self):
+        """Return the repetition rate."""
+        return "0"
+
+    def do_synchronization_mode(self):
+        """Return synchronization mode."""
+        return "0"
+
+    def do_burst_length(self, parameter=None):
+        """Return or set the burst length."""
+        if parameter is not None:
+            self.burst_length = parameter
+            return ""
+        return f"{self.burst_length}"
+
+    def do_hv_voltage(self):
+        """Return hv voltage."""
+        return "0"
+
+    def do_error_code(self):
+        """Return the error code."""
+        return "0"
 
 
 class MockNT900:
@@ -140,8 +301,8 @@ class MockNT900:
 
     def __init__(self):
         self.scu = False
-        self.wavelength = 650
-        self.temperature = 19
+        self.wavelength = random.randrange(1, 1100)
+        self.temperature = random.randrange(19, 21)
         self.cpu8000_current = "19A"
         self.m_cpu800_current = "19A"
         self.cpu8000_power = Power.ON.value

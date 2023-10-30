@@ -3,7 +3,7 @@ __all__ = ["Power", "Mode", "Output", "SCUConfiguration", "NoSCU"]
 import enum
 
 
-class Power(str, enum.Enum):
+class Power(enum.StrEnum):
     """The power states for the laser's propagation module."""
 
     ON = "ON"
@@ -11,7 +11,7 @@ class Power(str, enum.Enum):
     FAULT = "FAULT"
 
 
-class Mode(str, enum.Enum):
+class Mode(enum.StrEnum):
     """The different propagation modes of the laser."""
 
     CONTINUOUS = "Continuous"
@@ -22,7 +22,7 @@ class Mode(str, enum.Enum):
     """The laser pulses when using an external trigger."""
 
 
-class Output(str, enum.Enum):
+class Output(enum.StrEnum):
     """The output energy level."""
 
     OFF = "OFF"
@@ -33,7 +33,7 @@ class Output(str, enum.Enum):
     """Maximum energy level for the laser."""
 
 
-class SCUConfiguration(str, enum.Enum):
+class SCUConfiguration(enum.StrEnum):
     """The Spectral Cleaning Unit configuration"""
 
     SCU = "SCU"
@@ -44,7 +44,7 @@ class SCUConfiguration(str, enum.Enum):
     """Direct the beam through the F2 after passing through the SCU."""
 
 
-class NoSCU(str, enum.Enum):
+class NoSCU(enum.StrEnum):
     """The no Spectral Cleaning Unit configuration"""
 
     NO_SCU = "No SCU"

@@ -27,10 +27,14 @@ CONFIG_SCHEMA = yaml.safe_load(
     """
 $schema: http://json-schema.org/draft-07/schema#
 $id: https://github.com/lsst-ts/ts_TunableLaser/blob/master/schema/TunableLaser.yaml
-title: TunableLaser v2
+title: TunableLaser v3
 description: Schema for TunableLaser configuration files
 type: object
 properties:
+  type:
+    description: The type of laser that should be loaded.
+    type: string
+    enum: ["Main", "Stubbs"]
   host:
     description: Host for the TCPIP server
     type: string
@@ -60,6 +64,7 @@ properties:
       - max
     addtionalProperties: false
 required:
+  - type
   - host
   - port
   - timeout

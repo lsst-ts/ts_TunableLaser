@@ -1,0 +1,1 @@
+Added Laser class that all laser components inherit from.

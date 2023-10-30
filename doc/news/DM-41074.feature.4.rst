@@ -1,0 +1,1 @@
+Added a CanbusModule base class for canbus_modules module.

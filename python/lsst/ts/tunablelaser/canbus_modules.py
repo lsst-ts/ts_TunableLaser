@@ -42,20 +42,26 @@ __all__ = [
     "LDCO48BP",
     "MLDCO48",
     "DelayLin",
+    "MidiOPG",
 ]
 import logging
 
-from .ascii import AsciiRegister
+from . import interfaces
 from .enums import Mode, NoSCU, Output, Power, SCUConfiguration
+from .register import AsciiRegister
 
 
-class CPU8000:
-    """A module for the laser.
+class CPU8000(interfaces.CanbusModule):
+    """Implement the CPU8000 laser module which displays information about
+    the primary CPU of the laser.
+
+    This module contains registers about the power state, fault code and the
+    current.
 
     Parameters
     ----------
-    commander : `TCPIPClient`
-        A reference to the tcp/ip client.
+    component : `Laser`
+        The laser component.
     simulation_mode : `bool`, optional
         False for normal operation, true for simulation operation.
 
@@ -79,31 +85,28 @@ class CPU8000:
 
     """
 
-    def __init__(self, commander, simulation_mode=False):
+    def __init__(self, component, simulation_mode=False):
+        super().__init__(component=component)
         self.log = logging.getLogger("CPU8000")
         self.name = "CPU8000"
         self.id = 16
-        self.commander = commander
         self.power_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id,
             register_name="Power",
-            simulation_mode=simulation_mode,
         )
         self.display_current_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id,
             register_name="Display Current",
-            simulation_mode=simulation_mode,
         )
         self.fault_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id,
             register_name="Fault code",
-            simulation_mode=simulation_mode,
         )
         self.log.debug(f"{self.name} Module initialized")
 
@@ -115,21 +118,22 @@ class CPU8000:
         None
 
         """
-        await self.power_register.read_register_value()
-        await self.display_current_register.read_register_value()
-        await self.fault_register.read_register_value()
+        await self.power_register.send_command()
+        await self.display_current_register.send_command()
+        await self.fault_register.send_command()
 
     def __repr__(self):
         return f"CPU8000:\n {self.power_register}\n {self.display_current_register}\n {self.fault_register}\n"
 
 
-class MCPU800:
-    """A hardware module for the laser.
+class MCPU800(interfaces.CanbusModule):
+    """Implement the MCPU800 laser module which contains registers for
+    controlling aspects of the propagation of the laser.
 
     Parameters
     ----------
-    commander : `TCPIPClient`
-        A reference to the tcp/ip client
+    component : `Laser`
+        The laser component.
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
 
@@ -141,8 +145,8 @@ class MCPU800:
         The id of the module.
     id_2 : `int`
         The second id of the module.
-    commander : `TCPIPClient`
-        A reference to the TCP/IP client.
+    component : `Laser`
+        The laser component.
     power_register : `AsciiRegister`
         Handles the "Power" register.
     display_current_register : `AsciiRegister`
@@ -176,119 +180,105 @@ class MCPU800:
 
     """
 
-    def __init__(self, commander, simulation_mode=False):
+    def __init__(self, component, simulation_mode=False):
+        super().__init__(component=component)
         self.name = "M_CPU800"
         self.id = 17
         self.id_2 = 18
-        self.commander = commander
         self.power_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id,
             register_name="Power",
-            simulation_mode=simulation_mode,
         )
         self.display_current_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id,
             register_name="Display Current",
-            simulation_mode=simulation_mode,
         )
         self.fault_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id,
             register_name="Fault code",
-            simulation_mode=simulation_mode,
         )
 
         self.power_register_2 = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Power",
             read_only=False,
             accepted_values=list(Power),
-            simulation_mode=simulation_mode,
         )
         self.display_current_register_2 = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Display Current",
-            simulation_mode=simulation_mode,
         )
         self.fault_register_2 = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Fault code",
-            simulation_mode=simulation_mode,
         )
         self.continous_burst_mode_trigger_burst_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Continuous %2F Burst mode %2F Trigger burst",
             read_only=False,
             accepted_values=list(Mode),
-            simulation_mode=simulation_mode,
         )
         self.output_energy_level_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Output Energy level",
             read_only=False,
             accepted_values=list(Output),
-            simulation_mode=simulation_mode,
         )
         self.frequency_divider_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Frequency divider",
             read_only=False,
             accepted_values=range(1, 5001),
-            simulation_mode=simulation_mode,
         )
         self.burst_pulse_left_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Burst pulses to go",
-            simulation_mode=simulation_mode,
         )
         self.qsw_adjustment_output_delay_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_2,
             register_name="QSW Adjustment output delay",
-            simulation_mode=simulation_mode,
         )
         self.repetition_rate_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Repetition rate",
-            simulation_mode=simulation_mode,
         )
         self.synchronization_mode_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Synchronization mode",
-            simulation_mode=simulation_mode,
         )
         self.burst_length_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Burst length",
             read_only=False,
             accepted_values=range(1, 50001),
-            simulation_mode=simulation_mode,
         )
 
     async def start_propagating(self):
@@ -301,12 +291,7 @@ class MCPU800:
         None
 
         """
-        await self.continous_burst_mode_trigger_burst_register.read_register_value()
-        rv = self.continous_burst_mode_trigger_burst_register.register_value
-        if rv in list(Mode):
-            await self.power_register_2.set_register_value(Power.ON.value)
-        else:
-            raise RuntimeError(f"{rv} is not in one of accepted values")
+        await self.power_register_2.send_command(Power.ON)
 
     async def stop_propagating(self):
         """Stop the propagation of the laser.
@@ -319,7 +304,7 @@ class MCPU800:
         None
 
         """
-        await self.power_register_2.set_register_value(Power.OFF.value)
+        await self.power_register_2.send_command(Power.OFF)
 
     async def set_output_energy_level(self, value):
         """Set the output energy level for the laser.
@@ -332,7 +317,7 @@ class MCPU800:
         -------
         None
         """
-        await self.output_energy_level_register.set_register_value(value)
+        await self.output_energy_level_register.send_command(value)
 
     async def set_propagation_mode(self, value):
         """Set the propagation mode of the laser.
@@ -344,19 +329,18 @@ class MCPU800:
             Trigger: Trigger a pulse using an external device
             Trigger has not been used as we have no source.
         """
-        await self.continous_burst_mode_trigger_burst_register.set_register_value(
-            Mode(value).value
-        )
+        await self.continous_burst_mode_trigger_burst_register.send_command(Mode(value))
 
     async def set_burst_count(self, value):
         """Set the burst count for the laser when in burst mode.
 
         Parameters
+        ----------
         value : `int`
             The amount of pulses to perform.
             Accepts values between 1 and 50000
         """
-        await self.burst_length_register.set_register_value(value)
+        await self.burst_length_register.send_command(value)
 
     async def update_register(self):
         """Publish the register values of the module.
@@ -366,20 +350,20 @@ class MCPU800:
         None
 
         """
-        await self.power_register.read_register_value()
-        await self.display_current_register.read_register_value()
-        await self.fault_register.read_register_value()
-        await self.power_register_2.read_register_value()
-        await self.display_current_register_2.read_register_value()
-        await self.fault_register_2.read_register_value()
-        await self.continous_burst_mode_trigger_burst_register.read_register_value()
-        await self.output_energy_level_register.read_register_value()
-        await self.frequency_divider_register.read_register_value()
-        await self.burst_pulse_left_register.read_register_value()
-        await self.qsw_adjustment_output_delay_register.read_register_value()
-        await self.repetition_rate_register.read_register_value()
-        await self.synchronization_mode_register.read_register_value()
-        await self.burst_length_register.read_register_value()
+        await self.power_register.send_command()
+        await self.display_current_register.send_command()
+        await self.fault_register.send_command()
+        await self.power_register_2.send_command()
+        await self.display_current_register_2.send_command()
+        await self.fault_register_2.send_command()
+        await self.continous_burst_mode_trigger_burst_register.send_command()
+        await self.output_energy_level_register.send_command()
+        await self.frequency_divider_register.send_command()
+        await self.burst_pulse_left_register.send_command()
+        await self.qsw_adjustment_output_delay_register.send_command()
+        await self.repetition_rate_register.send_command()
+        await self.synchronization_mode_register.send_command()
+        await self.burst_length_register.send_command()
 
     def __repr__(self):
         return (
@@ -393,8 +377,8 @@ class MCPU800:
         )
 
 
-class LLPMKU:
-    """A hardware module for the laser.
+class LLPMKU(interfaces.CanbusModule):
+    """Implement the LLPMKU laser module which contains a register for power.
 
     Parameters
     ----------
@@ -416,16 +400,15 @@ class LLPMKU:
 
     """
 
-    def __init__(self, commander, simulation_mode=False):
+    def __init__(self, component, simulation_mode=False):
+        super().__init__(component=component)
         self.name = "11PMKu"
         self.id = 54
-        self.commander = commander
         self.power_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id,
             register_name="Power",
-            simulation_mode=simulation_mode,
         )
 
     async def update_register(self):
@@ -436,14 +419,68 @@ class LLPMKU:
         None
 
         """
-        await self.power_register.read_register_value()
+        await self.power_register.send_command()
 
     def __repr__(self):
         return f"11PMKu:\n {self.power_register}"
 
 
-class MaxiOPG:
-    """A hardware module for the laser.
+class MidiOPG(interfaces.CanbusModule):
+    """Implement the MidiOPG module which controls the wavelength register.
+
+    Parameters
+    ----------
+    component : `Laser`
+        The laser component.
+
+    Attributes
+    ----------
+    name : `str`
+        The name of the canbus module.
+    id : `int`
+        The ID of the canbus module.
+    component : `Laser`
+        A reference to the laser.
+    wavelength_register : `AsciiRegister`
+        The register that controls the wavelength.
+    """
+
+    def __init__(self, component) -> None:
+        super().__init__(component=component)
+        self.name = "MidiOPG"
+        self.id = 31
+        self.wavelength_register = AsciiRegister(
+            component=self.component,
+            module_name=self.name,
+            module_id=self.id,
+            register_name="WaveLength",
+            read_only=False,
+            accepted_values=range(1, 2600),
+        )
+
+    async def change_wavelength(self, value):
+        """Change wavelength.
+
+        Parameters
+        ----------
+        value : `float`
+            The wavelength value.
+        """
+        await self.wavelength_register.send_command(value)
+
+    async def update_register(self):
+        """Update all registers."""
+        await self.wavelength_register.send_command()
+
+    def __repr__(self):
+        return f"{self.name}:\n {self.wavelength_register}\n"
+
+
+class MaxiOPG(interfaces.CanbusModule):
+    """Implement the MaxiOPG laser module which contains registers for
+    optical alignment and wavelength.
+
+
 
     Parameters
     ----------
@@ -472,41 +509,38 @@ class MaxiOPG:
     """
 
     def __init__(
-        self, commander, simulation_mode=False, configuration=NoSCU.NO_SCU.value
+        self, component, simulation_mode=False, configuration=NoSCU.NO_SCU.value
     ):
+        super().__init__(component=component)
         self.name = "MaxiOPG"
         self.id = 31
-        self.commander = commander
         self.configuration = configuration
         self.optical_alignment = "straight-through"
         self.wavelength_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id,
             register_name="WaveLength",
             read_only=False,
             accepted_values=range(300, 1100),
-            simulation_mode=simulation_mode,
         )
         if self.configuration == NoSCU.NO_SCU.value:
             self.configuration_register = AsciiRegister(
-                commander=commander,
+                component=self.component,
                 module_name=self.name,
                 module_id=self.id,
                 register_name="Configuration",
                 read_only=False,
                 accepted_values=list(NoSCU),
-                simulation_mode=simulation_mode,
             )
         elif self.configuration == SCUConfiguration.SCU.value:
             self.configuration_register = AsciiRegister(
-                commander=commander,
+                component=self.component,
                 module_name=self.name,
                 module_id=self.id,
                 register_name="Configuration",
                 read_only=False,
                 accepted_values=list(SCUConfiguration),
-                simulation_mode=simulation_mode,
             )
         else:
             raise ValueError("Invalid configuration value")
@@ -517,13 +551,14 @@ class MaxiOPG:
         Parameters
         ----------
         wavelength : `float`
+            The wavelength to change to.
 
         Returns
         -------
         None
 
         """
-        await self.wavelength_register.set_register_value(wavelength)
+        await self.wavelength_register.send_command(wavelength)
 
     async def set_configuration(self):
         """Set the configuration of the output of the laser
@@ -542,9 +577,9 @@ class MaxiOPG:
 
         """
         if self.optical_alignment == "straight-through":
-            await self.configuration_register.set_register_value(self.configuration)
+            await self.configuration_register.send_command(self.configuration)
         else:
-            await self.configuration_register.set_register_value(
+            await self.configuration_register.send_command(
                 f"{self.optical_alignment} {self.configuration}"
             )
 
@@ -556,20 +591,20 @@ class MaxiOPG:
         None
 
         """
-        await self.wavelength_register.read_register_value()
-        await self.configuration_register.read_register_value()
+        await self.wavelength_register.send_command()
+        await self.configuration_register.send_command()
 
     def __repr__(self):
         return f"{self.name}:\n {self.wavelength_register}\n {self.configuration_register}\n"
 
 
-class MiniOPG:
-    """A hardware module for the laser.
+class MiniOPG(interfaces.CanbusModule):
+    """Implement the MiniOPG laser module.
 
     Parameters
     ----------
-    commander : `TCPIPClient`
-        A reference to the tcp/ip client
+    component : `Laser`
+        The laser component.
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
     Attributes
@@ -585,16 +620,15 @@ class MiniOPG:
 
     """
 
-    def __init__(self, commander, simulation_mode=False):
+    def __init__(self, component, simulation_mode=False):
+        super().__init__(component=component)
         self.name = "MiniOPG"
         self.id = 56
-        self.commander = commander
         self.error_code_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id,
             register_name="Error Code",
-            simulation_mode=simulation_mode,
         )
 
     async def update_register(self):
@@ -605,14 +639,14 @@ class MiniOPG:
         None
 
         """
-        await self.error_code_register.read_register_value()
+        await self.error_code_register.send_command()
 
     def __repr__(self):
         return f"{self.name}:\n {self.error_code_register}\n"
 
 
-class TK6:
-    """A hardware module for the laser.
+class TK6(interfaces.CanbusModule):
+    """Implement TK6 laser module which contains several temperature registers.
 
     Parameters
     ----------
@@ -642,38 +676,35 @@ class TK6:
 
     """
 
-    def __init__(self, commander, simulation_mode=False):
+    def __init__(self, component, simulation_mode=False):
+        super().__init__(component=component)
         self.name = "TK6"
         self.id = 44
         self.id_2 = 45
-        self.commander = commander
+        self.component = component
         self.display_temperature_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id,
             register_name="Display temperature",
-            simulation_mode=simulation_mode,
         )
         self.set_temperature_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id,
             register_name="Set temperature",
-            simulation_mode=simulation_mode,
         )
         self.display_temperature_register_2 = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Display temperature",
-            simulation_mode=simulation_mode,
         )
         self.set_temperature_register_2 = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Set temperature",
-            simulation_mode=simulation_mode,
         )
 
     async def update_register(self):
@@ -684,10 +715,10 @@ class TK6:
         None
 
         """
-        await self.display_temperature_register.read_register_value()
-        await self.set_temperature_register.read_register_value()
-        await self.display_temperature_register_2.read_register_value()
-        await self.set_temperature_register_2.read_register_value()
+        await self.display_temperature_register.send_command()
+        await self.set_temperature_register.send_command()
+        await self.display_temperature_register_2.send_command()
+        await self.set_temperature_register_2.send_command()
 
     def __repr__(self):
         return (
@@ -696,8 +727,8 @@ class TK6:
         )
 
 
-class HV40W:
-    """A hardware module for the laser.
+class HV40W(interfaces.CanbusModule):
+    """Implement HV40W laser module which contains voltage register.
 
     Parameters
     ----------
@@ -719,16 +750,16 @@ class HV40W:
 
     """
 
-    def __init__(self, commander, simulation_mode=False):
+    def __init__(self, component, laser_id, simulation_mode=False):
+        super().__init__(component=component)
         self.name = "HV40W"
-        self.id = 41
-        self.commander = commander
+        laser_ids = {1: 41, 2: 40}
+        self.id = laser_ids[laser_id]
         self.hv_voltage_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id,
             register_name="HV voltage",
-            simulation_mode=simulation_mode,
         )
 
     async def update_register(self):
@@ -739,19 +770,19 @@ class HV40W:
         None
 
         """
-        await self.hv_voltage_register.read_register_value()
+        await self.hv_voltage_register.send_command()
 
     def __repr__(self):
         return f"{self.name}:\n {self.hv_voltage_register}\n"
 
 
-class DelayLin:
-    """A hardware module for the laser.
+class DelayLin(interfaces.CanbusModule):
+    """Implement DelayLin laser module.
 
     Parameters
     ----------
-    commander : `TCPIPClient`
-        A reference to the tcp/ip client
+    component : `Laser`
+        The laser component.
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
 
@@ -761,22 +792,22 @@ class DelayLin:
         The name of the module.
     id : `int`
         The id of the module.
-    commander : `TCPIPClient`
+    component : `Laser`
         A reference to the tcp/ip client.
     error_code_register : `AsciiRegister`
         Handles the "Error code" register.
     """
 
-    def __init__(self, commander, simulation_mode=False):
+    def __init__(self, component, laser_id, simulation_mode=False):
+        super().__init__(component=component)
         self.name = "DelayLin"
-        self.id = 40
-        self.commander = commander
+        laser_ids = {1: 40, 2: 47}
+        self.id = laser_ids[laser_id]
         self.error_code_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id,
             register_name="Error Code",
-            simulation_mode=simulation_mode,
         )
 
     async def update_register(self):
@@ -787,19 +818,19 @@ class DelayLin:
         None
 
         """
-        await self.error_code_register.read_register_value()
+        await self.error_code_register.send_command()
 
     def __repr__(self):
         return f"{self.name}:\n {self.error_code_register}\n"
 
 
-class LDCO48BP:
+class LDCO48BP(interfaces.CanbusModule):
     """A hardware module for the laser.
 
     Parameters
     ----------
-    commander : `TCPIPClient`
-        A reference to the tcp/ip client
+    component : `Laser`
+        The laser component.
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
     Attributes
@@ -812,8 +843,8 @@ class LDCO48BP:
         The second id of the module.
     id_3 : `int`
         The third id of the module.
-    commander : `TCPIPClient`
-        A reference to the tcp/ip client.
+    component : `Laser`
+        The laser component.
     display_temperature_register : `AsciiRegister`
         Handles the "Display temperature" register.
     display_temperature_register_2 : `AsciiRegister`
@@ -823,32 +854,39 @@ class LDCO48BP:
 
     """
 
-    def __init__(self, commander, simulation_mode=False):
+    def __init__(self, component, laser_id, simulation_mode=False):
+        super().__init__(component=component)
         self.name = "LDCO48BP"
-        self.id = 30
-        self.id_2 = 29
-        self.id_3 = 24
-        self.commander = commander
+        laser_ids = {
+            1: [30, 29, 24, 24],
+            2: [50, 48, 29, 28],
+        }  # PF I really don't love this.
+
+        self.id, self.id_2, self.id_3, self.id_4 = laser_ids[laser_id]
+
         self.display_temperature_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id,
             register_name="Display temperature",
-            simulation_mode=simulation_mode,
         )
         self.display_temperature_register_2 = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Display temperature",
-            simulation_mode=simulation_mode,
         )
         self.display_temperature_register_3 = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_3,
             register_name="Display temperature",
-            simulation_mode=simulation_mode,
+        )
+        self.display_temperature_register_4 = AsciiRegister(
+            component=self.component,
+            module_name=self.name,
+            module_id=self.id_4,
+            register_name="Display temperature",
         )
 
     async def update_register(self):
@@ -858,24 +896,26 @@ class LDCO48BP:
         -------
         None
         """
-        await self.display_temperature_register.read_register_value()
-        await self.display_temperature_register_2.read_register_value()
-        await self.display_temperature_register_3.read_register_value()
+        await self.display_temperature_register.send_command()
+        await self.display_temperature_register_2.send_command()
+        await self.display_temperature_register_3.send_command()
+        await self.display_temperature_register_4.send_command()
 
     def __repr__(self):
         return (
             f"{self.name}:\n {self.display_temperature_register}\n"
             f"{self.display_temperature_register_2}\n {self.display_temperature_register_3}\n"
+            f"{self.display_temperature_register_3}\n"
         )
 
 
-class MLDCO48:
-    """A hardware module for the laser.
+class MLDCO48(interfaces.CanbusModule):
+    """Implement MLDCO48 laser module which contains temperature registers.
 
     Parameters
     ----------
-    commander : `TCPIPClient`
-        A reference to the tcp/ip client
+    component : `Laser`
+        Laser component.
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
 
@@ -887,32 +927,30 @@ class MLDCO48:
         The id of the module.
     id_2 : `int`
         The second id of the module.
-    commander : `TCPIPClient`
-        A reference to the tcp/ip client.
+    component : `Laser`
+        Laser component.
     display_temperature_register : `AsciiRegister`
         Handles the "Display temperature" register.
     display_temperature_register_2 : `AsciiRegister`
         Handles the "Display temperature" register.
     """
 
-    def __init__(self, commander, simulation_mode=False):
+    def __init__(self, component, simulation_mode=False):
+        super().__init__(component=component)
         self.name = "M_LDCO48"
         self.id = 33
         self.id_2 = 34
-        self.commander = commander
         self.display_temperature_register = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id,
             register_name="Display temperature",
-            simulation_mode=simulation_mode,
         )
         self.display_temperature_register_2 = AsciiRegister(
-            commander=commander,
+            component=self.component,
             module_name=self.name,
             module_id=self.id_2,
             register_name="Display temperature",
-            simulation_mode=simulation_mode,
         )
 
     async def update_register(self):
@@ -923,8 +961,8 @@ class MLDCO48:
         None
 
         """
-        await self.display_temperature_register.read_register_value()
-        await self.display_temperature_register_2.read_register_value()
+        await self.display_temperature_register.send_command()
+        await self.display_temperature_register_2.send_command()
 
     def __repr__(self):
         return f"{self.name}:\n {self.display_temperature_register}\n {self.display_temperature_register_2}\n"
