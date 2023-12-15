@@ -25,7 +25,7 @@ Dependencies
 
 * `SAL <https://ts-sal.lsst.io>`_ - v5.1.x
 * `ts_salobj <https://ts-salobj.lsst.io>`_ - v6.x.0
-* `ts_tcpip <https://ts-tcpip.lsst.io`_ - v0.x.0
+* `ts_tcpip <https://ts-tcpip.lsst.io>`_ - v0.x.0
 
 .. _:developer-guide:developer-guide:api:
 

@@ -23,29 +23,24 @@ import unittest
 import unittest.mock
 
 import pytest
-from lsst.ts.tunablelaser.ascii import AsciiRegister
+from lsst.ts.tunablelaser.register import AsciiRegister
 
 
 class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self):
+    def setUp(self):
         self.ascii_register = AsciiRegister(
-            commander=None, module_name="Test", module_id=0, register_name="Test"
+            component=unittest.mock.AsyncMock(),
+            module_name="Test",
+            module_id=0,
+            register_name="Test",
         )
         self.settable_ascii_register = AsciiRegister(
-            commander=None,
+            component=unittest.mock.AsyncMock(),
             module_name="Foo",
             module_id=0,
             register_name="Bar",
             read_only=False,
             accepted_values=range(0, 10),
-        )
-        self.simulation_ascii_register = AsciiRegister(
-            commander=None,
-            module_name="Fake",
-            module_id=0,
-            register_name="Register",
-            read_only=True,
-            simulation_mode=True,
         )
 
     def test_create_get_message(self):
@@ -61,7 +56,7 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
             self.settable_ascii_register.create_set_message(15)
         with pytest.raises(AttributeError):
             self.bad_settable_ascii_register = AsciiRegister(
-                commander=None,
+                component=None,
                 module_name="Bad",
                 module_id=0,
                 register_name="Bad",
@@ -72,43 +67,50 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
         self.ascii_register.create_get_message = unittest.mock.Mock(
             return_value="/Test/0/Test\r"
         )
-        self.ascii_register.commander = unittest.mock.Mock()
-        self.ascii_register.commander.send_command = unittest.mock.AsyncMock(
+        self.ascii_register.component.commander.encoding = "ascii"
+        self.ascii_register.component.commander.send_command = unittest.mock.AsyncMock(
             return_value="ON"
         )
-        await self.ascii_register.read_register_value()
+        self.ascii_register.component.commander.read_str = unittest.mock.AsyncMock(
+            return_value="ON"
+        )
+        await self.ascii_register.send_command()
         assert self.ascii_register.register_value == "ON"
         with pytest.raises(TimeoutError):
             self.ascii_register.create_get_message = unittest.mock.Mock(
                 return_value="/Test/0/Test\r"
             )
-            self.ascii_register.commander = unittest.mock.Mock()
-            self.ascii_register.commander.send_command = unittest.mock.AsyncMock(
+            self.ascii_register.component.commander.send_command = (
+                unittest.mock.AsyncMock(return_value=None)
+            )
+            self.ascii_register.component.commander.read_str = unittest.mock.AsyncMock(
                 return_value=None
             )
-            await self.ascii_register.read_register_value()
+            await self.ascii_register.send_command()
 
+    # @pytest.mark.skip("Not working.")
     async def test_set_register_value(self):
         with pytest.raises(PermissionError):
-            await self.ascii_register.set_register_value(5)
+            await self.ascii_register.send_command(5)
         self.settable_ascii_register.create_set_message = unittest.mock.Mock(
             return_value="/Foo/0/Bar/5\r"
         )
-        self.settable_ascii_register.commander = unittest.mock.Mock()
-        self.settable_ascii_register.commander.send_command = unittest.mock.AsyncMock()
-        await self.settable_ascii_register.set_register_value(5)
+        self.settable_ascii_register.component.commander.encoding = "ascii"
+        self.settable_ascii_register.component.commander.send_command = (
+            unittest.mock.AsyncMock()
+        )
+        await self.settable_ascii_register.send_command(5)
         with pytest.raises(TimeoutError):
             self.settable_ascii_register.create_set_message = unittest.mock.Mock(
                 return_value="/Foo/0/Bar/5\r"
             )
-            self.settable_ascii_register.commander = unittest.mock.Mock()
-            self.settable_ascii_register.commander.send_command = (
+            self.settable_ascii_register.component.commander.send_command = (
                 unittest.mock.AsyncMock(side_effect=TimeoutError)
             )
-            await self.settable_ascii_register.set_register_value(5)
-        self.simulation_ascii_register.read_only = False
-        await self.simulation_ascii_register.set_register_value(5)
-        assert self.simulation_ascii_register.register_value == 5
+            self.settable_ascii_register.component.commander.read_str = (
+                unittest.mock.AsyncMock(return_value=None)
+            )
+            await self.settable_ascii_register.send_command(5)
 
     def test_repr(self):
         assert repr(self.ascii_register) == "Test: None"

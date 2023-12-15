@@ -23,19 +23,36 @@ import unittest
 import unittest.mock
 
 import pytest
-from lsst.ts.tunablelaser.hardware import CPU8000, MaxiOPG
+from lsst.ts.tunablelaser.canbus_modules import CPU8000, MaxiOPG
 
 
 class TestCPU8000(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.cpu8000 = CPU8000(None)
+        self.cpu8000 = CPU8000(unittest.mock.AsyncMock())
 
     async def test_update_register(self):
-        self.cpu8000.commander = unittest.mock.AsyncMock()
-        self.cpu8000.commander.send_command = unittest.mock.AsyncMock()
-        self.cpu8000.power_register.commander = unittest.mock.AsyncMock()
-        self.cpu8000.display_current_register.commander = unittest.mock.AsyncMock()
-        self.cpu8000.fault_register.commander = unittest.mock.AsyncMock()
+        self.cpu8000.component = unittest.mock.AsyncMock()
+        self.cpu8000.power_register.component.commander.encoding = "ascii"
+        self.cpu8000.power_register.component.commander.send_command = (
+            unittest.mock.AsyncMock()
+        )
+        self.cpu8000.power_register.component.commander.read_str = (
+            unittest.mock.AsyncMock(return_value="ON")
+        )
+        self.cpu8000.display_current_register.component.commander.encoding = "ascii"
+        self.cpu8000.display_current_register.component.commander.send_command = (
+            unittest.mock.AsyncMock()
+        )
+        self.cpu8000.display_current_register.component.commander.read_str = (
+            unittest.mock.AsyncMock(return_value="19A")
+        )
+        self.cpu8000.fault_register.component.commander.encoding = "ascii"
+        self.cpu8000.fault_register.component.commander.send_command = (
+            unittest.mock.AsyncMock()
+        )
+        self.cpu8000.fault_register.component.commander.read_str = (
+            unittest.mock.AsyncMock(return_value="0")
+        )
         await self.cpu8000.update_register()
 
     def test_repr(self):

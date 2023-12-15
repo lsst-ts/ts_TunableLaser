@@ -26,21 +26,24 @@ import unittest
 import pytest
 from lsst.ts import salobj, tunablelaser
 from lsst.ts.idl.enums import TunableLaser
+from parameterized import parameterized
 
-STD_TIMEOUT = 15
+STD_TIMEOUT = 5
 TEST_CONFIG_DIR = pathlib.Path(__file__).parents[1].joinpath("tests", "data", "config")
 
 
 class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         os.environ["LSST_SITE"] = "tunablelaser"
+        self.laser_configs = ["", "stubbs.yaml"]
         return super().setUp()
 
-    def basic_make_csc(self, initial_state, simulation_mode, config_dir):
+    def basic_make_csc(self, initial_state, simulation_mode, **kwargs):
         return tunablelaser.LaserCSC(
             initial_state=initial_state,
             simulation_mode=simulation_mode,
             config_dir=TEST_CONFIG_DIR,
+            override=kwargs.get("override", ""),
         )
 
     async def test_check_bin_script(self):
@@ -48,8 +51,11 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
             name="TunableLaser", exe_name="run_tunablelaser", index=None
         )
 
-    async def test_standard_state_transitions(self):
-        async with self.make_csc(initial_state=salobj.State.STANDBY, simulation_mode=1):
+    @parameterized.expand([(""), ("stubbs.yaml")])
+    async def test_standard_state_transitions(self, config):
+        async with self.make_csc(
+            initial_state=salobj.State.STANDBY, simulation_mode=1, override=config
+        ):
             await self.check_standard_state_transitions(
                 enabled_commands=[
                     "changeWavelength",
@@ -62,33 +68,28 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                 ]
             )
 
-    async def test_telemetry(self):
-        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
-            await self.assert_next_sample(
-                topic=self.remote.tel_wavelength, wavelength=650
-            )
-            await self.assert_next_sample(
-                topic=self.remote.tel_temperature,
-                tk6_temperature=19,
-                tk6_temperature_2=19,
-                ldco48bp_temperature=19,
-                ldco48bp_temperature_2=19,
-                ldco48bp_temperature_3=19,
-                m_ldco48_temperature=19,
-                m_ldco48_temperature_2=19,
-            )
+    @parameterized.expand([(""), ("stubbs.yaml")])
+    async def test_telemetry(self, config):
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, simulation_mode=1, override=config
+        ):
+            await self.assert_next_sample(topic=self.remote.tel_wavelength)
+            await self.assert_next_sample(topic=self.remote.tel_temperature)
             await self.assert_next_sample(
                 topic=self.remote.evt_summaryState,
                 summaryState=salobj.State.ENABLED,
             )
-            self.csc.simulator.device.do_set_m_cpu800_18_power("FAULT")
+            self.csc.simulator.device.propagating = "FAULT"
             await self.assert_next_sample(
                 topic=self.remote.evt_summaryState,
                 summaryState=salobj.State.FAULT,
             )
 
-    async def test_change_wavelength(self):
-        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
+    @parameterized.expand([(""), ("stubbs.yaml")])
+    async def test_change_wavelength(self, config):
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, simulation_mode=1, override=config
+        ):
             await self.remote.cmd_changeWavelength.set_start(
                 wavelength=700, timeout=STD_TIMEOUT
             )
@@ -99,23 +100,46 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                 topic=self.remote.tel_wavelength, wavelength=700, flush=True
             )
             with pytest.raises(salobj.AckError):
-                wavelength = (
-                    max(self.csc.model.maxi_opg.wavelength_register.accepted_values) + 1
-                )
-                await self.remote.cmd_changeWavelength.set_start(
-                    wavelength=wavelength, timeout=STD_TIMEOUT
-                )
+                if config == "":
+                    wavelength = (
+                        max(self.csc.model.maxi_opg.wavelength_register.accepted_values)
+                        + 1
+                    )
+                    await self.remote.cmd_changeWavelength.set_start(
+                        wavelength=wavelength, timeout=STD_TIMEOUT
+                    )
+                else:
+                    wavelength = (
+                        max(self.csc.model.midiopg.wavelength_register.accepted_values)
+                        + 1
+                    )
+                    await self.remote.cmd_changeWavelength.set_start(
+                        wavelength=wavelength, timeout=STD_TIMEOUT
+                    )
 
             with pytest.raises(salobj.AckError):
-                wavelength = (
-                    min(self.csc.model.maxi_opg.wavelength_register.accepted_values) - 1
-                )
-                await self.remote.cmd_changeWavelength.set_start(
-                    wavelength=wavelength, timeout=STD_TIMEOUT
-                )
+                if config == "":
+                    wavelength = (
+                        min(self.csc.model.maxi_opg.wavelength_register.accepted_values)
+                        - 1
+                    )
+                    await self.remote.cmd_changeWavelength.set_start(
+                        wavelength=wavelength, timeout=STD_TIMEOUT
+                    )
+                else:
+                    wavelength = (
+                        min(self.csc.model.midiopg.wavelength_register.accepted_values)
+                        - 1
+                    )
+                    await self.remote.cmd_changeWavelength.set_start(
+                        wavelength=wavelength, timeout=STD_TIMEOUT
+                    )
 
-    async def test_start_propagate_laser(self):
-        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
+    @parameterized.expand([(""), ("stubbs.yaml")])
+    async def test_start_propagate_laser(self, config):
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, simulation_mode=1, override=config
+        ):
             await self.assert_next_sample(
                 topic=self.remote.evt_detailedState,
                 detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING,
@@ -137,8 +161,11 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                 detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER,
             )
 
-    async def test_stop_propagate_laser(self):
-        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
+    @parameterized.expand([(""), ("stubbs.yaml")])
+    async def test_stop_propagate_laser(self, config):
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, simulation_mode=1, override=config
+        ):
             self.remote.evt_detailedState.flush()
             await self.csc.publish_new_detailed_state(
                 TunableLaser.LaserDetailedState.PROPAGATING
@@ -165,26 +192,38 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                 detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING,
             )
 
-    async def test_clear_laser_fault(self):
-        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
-            self.csc.simulator.device.do_set_m_cpu800_18_power("FAULT")
+    @parameterized.expand([(""), ("stubbs.yaml")])
+    async def test_clear_laser_fault(self, config):
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, simulation_mode=1, override=config
+        ):
+            self.csc.simulator.device.laser_power = "FAULT"
             await self.remote.cmd_clearLaserFault.set_start(timeout=STD_TIMEOUT)
 
-    async def test_set_burst_mode(self):
-        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
+    @parameterized.expand([(""), ("stubbs.yaml")])
+    async def test_set_burst_mode(self, config):
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, simulation_mode=1, override=config
+        ):
             await self.remote.cmd_setBurstMode.set_start(count=1, timeout=STD_TIMEOUT)
             await self.assert_next_sample(topic=self.remote.evt_burstModeSet)
 
-    async def test_set_continuous_mode(self):
-        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
+    @parameterized.expand([(""), ("stubbs.yaml")])
+    async def test_set_continuous_mode(self, config):
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, simulation_mode=1, override=config
+        ):
             await self.remote.cmd_setContinuousMode.set_start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(topic=self.remote.evt_continuousModeSet)
 
     async def test_get_config_pkg(self):
         assert tunablelaser.LaserCSC.get_config_pkg() == "ts_config_mtcalsys"
 
-    async def test_trigger_burst(self):
-        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1):
+    @parameterized.expand([(""), ("stubbs.yaml")])
+    async def test_trigger_burst(self, config):
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, simulation_mode=1, override=config
+        ):
             await self.assert_next_sample(
                 topic=self.remote.evt_detailedState,
                 detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING,

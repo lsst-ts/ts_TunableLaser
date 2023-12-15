@@ -30,132 +30,8 @@ The most important classes are the `TCPIPClient` class and the `AsciiRegister`
 class as they contain the bulk of the functionality.
 
 """
-__all__ = ["AsciiRegister", "AsciiError", "TCPIPClient"]
-import asyncio
-import enum
+__all__ = ["AsciiRegister"]
 import logging
-
-from lsst.ts import tcpip
-
-
-class TCPIPClient:
-    """Implements the TCP/IP connection for the TunableLaser
-
-    Parameters
-    ----------
-    host : `str`
-        The host of the TunableLaser server.
-    port : `int`
-        The port of the TunableLaser server.
-    timeout : `float`, optional
-        The amount of time that the client waits for reading until timing out
-        in seconds.
-
-    Attributes
-    ----------
-    timeout : `float`
-    host : `str`
-    port : `int`
-    reader : `None` or `StreamReader`
-    writer : `None` or `StreamWriter`
-    log : `logging.Logger`
-    """
-
-    def __init__(self, host, port, timeout=1) -> None:
-        self.timeout = timeout
-        self.host = host
-        self.port = port
-        self.reader = None
-        self.writer = None
-        self.log = logging.getLogger(__name__)
-        self.lock = asyncio.Lock()
-
-    @property
-    def connected(self) -> bool:
-        """Return True if a client is connected to this server.
-
-        Returns
-        -------
-        bool
-        """
-        return not (
-            self.reader is None
-            or self.writer is None
-            or self.reader.at_eof()
-            or self.writer.is_closing()
-        )
-
-    async def connect(self):
-        """Connect to the server."""
-        if not self.connected:
-            async with self.lock:
-                connect_task = asyncio.open_connection(self.host, self.port)
-                self.reader, self.writer = await asyncio.wait_for(
-                    connect_task, self.timeout
-                )
-
-    async def disconnect(self):
-        """Disconnect from the server.
-
-        Safe to call even if disconnected.
-        """
-        if self.writer is None:
-            return
-        try:
-            await tcpip.close_stream_writer(self.writer)
-        except Exception:
-            self.log.exception("disconnect failed, continuing")
-        finally:
-            self.writer = None
-            self.reader = None
-
-    async def send_command(self, message):
-        """Send a command to server and receive a reply.
-
-        Parameters
-        ----------
-        message : `str`
-            The command to send to the server.
-
-        Returns
-        -------
-        reply : `bytes`
-            The reply from the server.
-
-        Raises
-        ------
-        `RuntimeError`
-            Raised if the client is not connected.
-        """
-        if not self.connected:
-            raise RuntimeError("Client not connected.")
-        async with self.lock:
-            self.log.debug(f"message={message.encode('ascii')}")
-            message = message.encode("ascii")
-            self.writer.write(message)
-            await self.writer.drain()
-            reply = await self.reader.readuntil(b"\x03")
-            reply = self.parse_reply(reply)
-            self.log.debug(f"reply={reply.encode('ascii')}")
-            return reply
-
-    def parse_reply(self, reply):
-        """Return the parsed reply.
-
-        Parameters
-        ----------
-        reply : `bytes`
-            The reply from the server
-
-        Returns
-        -------
-        decoded_message : `str`
-            The decoded and boilerplate stripped string.
-        """
-        decoded_message = reply.decode("ascii").rstrip("nmC\r\n\x03")
-        if decoded_message.startswith("'''"):
-            raise Exception(decoded_message)
-        return decoded_message
 
 
 class AsciiRegister:
@@ -167,9 +43,8 @@ class AsciiRegister:
 
     Parameters
     ----------
-    commander : `TCPIPClient`
-        A TCP/IP stream that writes and reads from the TunableLaser terminal
-        server.
+    component : `Laser`
+        Reference to the component.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -214,16 +89,15 @@ class AsciiRegister:
 
     def __init__(
         self,
-        commander,
+        component,
         module_name,
         module_id,
         register_name,
         read_only=True,
         accepted_values=None,
-        simulation_mode=False,
     ):
+        self.component = component
         self.log = logging.getLogger(f"{register_name.replace(' ','')}Register")
-        self.commander = commander
         self.module_name = module_name
         self.module_id = module_id
         self.register_name = register_name
@@ -233,7 +107,6 @@ class AsciiRegister:
                 "If read_only is false than accepted_values should not be None."
             )
         self.accepted_values = accepted_values
-        self.simulation_mode = simulation_mode
         self.register_value = None
         self.log.debug(f"{self.register_name} Register initialized")
 
@@ -282,52 +155,28 @@ class AsciiRegister:
         else:
             raise PermissionError("This register is read only.")
 
-    async def read_register_value(self):
+    async def send_command(self, set_value=None):
         """Read the value of the register.
 
         Returns
         -------
         None
         """
-        message = self.create_get_message()
-        self.register_value = await self.commander.send_command(message)
-        if self.register_value is None:
-            raise TimeoutError
-
-    async def set_register_value(self, set_value):
-        """Set the value of the register and read the new value.
-
-        Parameters
-        ----------
-        set_value : Any
-
-        Raises
-        ------
-        ReadOnlyException
-            This indicates that the register is read only and cannot be set.
-
-        Returns
-        -------
-        None
-
-        """
-        if self.read_only:
-            raise PermissionError("This register is read only.")
-        if not self.simulation_mode:
-            try:
-                message = self.create_set_message(set_value)
-                self.log.debug(f"sending message {message}.")
-                await self.commander.send_command(message)
-                await self.read_register_value()
-            except TimeoutError:
-                self.log.exception("Response timed out.")
-                raise
-        else:
-            self.register_value = set_value
+        async with self.component.lock:
+            if set_value:
+                message = self.create_set_message(set_value=set_value)
+                await self.component.commander.write(
+                    message.encode(self.component.commander.encoding)
+                )
+                await self.component.commander.read_str()
+            message = self.create_get_message()
+            await self.component.commander.write(
+                message.encode(self.component.commander.encoding)
+            )
+            self.register_value = await self.component.commander.read_str()
+            if self.register_value is None:
+                raise TimeoutError
+            self.register_value = self.register_value.rstrip("nmC\r\n")
 
     def __repr__(self):
         return "{}: {}".format(self.register_name, self.register_value)
-
-
-class AsciiError(enum.Enum):
-    pass
