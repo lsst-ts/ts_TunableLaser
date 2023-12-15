@@ -1,1 +1,0 @@
-Renamed Component to MainLaser.

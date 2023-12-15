@@ -1,1 +1,0 @@
-Added required type field to configuration schema.
