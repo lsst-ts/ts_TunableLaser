@@ -313,6 +313,30 @@ class LaserCSC(salobj.ConfigurableCsc):
         )
         await self.model.trigger_burst()
 
+    async def do_changeTempCtrlSetpoint(self, data):
+        """Not Implemented Yet."""
+        self.assert_enabled()
+
+        raise NotImplementedError("Command not implemented yet.")
+
+    async def do_turnOffTempCtrl(self, data):
+        """Not Implemented Yet."""
+        self.assert_enabled()
+
+        raise NotImplementedError("Command not implemented yet.")
+
+    async def do_turnOnTempCtrl(self, data):
+        """Not Implemented Yet."""
+        self.assert_enabled()
+
+        raise NotImplementedError("Command not implemented yet.")
+
+    async def do_setOpticalConfiguration(self, data):
+        """Not Implemented Yet."""
+        self.assert_enabled()
+
+        raise NotImplementedError("Command not implemented yet.")
+
     async def publish_new_detailed_state(self, new_sub_state):
         """Publish the updated detailed state.
 
