@@ -116,6 +116,8 @@ venv.bak/
 .swp
 version.py
 
+.DS_Store
+
 # pytest
 tests/.tests
 pytest_session.txt

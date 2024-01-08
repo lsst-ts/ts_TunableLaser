@@ -6,6 +6,15 @@ Version History
 
 .. towncrier release notes start
 
+ts_tunablelaser 2.0.1 (2024-01-08)
+==================================
+
+Bugfixes
+--------
+
+- Add parameterized to testing section in conda recipe. (`DM-42375 <https://jira.lsstcorp.org/DM-42375>`_)
+
+
 ts_tunablelaser 2.0.0 (2023-12-15)
 ==================================
 

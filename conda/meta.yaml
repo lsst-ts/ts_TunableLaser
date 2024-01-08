@@ -17,6 +17,7 @@ test:
     - ts-conda-build =0.3
     - ts-idl {{ idl_version }}
     - ts-salobj {{ salobj_version }}
+    - parameterized
   source_files:
     - python
     - bin
