@@ -42,7 +42,6 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
             register_name="GenTestRegister",
         )
 
-        # TODO do read only, certain accepted values for data reg
         self.data_register = CompoWayFDataRegister(
             component=unittest.mock.AsyncMock(),
             module_name="DataTest",
@@ -76,7 +75,7 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
 
     def test_cmd_frame(self):
         pdu_structure = "TEST"
-        correct_frame = "\x31\x30\x30\x30" + pdu_structure + self.ETX
+        correct_frame = "\x30\x31\x30\x30\x30" + pdu_structure + self.ETX
         bcc = self.general_register.generate_bcc(correct_frame)
         correct_frame = self.STX + correct_frame + bcc
 
@@ -119,7 +118,7 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
 
     def test_create_get_message(self):
         msg = self.data_register.create_get_message()
-        assert msg == "\x0220000101810003000001\x03\n"
+        assert msg == "\x02020000101810003000001\x03:"
 
     def test_create_set_message(self):
         with pytest.raises(PermissionError):
@@ -128,10 +127,10 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
             self.data_register.create_set_message(set_value=50000)
 
         msg = self.data_register.create_set_message(5)
-        assert msg == "\x02200001028100030000015\x03<"
+        assert msg == "\x020200001028100030000015\x03\x0c"
 
         msg = self.operation_register.create_set_message(1)
-        assert msg == "\x0230003005811\x03>"
+        assert msg == "\x02030003005811\x03\x0e"
 
     def test_repr(self):
         assert repr(self.data_register) == "Set Point: None"

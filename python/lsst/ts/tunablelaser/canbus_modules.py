@@ -975,8 +975,8 @@ class E5DCB:
 
     Parameters
     ----------
-    commander : `TCPIPClient`
-        A reference to the tcp/ip client
+    component : `Laser`
+        Laser component.
     simulation_mode : `bool`
         False for normal operation, true for simulation operation.
     Attributes
@@ -985,8 +985,8 @@ class E5DCB:
         The name of the module.
     id : `int`
         The id of the module.
-    commander : `TCPIPClient`
-        A reference to the tcp/ip client.
+    component : `Laser`
+        Laser component.
     temperature_set_register : `AsciiRegister`
         Corresponds to the "Temperature Set" register.
     alarm_set_register : `AsciiRegister`
@@ -994,12 +994,12 @@ class E5DCB:
 
     """
 
-    def __init__(self, commander, simulation_mode=False):
+    def __init__(self, component, simulation_mode=False):
         self.name = "E5DCB"
         self.id_1 = 1
-        self.commander = commander
+        self.component = component
         self.set_point_register = CompoWayFDataRegister(
-            commander=commander,
+            component=component,
             module_name=self.name,
             module_id=self.id_1,
             register_name="Set Point",
@@ -1009,12 +1009,11 @@ class E5DCB:
         )
 
         self.run_stop_register = CompoWayFOperationRegister(
-            commander=commander,
+            component=component,
             module_name=self.name,
             module_id=self.id_1,
             register_name="Run Stop",
-            read_only=False,
-            accepted_values=[range(2), True, False],
+            accepted_values=[0, 1, True, False],
             simulation_mode=simulation_mode,
         )
 

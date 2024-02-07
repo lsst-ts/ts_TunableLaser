@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["MainLaser", "StubbsLaser"]
+__all__ = ["MainLaser", "StubbsLaser", "TemperatureCtrl"]
 
 import asyncio
 
@@ -472,3 +472,74 @@ class StubbsLaser(interfaces.Laser):
         await self.delay_lin.update_register()
         await self.ldco48bp.update_register()
         await self.m_ldcO48.update_register()
+
+
+class TemperatureCtrl(interfaces.CompoWayFModule):
+    """Implement the Omron Temperature Controller.
+
+    Parameters
+    ----------
+    csc : `LaserCSC`
+    The CSC object.
+    host : `string`
+    The IP address of the temp controller
+    port : `int`
+    The port of the temp controller
+    terminator : `bytes`
+    The terminating characters for sent/received messages.
+    encoding : `str`
+    The type of encoding to use.
+    simulation_mode : `bool`
+    Is the interface in simulation mode?
+
+    Attributes
+    ----------
+    lock : `asyncio.Lock`
+    A lock for writing/reading messages.
+    host : `string`
+    the host for the temp controller to connect to during simulation mode
+    """
+
+    def __init__(
+        self,
+        csc,
+        host="127.0.0.1",
+        port=50,
+        terminator=b"\x03",
+        encoding="ascii",
+        simulation_mode=False,
+    ) -> None:
+        super().__init__(
+            csc=csc,
+            terminator=terminator,
+            encoding=encoding,
+            simulation_mode=simulation_mode,
+        )
+        self.e5dc_b = canbus_modules.E5DCB(
+            component=self, simulation_mode=simulation_mode
+        )
+        self.lock = asyncio.Lock()
+
+        self.host = host
+        self.port = port
+
+    @property
+    def temperature(self):
+        return (None,)
+
+    async def laser_thermal_turn_on(self):
+        await self.e5dc_b.run_stop_register.set_register_value(True)
+
+    async def laser_thermal_turn_off(self):
+        await self.e5dc_b.run_stop_register.set_register_value(False)
+
+    async def laser_thermal_change_set_point(self, value):
+        await self.e5dc_b.set_point_register.set_register_value(value)
+
+    async def configure(self, config):
+        self.log.debug("Setting config.")
+        self.host = config.host
+        self.port = config.port
+
+    async def read_all_registers(self):
+        await self.e5dc_b.update_register()

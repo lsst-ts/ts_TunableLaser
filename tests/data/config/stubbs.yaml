@@ -6,3 +6,6 @@ wavelength:
 optical_configuration: "F1"
 timeout: 1
 type: "Stubbs"
+temp_ctrl:
+  host: 127.0.0.1
+  port: 50

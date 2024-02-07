@@ -25,15 +25,19 @@ __all__ = [
     "MockNT252",
     "MockMessage",
     "MockNT900",
+    "TempCtrlServer",
+    "MockNP5450",
 ]
 
 import asyncio
 import inspect
+import io
 import logging
 import random
 
 from lsst.ts import tcpip
 
+from .compoway_register import CompoWayFGeneralRegister
 from .enums import Mode, NoSCU, Output, Power, SCUConfiguration
 
 TERMINATOR = b"\r\n\x03"
@@ -96,6 +100,36 @@ class MainLaserServer(tcpip.OneClientReadLoopServer):
         await self.write_str(reply)
 
 
+class TempCtrlServer(tcpip.OneClientReadLoopServer):
+    """Simulates the tcpip server for the temp ctrl.
+
+    Parameters
+    ----------
+    port : `int`, optional
+        The port that the server will start on.
+    """
+
+    def __init__(self, host=tcpip.LOCAL_HOST, port=50) -> None:
+        self.device = MockNP5450()
+        self.log = logging.getLogger(__name__)
+        self.read_loop_task = asyncio.Future()
+        super().__init__(
+            name="TempCtrl Mock Server",
+            host=host,
+            port=port,
+            log=self.log,
+            terminator=b"\r",
+            encoding="ascii",
+        )
+
+    async def read_and_dispatch(self):
+        """Return reply based on messaged received."""
+        reply = await self.readuntil(b"\r")
+        reply = reply.strip(self.terminator)
+        reply = self.device.parse_message(reply)
+        await self.write_str(reply)
+
+
 class MockMessage:
     """Parse a command from the client.
 
@@ -130,6 +164,244 @@ class MockMessage:
 
     def __repr__(self):
         return f"{self.register_name}\n{self.register_id}\n{self.register_field}\n"
+
+
+class MockCompoWayFMessage:
+    """Parse a command from the client.
+
+    Parameters
+    ----------
+    msg : `bytes`
+        The bytes received from the client.
+
+    Raises
+    ------
+    `Exception`
+        Raised when a message is malformed.
+    """
+
+    def __init__(self, msg):
+        self.log = logging.getLogger(__name__)
+        try:
+            with io.BytesIO(msg) as f:
+                stx = f.read(1).decode()
+                if stx != "\x02":
+                    self.log.error(f"expected STX of 0x2, but got: {stx}")
+
+                self.node = f.read(2).decode()
+                self.log.info(f"got node: {self.node}")
+
+                subadd = f.read(2).decode()
+                if subadd != "\x30\x30":
+                    self.log.error(f"expected subadd of 00, but got: {subadd}")
+
+                SID = f.read(1).decode()
+                if SID != "\x30":
+                    self.log.error(f"Expected SID of 0, but got: {SID}")
+
+                self.MRC = f.read(2).decode()
+                self.SRC = f.read(2).decode()
+
+                # bytesio doesn't include a readuntil
+                # the cmdtxt can be variable length, demarked by ETX byte
+                # This read_elements setting only reads 1 word (4 bytes)
+                # If this needs to be configurable in the future one way
+                # is to make a dictionary like its done for register add
+                # Doing range 64 for comfort, should only be 4 + 1 for ETX
+                self.cmd_txt = ""
+                for _ in range(64):
+                    byte = f.read(1).decode()
+                    # ETX byte
+                    if byte == "\x03":
+                        break
+                    else:
+                        self.cmd_txt = self.cmd_txt + byte
+
+                self.log.info(f"got cmdframe: {self.cmd_txt}")
+
+                bcc_frame = (
+                    self.node
+                    + subadd
+                    + SID
+                    + self.MRC
+                    + self.SRC
+                    + self.cmd_txt
+                    + "\x03"
+                )
+
+                bcc_maker = CompoWayFGeneralRegister()
+                expected_bcc = bcc_maker.generate_bcc(frame=bcc_frame)
+
+                self.bcc = f.read(1).decode()
+                if expected_bcc is not self.bcc:
+                    raise ValueError(
+                        f"Mismatch of BCC, got: {self.bcc}, expected: {expected_bcc}"
+                    )
+
+                # some type of read/write variable address cmd
+                if self.MRC == "\x30\x31" and (
+                    self.SRC == "\x30\x31" or self.SRC == "\x30\x32"
+                ):
+                    self.var_type = self.cmd_txt[:2]
+                    self.address = self.cmd_txt[2:6]
+                    bit_pos = self.cmd_txt[6:8]
+                    if bit_pos != "\x30\x30":
+                        self.log.error(
+                            f"got incorrect bitposition, expected 00, got: {bit_pos}"
+                        )
+                    self.num_of_elements = self.cmd_txt[8:12]
+
+                    if self.SRC == "\x30\x32":
+                        self.write_data = self.cmd_txt[12:]
+                else:
+                    raise ValueError(
+                        f"Command not supported, got MRC {self.MRC} SRC {self.SRC}"
+                    )
+        except Exception as e:
+            self.log.error(f"Message format not as expected. Message: {e}")
+            raise Exception("Message malformed")
+
+    def __repr__(self):
+        return f"{self.node}\n{self.MRC}\n{self.SRC}\n{self.cmd_txt}\n{self.bcc}"
+
+
+class MockNP5450:
+    """Implements a mock NP5450 .
+
+    Attributes
+    ----------
+    temperature : `float`
+        The temperature of the laser.
+    log : `logging.Logger`
+        The log for this class.
+    """
+
+    def __init__(self):
+        self.e5dcb_setpoint_temperature = random.randrange(1, 100)
+        self.log = logging.getLogger(__name__)
+        self.log.debug("NP5450 initialized")
+
+    def check_limits(self, value, min, max):
+        """Check the limits of a value.
+
+        Parameters
+        ----------
+        value : `int`
+            The value to check.
+        min : `int`
+            The minimum value.
+        max : `int`
+            The max value
+
+        Returns
+        -------
+        reply : `str`
+            if too low: return error
+            if too high: return error
+            if successful: return empty message
+        """
+        if int(value) < min:
+            reply = "'''Error: (12) Violating bottom value limit"
+            return reply
+        if int(value) > max:
+            reply = "'''Error: (11) Violating top value limit"
+            return reply
+        else:
+            reply = ""
+            return reply
+
+    def parse_message(self, msg):
+        """Parse and return the result of the message.
+
+        Parameters
+        ----------
+        msg : `bytes`
+            The message to parse.
+
+        Returns
+        -------
+        reply : `bytes`
+            The reply of the command parsed.
+        """
+        try:
+            self.log.info(msg)
+            split_msg = MockCompoWayFMessage(msg)
+            self.log.debug(split_msg)
+
+            command_name = "do_"
+            parameter = None
+
+            if split_msg.MRC == "\x30\x31":
+                if int(split_msg.num_of_elements) != 1:
+                    raise ValueError(
+                        "More than 1 number of element read/write not supported"
+                    )
+
+                if split_msg.SRC == "\x30\x31":
+                    command_name += "get_"
+                elif split_msg.SRC == "\x30\x32":
+                    parameter = split_msg.write_data
+                    command_name += "set_"
+
+                command_name += str(split_msg.node) + "_"
+
+                if split_msg.var_type == "\x38\x31":
+                    # set point
+                    if split_msg.address == "\x30\x30\x30\x33":
+                        command_name += "sp"
+
+            self.log.debug(f"{command_name=}")
+
+            methods = inspect.getmembers(self, inspect.ismethod)
+            for name, func in methods:
+                if name == command_name:
+                    self.log.debug(command_name)
+                    if parameter is None:
+                        reply = func()
+                    else:
+                        reply = func(parameter)
+                    self.log.debug(f"reply: {reply}")
+                    return reply
+            self.log.error(f"command {command_name} not implemented")
+            return "NA"
+        except Exception as e:
+            self.log.exception(f"Unexpected exception occurred: {e}.")
+            raise
+        finally:
+            pass
+
+    def do_set_01_sp(self, data):
+        self.e5dcb_setpoint_temperature = data
+        returnmsg = "\x30\x31" + "\x30\x30"  # node and subaddress
+        returnmsg += "\x30\x30"  # end code
+        returnmsg += "\x30\x31\x30\x32"  # mrc/src
+        returnmsg += "\x30\x30\x30\x30"  # response code
+        returnmsg += "\x03"  # ETX
+        bcc_maker = CompoWayFGeneralRegister()
+        bcc = bcc_maker.generate_bcc(frame=returnmsg)
+        returnmsg = "\x02" + returnmsg + bcc
+        return returnmsg
+
+    def do_get_01_sp(self):
+        returnmsg = "\x30\x31" + "\x30\x30"
+        returnmsg += "\x30\x30"  # end code
+        returnmsg += "\x30\x31\x30\x31"  # mrc/src
+        returnmsg += "\x30\x30\x30\x30"  # response code
+        returnmsg += str(self.e5dcb_setpoint_temperature)
+        returnmsg += "\x03"  # ETX
+        bcc_maker = CompoWayFGeneralRegister()
+        bcc = bcc_maker.generate_bcc(frame=returnmsg)
+        returnmsg = "\x02" + returnmsg + bcc
+        return returnmsg
+
+    def do_set_temperature(self):
+        """Change setpoint temperature as formatted string.
+
+        Returns
+        -------
+        `str`
+        """
+        return f"{self.temperature}C"
 
 
 class MockNT252:
