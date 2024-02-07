@@ -43,10 +43,12 @@ __all__ = [
     "MLDCO48",
     "DelayLin",
     "MidiOPG",
+    "E5DCB",
 ]
 import logging
 
 from . import interfaces
+from .compoway_register import CompoWayFDataRegister, CompoWayFOperationRegister
 from .enums import Mode, NoSCU, Output, Power, SCUConfiguration
 from .register import AsciiRegister
 
@@ -966,3 +968,66 @@ class MLDCO48(interfaces.CanbusModule):
 
     def __repr__(self):
         return f"{self.name}:\n {self.display_temperature_register}\n {self.display_temperature_register_2}\n"
+
+
+class E5DCB:
+    """The Omron Temperature sensor for the laser.
+
+    Parameters
+    ----------
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client
+    simulation_mode : `bool`
+        False for normal operation, true for simulation operation.
+    Attributes
+    ----------
+    name : `str`
+        The name of the module.
+    id : `int`
+        The id of the module.
+    commander : `TCPIPClient`
+        A reference to the tcp/ip client.
+    temperature_set_register : `AsciiRegister`
+        Corresponds to the "Temperature Set" register.
+    alarm_set_register : `AsciiRegister`
+        Corresponds to the "Alarm Set" register.
+
+    """
+
+    def __init__(self, commander, simulation_mode=False):
+        self.name = "E5DCB"
+        self.id_1 = 1
+        self.commander = commander
+        self.set_point_register = CompoWayFDataRegister(
+            commander=commander,
+            module_name=self.name,
+            module_id=self.id_1,
+            register_name="Set Point",
+            read_only=False,
+            accepted_values=range(-200, 1000),
+            simulation_mode=simulation_mode,
+        )
+
+        self.run_stop_register = CompoWayFOperationRegister(
+            commander=commander,
+            module_name=self.name,
+            module_id=self.id_1,
+            register_name="Run Stop",
+            read_only=False,
+            accepted_values=[range(2), True, False],
+            simulation_mode=simulation_mode,
+        )
+
+    async def update_register(self):
+        """Publish the register values of the module.
+
+        Returns
+        -------
+        None
+        """
+        await self.set_point_register.read_register_value()
+
+    def __repr__(self):
+        return (
+            f"{self.name}:\n {self.run_stop_register}\n" f"{self.set_point_register}\n"
+        )
