@@ -253,6 +253,11 @@ class MockCompoWayFMessage:
 
                     if self.SRC == "\x30\x32":
                         self.write_data = self.cmd_txt[12:]
+                elif (
+                    self.MRC == "\x33\x30" and self.SRC == "\x30\x35"
+                ):  # 30 05 operation reg
+                    self.command_code = self.cmd_txt[:2]
+                    self.related_info = self.cmd_txt[2:4]
                 else:
                     raise ValueError(
                         f"Command not supported, got MRC {self.MRC} SRC {self.SRC}"
@@ -278,6 +283,7 @@ class MockNP5450:
 
     def __init__(self):
         self.e5dcb_setpoint_temperature = random.randrange(1, 100)
+        self.run_stop = False
         self.log = logging.getLogger(__name__)
         self.log.debug("NP5450 initialized")
 
@@ -349,6 +355,16 @@ class MockNP5450:
                     # set point
                     if split_msg.address == "\x30\x30\x30\x33":
                         command_name += "sp"
+            elif split_msg.MRC == "\x33\x30":
+                # operation msg
+                if split_msg.SRC == "\x30\x35":
+                    command_name += "set_op_"
+
+                command_name += str(split_msg.node) + "_"
+
+                if split_msg.command_code == "\x30\x31":
+                    command_name += "runstop"
+                    parameter = split_msg.related_info
 
             self.log.debug(f"{command_name=}")
 
@@ -388,6 +404,28 @@ class MockNP5450:
         returnmsg += "\x30\x31\x30\x31"  # mrc/src
         returnmsg += "\x30\x30\x30\x30"  # response code
         returnmsg += str(self.e5dcb_setpoint_temperature)
+        returnmsg += "\x03"  # ETX
+        bcc_maker = CompoWayFGeneralRegister()
+        bcc = bcc_maker.generate_bcc(frame=returnmsg)
+        returnmsg = "\x02" + returnmsg + bcc
+        return returnmsg
+
+    def do_set_op_01_runstop(self, data):
+        run_stop_related_info = {
+            True: "\x30\x30",  # on
+            False: "\x30\x31",  # off
+            0: "\x30\x31",  # off
+            1: "\x30\x30",  # on
+        }
+        if data in run_stop_related_info:
+            self.run_stop = bool(run_stop_related_info[data])
+        else:
+            self.log.error(f"received bad data in related info: {data}")
+
+        returnmsg = "\x30\x31" + "\x30\x30"
+        returnmsg += "\x30\x30"  # end code
+        returnmsg += "\x33\x30\x30\x35"  # mrc/src
+        returnmsg += "\x30\x30\x30\x30"  # response code
         returnmsg += "\x03"  # ETX
         bcc_maker = CompoWayFGeneralRegister()
         bcc = bcc_maker.generate_bcc(frame=returnmsg)

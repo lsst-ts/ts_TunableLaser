@@ -48,7 +48,7 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
             module_id=2,
             register_name="Set Point",
             read_only=False,
-            accepted_values=range(101),
+            accepted_values=range(-100, 4000),
         )
 
         self.read_only_data_reg = CompoWayFDataRegister(
@@ -125,12 +125,32 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
             self.read_only_data_reg.create_set_message(set_value=5)
         with pytest.raises(ValueError):
             self.data_register.create_set_message(set_value=50000)
+            self.operation_register.create_set_message(5)
+            self.operation_register.create_set_message("A")
 
         msg = self.data_register.create_set_message(5)
-        assert msg == "\x020200001028100030000015\x03\x0c"
+        assert msg == "\x020200001028100030000010032\x038"
+
+        msg = self.data_register.create_set_message(1234)
+        assert msg == "\x020200001028100030000013034\x03="
+
+        msg = self.data_register.create_set_message(321)
+        assert msg == "\x020200001028100030000010C8A\x033"
+
+        msg = self.data_register.create_set_message(77.0)
+        assert msg == "\x020200001028100030000010302\x038"
+
+        msg = self.data_register.create_set_message(-10)
+        assert msg == "\x02020000102810003000001FF9C\x03C"
+
+        msg = self.operation_register.create_set_message(True)
+        assert msg == "\x020300030050100\x037"
 
         msg = self.operation_register.create_set_message(1)
-        assert msg == "\x02030003005811\x03\x0e"
+        assert msg == "\x020300030050100\x037"
+
+        msg = self.operation_register.create_set_message(0)
+        assert msg == "\x020300030050101\x036"
 
     def test_repr(self):
         assert repr(self.data_register) == "Set Point: None"
