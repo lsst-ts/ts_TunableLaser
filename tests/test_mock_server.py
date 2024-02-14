@@ -1,6 +1,6 @@
 import unittest
 
-from lsst.ts.tunablelaser.mock_server import MockMessage, MockNT900
+from lsst.ts.tunablelaser.mock_server import MockMessage, MockNP5450, MockNT900
 
 
 class TestMockMessage(unittest.TestCase):
@@ -23,3 +23,11 @@ class TestMockNT900(unittest.TestCase):
         assert (
             reply == "'''Error: (13) Wrong value, not included in allowed values list"
         )
+
+
+class TestMockNP5450(unittest.TestCase):
+    def test_reply(self):
+        device = MockNP5450()
+        device.e5dcb_setpoint_temperature = 56
+        reply = device.do_get_01_sp()
+        assert reply == "\x020100000101000056\x03\x01"

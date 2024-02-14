@@ -87,9 +87,11 @@ class LaserCSC(salobj.ConfigurableCsc):
             override=override,
         )
         self.model = None
+        self.thermal_ctrl = None
         self.telemetry_rate = 1
         self.telemetry_task = utils.make_done_future()
         self.simulator = None
+        self.thermal_ctrl_simulator = None
 
     @property
     def connected(self):
@@ -101,6 +103,7 @@ class LaserCSC(salobj.ConfigurableCsc):
             try:
                 self.log.debug("Telemetry updating")
                 await self.model.read_all_registers()
+                await self.thermal_ctrl.read_all_registers()
                 self.log.debug(f"model={self.model}")
                 self.log.debug(
                     f"detailed_state={self.evt_detailedState.data.detailedState}"
@@ -170,6 +173,14 @@ class LaserCSC(salobj.ConfigurableCsc):
                     self.simulator = simulatorcls()
                     self.log.debug(f"Chose {self.simulator=}")
                     await self.simulator.start_task
+
+                    self.thermal_ctrl_simulator = mock_server.TempCtrlServer(
+                        host=self.thermal_ctrl.host, port=self.thermal_ctrl.port
+                    )
+                    # self.thermal_ctrl_simulator =
+                    # mock_server.TempCtrlServer()
+                    await self.thermal_ctrl_simulator.start_task
+
             if not self.connected and self.model is not None:
                 await self.evt_detailedState.set_write(
                     detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING
@@ -179,6 +190,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                     await self.model.maxi_opg.set_configuration()
                 except Exception:
                     pass
+                await self.thermal_ctrl.connect()
             if (
                 self.summary_state == salobj.State.DISABLED
                 and self.model.is_propagating
@@ -193,9 +205,13 @@ class LaserCSC(salobj.ConfigurableCsc):
             if self.model is not None and self.model.connected:
                 await self.model.disconnect()
                 self.model = None
+                await self.thermal_ctrl.disconnect()
+                self.thermal_ctrl = None
             if self.simulator is not None:
                 await self.simulator.close()
                 self.simulator = None
+                await self.thermal_ctrl_simulator.close()
+                self.thermal_ctrl_simulator = None
             self.telemetry_task.cancel()
 
     async def do_setBurstMode(self, data):
@@ -314,22 +330,28 @@ class LaserCSC(salobj.ConfigurableCsc):
         await self.model.trigger_burst()
 
     async def do_changeTempCtrlSetpoint(self, data):
-        """Not Implemented Yet."""
+        """Change the set point of the laser thermal reader."""
         self.assert_enabled()
-
-        raise NotImplementedError("Command not implemented yet.")
+        if self.connected:
+            await self.thermal_ctrl.laser_thermal_change_set_point(value=data.setpoint)
+        else:
+            raise salobj.ExpectedError("Not connected.")
 
     async def do_turnOffTempCtrl(self, data):
-        """Not Implemented Yet."""
+        """Turn off the run mode of the laser thermal reader."""
         self.assert_enabled()
-
-        raise NotImplementedError("Command not implemented yet.")
+        if self.connected:
+            await self.thermal_ctrl.laser_thermal_turn_off()
+        else:
+            raise salobj.ExpectedError("Not connected.")
 
     async def do_turnOnTempCtrl(self, data):
-        """Not Implemented Yet."""
+        """Turn on the run mode of the laser thermal reader."""
         self.assert_enabled()
-
-        raise NotImplementedError("Command not implemented yet.")
+        if self.connected:
+            await self.thermal_ctrl.laser_thermal_turn_on()
+        else:
+            raise salobj.ExpectedError("Not connected.")
 
     async def do_setOpticalConfiguration(self, data):
         """Not Implemented Yet."""
@@ -357,6 +379,18 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.optical_alignment = config.optical_configuration
         await self.model.configure(config)
 
+        self.thermal_ctrl = component.TemperatureCtrl(
+            csc=self,
+            host=config.temp_ctrl["host"],
+            port=config.temp_ctrl["port"],
+            simulation_mode=bool(self.simulation_mode),
+        )
+        # self.thermal_ctrl = component.TemperatureCtrl(
+        #     csc=self,
+        #     port=50,
+        #     simulation_mode=bool(self.simulation_mode),
+        # )
+
     @staticmethod
     def get_config_pkg():
         """Return the configuration package name."""
@@ -377,6 +411,12 @@ class LaserCSC(salobj.ConfigurableCsc):
         if self.model is not None:
             await self.model.disconnect()
             self.model = None
+        if self.thermal_ctrl is not None:
+            await self.thermal_ctrl.disconnect()
+            self.thermal_ctrl = None
         if self.simulator is not None:
             await self.simulator.close()
             self.simulator = None
+        if self.thermal_ctrl_simulator is not None:
+            await self.thermal_ctrl_simulator.close()
+            self.thermal_ctrl_simulator = None

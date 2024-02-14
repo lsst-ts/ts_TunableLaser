@@ -27,7 +27,7 @@ CONFIG_SCHEMA = yaml.safe_load(
     """
 $schema: http://json-schema.org/draft-07/schema#
 $id: https://github.com/lsst-ts/ts_TunableLaser/blob/master/schema/TunableLaser.yaml
-title: TunableLaser v3
+title: TunableLaser v4
 description: Schema for TunableLaser configuration files
 type: object
 properties:
@@ -63,6 +63,17 @@ properties:
       - min
       - max
     addtionalProperties: false
+  temp_ctrl:
+    description: properties for the Omron temperature controller
+    type: object
+    properties:
+      host:
+        type: string
+        default: 127.0.0.1
+      port:
+        type: integer
+        default: 50
+      additionalProperties: false
 required:
   - type
   - host
@@ -70,6 +81,7 @@ required:
   - timeout
   - optical_configuration
   - wavelength
+  - temp_ctrl
 additionalProperties: false
 """
 )

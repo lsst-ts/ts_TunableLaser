@@ -1,4 +1,4 @@
-__all__ = ["Laser"]
+__all__ = ["Laser", "CompoWayFModule"]
 
 from abc import ABC, abstractmethod
 
@@ -159,3 +159,79 @@ class CanbusModule(ABC):
     async def update_register(self):
         """Update the registers located in the canbus module."""
         pass
+
+
+class CompoWayFModule(ABC):
+    """Implement CompoWayF Module.
+
+    Parameters
+    ----------
+    csc : `LaserCSC`
+        The CSC object.
+    terminator : `bytes`
+        The characters that terminate sent/received messages.
+    encoding : `str`
+        The type of encoding to use.
+    simulation_mode : `bool`, optional
+        Is the laser being simulated?
+
+    Attributes
+    ----------
+    csc : `LaserCSC`
+        The CSC object.
+    terminator : `bytes`
+        The characters that terminate sent/received messages.
+    encoding : `str`
+        The type of encoding to use.
+    log : `logging.Logger`
+        The log of the component.
+    simulation_mode : `bool`
+        Is the module being simulated?
+    commander : `lsst.ts.tcpip.Client`
+        A TCP/IP client.
+    """
+
+    def __init__(
+        self, csc, terminator=b"\x03", encoding="utf-8", simulation_mode=False
+    ) -> None:
+        self.csc = csc
+        self.encoding = encoding
+        self.log = csc.log
+        self.simulation_mode = simulation_mode
+        self.terminator = terminator
+        self.commander = tcpip.Client(host="", port=0, log=self.log)
+
+    @property
+    def connected(self):
+        """Is the module connected?"""
+        return self.commander.connected
+
+    @property
+    @abstractmethod
+    def temperature(self):
+        """The temperature sensors."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def configure(self, config):
+        """Configure the module."""
+        raise NotImplementedError
+
+    async def disconnect(self):
+        """Disconnect from the module."""
+        await self.commander.close()
+        self.commander = tcpip.Client(host="", port=0, log=self.log)
+
+    async def connect(self):
+        """Connect to the module."""
+        if self.csc.simulation_mode:
+            self.host = self.csc.simulator.host
+            self.port = 50
+        self.commander = tcpip.Client(
+            host=self.host,
+            port=self.port,
+            log=self.log,
+            terminator=bytes(self.terminator),
+            encoding=self.encoding,
+        )
+        await self.commander.start_task
