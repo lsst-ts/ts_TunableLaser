@@ -99,30 +99,30 @@ class CompoWayFGeneralRegister(AsciiRegister):
         self.status = None
 
         self.response_dict = {
-            b"0000": "Normal completion",
-            b"0401": "Unsupported command",
-            b"1001": "Command too long",
-            b"1002": "Command too short",
-            b"1101": "Area type error",
-            b"1103": "Start address out-of-range error",
-            b"1104": "End address out-of-range error",
-            b"1003": "Number of elements/data mismatch",
-            b"110B": "Response too long",
-            b"1100": "Parameter error",
-            b"3003": "Read-only error",
-            b"2203": "Operation error",
+            "0000": "Normal completion",
+            "0401": "Unsupported command",
+            "1001": "Command too long",
+            "1002": "Command too short",
+            "1101": "Area type error",
+            "1103": "Start address out-of-range error",
+            "1104": "End address out-of-range error",
+            "1003": "Number of elements/data mismatch",
+            "110B": "Response too long",
+            "1100": "Parameter error",
+            "3003": "Read-only error",
+            "2203": "Operation error",
         }
 
         self.end_code_dict = {
-            b"00": "Normal completion",
-            b"0F": "FINS command error",
-            b"10": "Parity error",
-            b"11": "Framing error",
-            b"12": "Overrun error",
-            b"13": "BCC error",
-            b"14": "Format error",
-            b"16": "Sub-address error",
-            b"18": "Frame length error",
+            "00": "Normal completion",
+            "0F": "FINS command error",
+            "10": "Parity error",
+            "11": "Framing error",
+            "12": "Overrun error",
+            "13": "BCC error",
+            "14": "Format error",
+            "16": "Sub-address error",
+            "18": "Frame length error",
         }
 
         # for parsing responses
@@ -133,9 +133,13 @@ class CompoWayFGeneralRegister(AsciiRegister):
 
     # Frame should be whole packet, without STX byte but WITH ETX byte
     def generate_bcc(self, frame):
+        if isinstance(frame, bytes):
+            self.log.error(f"bytes sent into generate_bcc, decoding... {frame}")
+            frame = frame.decode()
         result = 0
         for char in frame:
-            char_in_int = int(hex(ord(char)), 0)
+            char = str(char)
+            char_in_int = int(ord(char))
             result = result ^ char_in_int
         return chr(result)
 
@@ -149,6 +153,7 @@ class CompoWayFGeneralRegister(AsciiRegister):
                 f"Incorrect length of node, expected length 2, got {len(self.node)} {self.node}."
             )
         cmd_frame = node + "00" + "0" + pdu_structure + "\x03"
+        cmd_frame = cmd_frame.upper()
         cmd_frame = cmd_frame + self.generate_bcc(cmd_frame)
         cmd_frame = "\x02" + cmd_frame
         return cmd_frame
@@ -167,7 +172,7 @@ class CompoWayFGeneralRegister(AsciiRegister):
         cmd_txt = (
             MRC + SRC + variable_code + read_address + bit_position + read_elements
         )
-        get_message = self.compoway_cmd_frame(cmd_txt)
+        get_message = self.compoway_cmd_frame(cmd_txt).upper()
         self.log.debug(f"get_message={get_message}")
         return get_message
 
@@ -219,14 +224,20 @@ class CompoWayFGeneralRegister(AsciiRegister):
         )
 
     def get_response(self):
-        if self.response_code in self.response_dict:
-            return self.response_dict[self.response_code]
+        translated_response = self.response_code
+        if isinstance(self.response_code, bytes):
+            translated_response = translated_response.decode()
+        if translated_response in self.response_dict:
+            return self.response_dict[translated_response]
         else:
             return "Invalid response code"
 
     def get_end_code(self):
-        if self.end_code in self.end_code_dict:
-            return self.end_code_dict[self.end_code]
+        translated_end_code = self.end_code
+        if isinstance(self.end_code, bytes):
+            translated_end_code = translated_end_code.decode()
+        if translated_end_code in self.end_code_dict:
+            return self.end_code_dict[translated_end_code]
         else:
             return "Invalid end code"
 
@@ -299,6 +310,9 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
         accepted_values=None,
         simulation_mode=False,
     ) -> None:
+        if read_only is False and isinstance(accepted_values, range) is False:
+            raise TypeError("accepted_values must be type range")
+
         super().__init__(
             component=component,
             module_name=module_name,
@@ -380,13 +394,33 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
 
         """
         if not self.read_only:
-            if set_value not in self.accepted_values:
+            if set_value < min(self.accepted_values) or set_value > max(
+                self.accepted_values
+            ):
                 raise ValueError(f"{set_value} not in {self.accepted_values}")
+
+            set_value = int(set_value * 10)
 
             # This read_elements setting only reads 1 word of data (4 digits)
             # If this needs to change/be configurable in the future one way
             # is to make a dictionary like its done for reg address/variable
             write_elements = "\x30\x30\x30\x31"
+            if (set_value * -1) > 0x7FFF:
+                raise ValueError(f"AbsVal of set value too large (>0x7FFF) {set_value}")
+
+            # do 2's complement
+            if set_value < 1:
+                set_value = hex(((set_value * -1) ^ 0xFFFF) + 1)
+            else:
+                set_value = hex(set_value)
+
+            set_value = set_value.split("x")[1]
+
+            if len(set_value) > 4:
+                self.log.exception(f"set value too long (4 length max): {set_value}")
+                raise ValueError
+            while len(set_value) < 4:
+                set_value = "0" + set_value
 
             set_message = self._create_set_message_generic(
                 variable_code=self.variable_code,
@@ -419,11 +453,11 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
 
             try:
                 stx_node_subadd = await self.component.commander.readexactly(5)
+                stx_node_subadd = stx_node_subadd.decode()
                 expected_stx_node_subadd = "\x02"
                 if int(self.node) < 10:
                     expected_stx_node_subadd += "\x30"
                 expected_stx_node_subadd += self.node + "\x30\x30"
-                expected_stx_node_subadd = expected_stx_node_subadd.encode("UTF-8")
                 if stx_node_subadd is not expected_stx_node_subadd:
                     self.log.error(
                         f"Received incorrect start of packet: {stx_node_subadd}, "
@@ -431,9 +465,11 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
                     )
                     self.register_value = ""
                 self.end_code = await self.component.commander.readexactly(2)
+                self.end_code = self.end_code.decode()
                 mrc_src = await self.component.commander.readexactly(4)
+                mrc_src = mrc_src.decode()
                 # read variable area request MRC is 01, SRC is 01
-                expected_mrc_src = b"\x30\x31\x30\x31"
+                expected_mrc_src = "\x30\x31\x30\x31"
                 if mrc_src is not expected_mrc_src:
                     self.log.error(
                         f"Received incorrect Request Codes: {mrc_src}, "
@@ -441,8 +477,10 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
                     )
                     self.register_value = ""
                 self.response_code = await self.component.commander.readexactly(4)
+                self.response_code = self.response_code.decode()
 
                 self.cmd_txt = await self.component.commander.readuntil(b"\x03")
+                self.cmd_txt = self.cmd_txt.decode()
                 self.register_value = self.cmd_txt
                 if self.register_value is None:
                     self.log.error("Received no valid register value!")
@@ -452,15 +490,16 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
                 self.cmd_txt = self.cmd_txt[:-1]
 
                 self.bcc = await self.component.commander.readexactly(1)
+                self.bcc = self.bcc.decode()
 
                 # bcc should be calculated without STX, but with ETX byte
                 bcc_frame = (
-                    stx_node_subadd.split(b"\x02")[1]
+                    stx_node_subadd.split("\x02")[1]
                     + self.end_code
                     + mrc_src
                     + self.response_code
                     + self.cmd_txt
-                    + b"\x03"
+                    + "\x03"
                 )
                 expected_bcc = self.generate_bcc(bcc_frame)
                 if expected_bcc is not self.bcc:
@@ -470,6 +509,71 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
                     self.register_value = ""
             except Exception as e:
                 self.log.error(f"Message format not as expected. Message: {e}")
+
+    async def handle_set_response(self):
+        async with self.component.lock:
+            try:
+                stx_node_subadd = await self.component.commander.readexactly(5)
+                stx_node_subadd = stx_node_subadd.decode()
+                expected_stx_node_subadd = "\x02"
+                if int(self.node) < 10:
+                    expected_stx_node_subadd += "\x30"
+                expected_stx_node_subadd += self.node + "\x30\x30"
+                if stx_node_subadd is not expected_stx_node_subadd:
+                    self.log.error(
+                        f"Received incorrect start of packet: {stx_node_subadd}, "
+                        f"expected: {expected_stx_node_subadd}"
+                    )
+                    self.register_value = ""
+                self.end_code = await self.component.commander.readexactly(2)
+                self.end_code = self.end_code.decode()
+                if self.end_code != "\x30\x30":
+                    self.log.error(
+                        f"Received bad end code: {self.end_code}: {self.end_code_dict[self.end_code]}"
+                    )
+
+                mrc_src = await self.component.commander.readexactly(4)
+                mrc_src = mrc_src.decode()
+                # write variable area request MRC is 01, SRC is 02
+                expected_mrc_src = "\x30\x31\x30\x32"
+                if mrc_src is not expected_mrc_src:
+                    self.log.error(
+                        f"Received incorrect Request Codes: {mrc_src}, "
+                        f"expected: {expected_mrc_src}"
+                    )
+                self.response_code = await self.component.commander.readexactly(4)
+                self.response_code = self.response_code.decode()
+
+                if self.response_code != "\x30\x30\x30\x30":
+                    self.log.error(
+                        "Received bad response code: "
+                        f"{self.response_code}: {self.response_dict[self.response_code]}"
+                    )
+
+                etx = await self.component.commander.readuntil(b"\x03")
+                etx = etx.decode()
+
+                if etx != "\x03":
+                    self.log.error(f"Received bad ETX: {etx} expected: \x03")
+
+                self.bcc = await self.component.commander.readexactly(1)
+                self.bcc = self.bcc.decode()
+
+                # bcc should be calculated without STX, but with ETX byte
+                bcc_frame = (
+                    stx_node_subadd.split("\x02")[1]
+                    + self.end_code
+                    + mrc_src
+                    + self.response_code
+                    + "\x03"
+                )
+                expected_bcc = self.generate_bcc(bcc_frame)
+                if expected_bcc is not self.bcc:
+                    self.log.error(
+                        f"Incorrect BCC, got: {self.bcc}, expected: {expected_bcc}"
+                    )
+            except Exception as e:
+                print(f"handle_set_response excepted: {e}")
 
     async def set_register_value(self, set_value):
         """Set the value of the register and read the new value.
@@ -482,6 +586,8 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
         ------
         ReadOnlyException
             This indicates that the register is read only and cannot be set.
+        ValueError
+            If set value is too long (4 max)
 
         Returns
         -------
@@ -498,7 +604,7 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
                     await self.component.commander.write(
                         message.encode(self.component.commander.encoding)
                     )
-                    await self.component.commander.read_str()
+                await self.handle_set_response()
                 await self.read_register_value()
             except TimeoutError:
                 self.log.exception("Response timed out.")
@@ -585,7 +691,14 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
 
         # dictionary of implemented commands
         self.command_code_dict = {
-            "Run Stop": "\x38\x31",
+            "Run Stop": "\x30\x31",
+        }
+
+        self.run_stop_related_info = {
+            True: "\x30\x30",  # on
+            False: "\x30\x31",  # off
+            0: "\x30\x31",  # off
+            1: "\x30\x30",  # on
         }
 
         if register_name not in self.command_code_dict:
@@ -628,6 +741,11 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
         if set_value not in self.accepted_values:
             raise ValueError(f"{set_value} not in {self.accepted_values}")
 
+        set_value = self.get_related_info(set_value)
+        if set_value is None:
+            self.log.exception(f"set value not found {set_value}")
+            raise ValueError
+
         set_message = self._create_operation_message_generic(
             command_code=self.command_code, related_info=str(set_value)
         )
@@ -638,6 +756,86 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
     async def read_register_value(self):
         # can't read operational registers
         raise Exception("Can't read operational registers")
+
+    async def handle_set_response(self):
+        async with self.component.lock:
+            try:
+                stx_node_subadd = await self.component.commander.readexactly(5)
+                stx_node_subadd = stx_node_subadd.decode()
+                expected_stx_node_subadd = "\x02"
+                if int(self.node) < 10:
+                    expected_stx_node_subadd += "\x30"
+                expected_stx_node_subadd += self.node + "\x30\x30"
+                if stx_node_subadd is not expected_stx_node_subadd:
+                    self.log.error(
+                        f"Received incorrect start of packet: {stx_node_subadd}, "
+                        f"expected: {expected_stx_node_subadd}"
+                    )
+                    self.register_value = ""
+                self.end_code = await self.component.commander.readexactly(2)
+                self.end_code = self.end_code.decode()
+                if self.end_code != "\x30\x30":
+                    self.log.error(
+                        f"Received bad end code: {self.end_code}: {self.end_code_dict[self.end_code]}"
+                    )
+
+                mrc_src = await self.component.commander.readexactly(4)
+                mrc_src = mrc_src.decode()
+                # write variable area request MRC is 30, SRC is 05
+                expected_mrc_src = "\x33\x30\x30\x35"
+                if mrc_src is not expected_mrc_src:
+                    self.log.error(
+                        f"Received incorrect Request Codes: {mrc_src}, "
+                        f"expected: {expected_mrc_src}"
+                    )
+                self.response_code = await self.component.commander.readexactly(4)
+                self.response_code = self.response_code.decode()
+
+                if self.response_code != "\x30\x30\x30\x30":
+                    self.log.error(
+                        "Received bad response code: "
+                        f"{self.response_code}: {self.response_dict[self.response_code]}"
+                    )
+
+                etx = await self.component.commander.readuntil(b"\x03")
+                etx = etx.decode()
+
+                if etx != "\x03":
+                    self.log.error(f"Received bad ETX: {etx} expected: \x03")
+
+                self.bcc = await self.component.commander.readexactly(1)
+                self.bcc = self.bcc.decode()
+
+                # bcc should be calculated without STX, but with ETX byte
+                bcc_frame = (
+                    stx_node_subadd.split("\x02")[1]
+                    + self.end_code
+                    + mrc_src
+                    + self.response_code
+                    + "\x03"
+                )
+                expected_bcc = self.generate_bcc(bcc_frame)
+                if expected_bcc is not self.bcc:
+                    self.log.error(
+                        f"Incorrect BCC, got: {self.bcc}, expected: {expected_bcc}"
+                    )
+            except Exception as e:
+                print(f"handle_set_response excepted: {e}")
+
+    def get_related_info(self, set_value):
+        chosen_dict = None
+        # RUN/STOP
+        if self.command_code == "\x30\x31":
+            chosen_dict = self.run_stop_related_info
+        else:
+            self.log.error(
+                f"No valid command code in get_related_info: {self.command_code}"
+            )
+        if set_value in chosen_dict:
+            return chosen_dict[set_value]
+        else:
+            self.log.error(f"No set value ({set_value}) in chosen dict ({chosen_dict})")
+            return None
 
     async def set_register_value(self, set_value):
         """Set the value of the register.
@@ -652,6 +850,8 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
             This indicates that the register is read only and cannot be set.
         TimeoutError
             Response timed out.
+        ValueError
+            selected value not found in related info dictionary
 
         Returns
         -------
@@ -660,17 +860,17 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
         """
         if self.read_only:
             raise PermissionError("This register is read only.")
-        if not self.simulation_mode:
-            try:
-                async with self.component.lock:
-                    message = self.create_set_message(set_value)
-                    self.log.debug(f"sending message {message}.")
-                    await self.component.commander.write(
-                        message.encode(self.component.commander.encoding)
-                    )
-                    await self.component.commander.read_str()
-            except TimeoutError:
-                self.log.exception("Response timed out.")
-                raise TimeoutError
-        else:
-            self.register_value = set_value
+        try:
+            async with self.component.lock:
+                message = self.create_set_message(set_value)
+                self.log.debug(f"sending message {message}.")
+                if self.simulation_mode:
+                    message += "\r"
+                await self.component.commander.write(
+                    message.encode(self.component.commander.encoding)
+                )
+            await self.handle_set_response()
+        except TimeoutError:
+            self.log.exception("Response timed out.")
+            raise TimeoutError
+        self.register_value = set_value
