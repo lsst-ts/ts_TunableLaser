@@ -533,12 +533,20 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
             encoding=encoding,
             simulation_mode=simulation_mode,
         )
-        self.e5dc_b = canbus_modules.E5DCB(
-            component=self, simulation_mode=simulation_mode
-        )
         self.lock = asyncio.Lock()
 
-        self.host = host
+        # if host is not valid IP address assume its unconnected
+        if str(host).lower() != "none":
+            self.host = host
+            self.e5dc_b = canbus_modules.E5DCB(
+                component=self, simulation_mode=simulation_mode
+            )
+        else:
+            self.log.error(
+                f"Host address given to Temp Ctrl not valid, assuming unconnected: {host}"
+            )
+            self.host = None
+            self.e5dc_b = None
         self.port = port
 
     @property
@@ -546,13 +554,28 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
         return (None,)
 
     async def laser_thermal_turn_on(self):
-        await self.e5dc_b.run_stop_register.set_register_value(True)
+        if self.e5dc_b is not None:
+            await self.e5dc_b.run_stop_register.set_register_value(True)
+        else:
+            self.log.error(
+                "Tried to laser_thermal_turn_on but thermal ctrler is unconnected."
+            )
 
     async def laser_thermal_turn_off(self):
-        await self.e5dc_b.run_stop_register.set_register_value(False)
+        if self.e5dc_b is not None:
+            await self.e5dc_b.run_stop_register.set_register_value(False)
+        else:
+            self.log.error(
+                "Tried to laser_thermal_turn_off but thermal ctrler is unconnected."
+            )
 
     async def laser_thermal_change_set_point(self, value):
-        await self.e5dc_b.set_point_register.set_register_value(value)
+        if self.e5dc_b is not None:
+            await self.e5dc_b.set_point_register.set_register_value(value)
+        else:
+            self.log.error(
+                "Tried to laser_thermal_change_set_point but thermal ctrler is unconnected."
+            )
 
     async def configure(self, config):
         self.log.debug("Setting config.")
@@ -560,4 +583,9 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
         self.port = config.port
 
     async def read_all_registers(self):
-        await self.e5dc_b.update_register()
+        if self.e5dc_b is not None:
+            await self.e5dc_b.update_register()
+        else:
+            self.log.warning(
+                "Tried to update_register but thermal ctrler is unconnected."
+            )
