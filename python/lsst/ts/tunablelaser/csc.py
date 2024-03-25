@@ -92,6 +92,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.telemetry_task = utils.make_done_future()
         self.simulator = None
         self.thermal_ctrl_simulator = None
+        self.laser_type = None
 
     @property
     def connected(self):
@@ -374,6 +375,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         """Configure the CSC."""
         self.log.debug(f"config={config}")
         self.log.debug(f"Connecting to laser {config.type}")
+        self.laser_type = config.type
         lasercls = getattr(component, f"{config.type}Laser")
         self.model = lasercls(csc=self, simulation_mode=bool(self.simulation_mode))
         self.optical_alignment = config.optical_configuration
