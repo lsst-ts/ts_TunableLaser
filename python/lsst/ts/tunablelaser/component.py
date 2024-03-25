@@ -137,6 +137,24 @@ class MainLaser(interfaces.Laser):
         self.log.debug("Changing wavelength")
         await self.maxi_opg.change_wavelength(wavelength)
 
+    async def set_optical_configuration(self, optical_configuration):
+        """Change the optical alignment of the laser.
+
+        Parameters
+        ----------
+        optical_configuration: `str`, {straight-through,F1,F2}
+            The optical alignment to switch to.
+        """
+        self.maxi_opg.optical_alignment = optical_configuration
+        self.log.debug(
+            f"Set optical alignment to {optical_configuration}"
+            f"Optical alignment is {self.maxi_opg.optical_alignment}"
+        )
+        await self.maxi_opg.set_configuration()
+        await self.csc.evt_opticalConfiguration.set_write(
+            configuration=optical_configuration
+        )
+
     async def set_output_energy_level(self, output_energy_level):
         """Set the output energy level of the laser.
 
