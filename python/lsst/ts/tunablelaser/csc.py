@@ -355,10 +355,21 @@ class LaserCSC(salobj.ConfigurableCsc):
             raise salobj.ExpectedError("Not connected.")
 
     async def do_setOpticalConfiguration(self, data):
-        """Not Implemented Yet."""
+        """Change Optical Alignment of the laser.
+        Parameters
+        ----------
+        data - with property 'configuration' setting optical
+               alignment of the laser.
+        """
         self.assert_enabled()
-
-        raise NotImplementedError("Command not implemented yet.")
+        if self.connected:
+            if self.laser_type == "Main":  # only main laser can do this
+                await self.model.set_optical_configuration(data.configuration)
+                await self.evt_opticalConfiguration.set_write(
+                    configuration=data.configuration
+                )
+        else:
+            raise salobj.ExpectedError("Not connected")
 
     async def publish_new_detailed_state(self, new_sub_state):
         """Publish the updated detailed state.
