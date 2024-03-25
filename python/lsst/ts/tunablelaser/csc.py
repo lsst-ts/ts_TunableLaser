@@ -187,10 +187,8 @@ class LaserCSC(salobj.ConfigurableCsc):
                     detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING
                 )
                 await self.model.connect()
-                try:
-                    await self.model.maxi_opg.set_configuration()
-                except Exception:
-                    pass
+                if self.laser_type == "Main":
+                    await self.model.set_optical_configuration(self.optical_alignment)
                 await self.thermal_ctrl.connect()
             if (
                 self.summary_state == salobj.State.DISABLED
