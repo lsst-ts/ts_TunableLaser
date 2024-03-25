@@ -264,6 +264,7 @@ class MainLaser(interfaces.Laser):
             f"Set optical alignment to {config.optical_configuration}"
             f"Optical alignment is {self.maxi_opg.optical_alignment}"
         )
+        self.maxi_opg.set_configuration()
 
     def __str__(self):
         return (
