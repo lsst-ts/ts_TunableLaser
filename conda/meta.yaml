@@ -14,7 +14,7 @@ build:
 
 test:
   requires:
-    - ts-conda-build =0.3
+    - ts-conda-build =0.4
     - ts-idl {{ idl_version }}
     - ts-salobj {{ salobj_version }}
     - parameterized
@@ -33,7 +33,8 @@ requirements:
     - setuptools
   build:
     - python {{python}}
-    - ts-conda-build =0.3
+    - setuptools_scm
+    - setuptools
   run:
     - python {{python}}
     - setuptools
