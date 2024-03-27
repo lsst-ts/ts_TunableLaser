@@ -24,6 +24,7 @@ __all__ = ["MainLaser", "StubbsLaser", "TemperatureCtrl"]
 import asyncio
 
 from lsst.ts.xml.enums.TunableLaser import LaserDetailedState
+from paho.mqtt import client as mqtt_client
 
 from . import canbus_modules, interfaces
 from .enums import Mode, Power
@@ -523,6 +524,44 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
         self.host = host
         self.port = port
 
+        # need to replace with config
+        self.rpii_broker = "140.252.147.122"
+        self.rpii_port = 1883
+        self.rpii_temperature = -1
+        self.rpii_interlock = False
+        self.mqtt_topics = {"temp_scanner", "interlock_status"}
+        self.rpii_mqtt_client = self.connect_mqtt()
+        self.subscribe_mqtt(self.rpii_mqtt_client)
+
+    def connect_mqtt(self) -> mqtt_client:
+        def on_connect(client, userdata, flags, rc):
+            if rc == 0:
+                self.log.debug("Successfully connected to MQTT")
+            else:
+                self.log.error(f"Failed to connect to MQTT, error: {str(rc)}")
+
+        client = mqtt_client.Client(mqtt_client.CallbackAPIVersion.VERSION1)
+        client.on_connect = on_connect
+        client.connect(self.rpii_broker, self.rpii_port)
+        return client
+
+    def subscribe_mqtt(self, client: mqtt_client):
+        def on_message(client, userdata, msg):
+            self.log.debug(
+                f"Received `{msg.payload.decode()}` from `{msg.topic}` topic"
+            )
+            # TODO do this programatically to scale with topics
+            if msg.topic == "temp_scanner":
+                self.rpii_temperature = int(msg.payload.decode())
+            elif msg.topic == "interlock_status":
+                self.rpii_interlock = bool(msg.payload.decode())
+            else:
+                self.log.error(f"Received unimplemented topic: {msg.topic}")
+
+        for topic in self.mqtt_topics:
+            client.subscribe(topic)
+        client.on_message = on_message
+
     @property
     def temperature(self):
         return (None,)
@@ -542,4 +581,12 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
         self.port = config.port
 
     async def read_all_registers(self):
-        await self.e5dc_b.update_register()
+        if self.e5dc_b is not None:
+            await self.e5dc_b.update_register()
+        else:
+            self.log.warning(
+                "Tried to update_register but thermal ctrler is unconnected."
+            )
+        # blocks and attempts to receive mqtt for 1 second
+        # TODO could change to programatically
+        self.rpii_mqtt_client.loop(1)

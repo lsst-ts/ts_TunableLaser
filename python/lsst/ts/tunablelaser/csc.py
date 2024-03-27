@@ -385,11 +385,6 @@ class LaserCSC(salobj.ConfigurableCsc):
             port=config.temp_ctrl["port"],
             simulation_mode=bool(self.simulation_mode),
         )
-        # self.thermal_ctrl = component.TemperatureCtrl(
-        #     csc=self,
-        #     port=50,
-        #     simulation_mode=bool(self.simulation_mode),
-        # )
 
     @staticmethod
     def get_config_pkg():
