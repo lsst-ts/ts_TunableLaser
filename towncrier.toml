@@ -4,5 +4,5 @@ package = "lsst.ts.tunablelaser"
 package_dir = "python"
 filename = "doc/version-history.rst"
 name = "ts_tunablelaser"
-issue_format = "`{issue} <https://jira.lsstcorp.org/{issue}>`_"
+issue_format = "`{issue} <https://rubinobs.atlassian.net/{issue}>`_"
 
