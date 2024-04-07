@@ -101,7 +101,7 @@ class SerialTemperatureScanner(tcpip.OneClientServer):
 
         # send data
         while len(self.pending_messages) != 0:
-            self.client.write_str(self.pending_messages.pop() + self.terminator)
+            self.write_str(self.pending_messages.pop() + self.terminator)
 
     def config(self):
         # define MQTT client
