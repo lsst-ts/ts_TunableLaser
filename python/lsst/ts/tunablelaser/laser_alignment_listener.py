@@ -1,3 +1,6 @@
+__all__ = ["LaserAlignmentListener", "execute_laser_alignment_listener"]
+
+import asyncio
 import datetime
 import logging
 from time import sleep
@@ -6,36 +9,45 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pigpio
 import sounddevice as sd
-from paho.mqtt import client as mqtt_client
+from lsst.ts import tcpip
 from scipy.fftpack import fft
 
 RELAY_ON = 1
 RELAY_OFF = 0
-MQTT_SERVER = "localhost"  # specify the broker address, it can be IP of raspberry pi or simply localhost
-MQTT_PATH = "interlock_status"  # this is the name of topic, like temp
-MQTT_PORT = 1883
 
 
-def connect_mqtt():
-    def on_connect(client, userdata, flags, rc):
-        if rc == 0:
-            print("Connected to MQTT Broker!")
-        else:
-            print("Failed to connect, return code %d\n", rc)
-
-    client = mqtt_client.Client(mqtt_client.CallbackAPIVersion.VERSION1)
-    client.on_connect = on_connect
-    client.connect(MQTT_SERVER)
-    return client
+def execute_laser_alignment_listener():
+    asyncio.run(LaserAlignmentListener.amain(index=None))
 
 
-class LaserAlignmentListener:
-    def __init__(self, logger=None):
+class LaserAlignmentListener(tcpip.OneClientServer):
+    def __init__(
+        self,
+        logger: logging.Logger,
+        port: int | None = 1883,
+        host: str | None = tcpip.DEFAULT_LOCALHOST,
+        encoding: str = tcpip.DEFAULT_ENCODING,
+        terminator: bytes = tcpip.DEFAULT_TERMINATOR,
+        sample_wait_time=60,
+        serial=None,
+        temperature_windows=8,
+    ):
+        super().__init__(
+            log=logger,
+            host=host,
+            port=port,
+            connect_callback=None,
+            monitor_connection_interval=0,
+            name="",
+            encoding=encoding,
+            terminator=terminator,
+        )
+
         self.logger = logger
         self.relay_gpio = None
         self.configured = False
         self.fileptr = None
-        self.mqtt_client = None
+        self.pending_messages = []
 
         self.config()
 
@@ -44,21 +56,21 @@ class LaserAlignmentListener:
         self.configured = True
         self.pi = pigpio.pi()
 
-        self.mqtt_client = connect_mqtt()
+    async def amain(self):
+        self.laser_alignment_task()
 
     def publish_msg(self, msg):
-        try:
-            self.mqtt_client.loop_start()
-            result = self.mqtt_client.publish(MQTT_PATH, msg)
+        self.pending_messages.append(msg)
+        self.read_and_dispatch()
 
-            status = result[0]
-            if status == 0:
-                print(f"Send `{msg}` to topic `{MQTT_PATH}`")
-            else:
-                print(f"Failed to send message to topic {MQTT_PATH}")
-            self.mqtt_client.loop_stop()
-        except Exception as e:
-            print(f"MQTT excepted trying to send: {msg}: {e}")
+    def read_and_dispatch(self):
+        # read data
+        # incoming_data = self.read_str()
+        # handle data
+
+        # send data
+        while len(self.pending_messages) != 0:
+            self.write_str(self.pending_messages.pop() + self.terminator)
 
     def record_data(self, duration, fs):
         self.logger.debug("Check input settings")
