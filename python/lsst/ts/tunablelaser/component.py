@@ -23,8 +23,8 @@ __all__ = ["MainLaser", "StubbsLaser", "TemperatureCtrl"]
 
 import asyncio
 
+from lsst.ts import tcpip
 from lsst.ts.xml.enums.TunableLaser import LaserDetailedState
-from paho.mqtt import client as mqtt_client
 
 from . import canbus_modules, interfaces
 from .enums import Mode, Power
@@ -525,42 +525,81 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
         self.port = port
 
         # need to replace with config
-        self.rpii_broker = "140.252.147.122"
-        self.rpii_port = 1883
+        self.rpii_address = "140.252.147.122"
+        self.rpii_alignment_port = 1883
+        self.rpii_executor_port = 1885
+        self.rpii_serialthermal_port = 1884
+
+        self.rpii_alignment_client = tcpip.Client(
+            host=self.rpii_address, port=self.rpii_alignment_port, log=self.log
+        )
+        self.rpii_executor_client = tcpip.Client(
+            host=self.rpii_address, port=self.rpii_executor_port, log=self.log
+        )
+        self.rpii_serialthermal_client = tcpip.Client(
+            host=self.rpii_address, port=self.rpii_serialthermal_port, log=self.log
+        )
+
         self.rpii_temperature = -1
         self.rpii_interlock = False
-        self.mqtt_topics = {"temp_scanner", "interlock_status"}
-        self.rpii_mqtt_client = self.connect_mqtt()
-        self.subscribe_mqtt(self.rpii_mqtt_client)
 
-    def connect_mqtt(self) -> mqtt_client:
-        def on_connect(client, userdata, flags, rc):
-            if rc == 0:
-                self.log.debug("Successfully connected to MQTT")
-            else:
-                self.log.error(f"Failed to connect to MQTT, error: {str(rc)}")
+    async def laser_thermal_rpii_get_alignment_str(self):
+        try:
+            new_str = await self.rpii_alignment_client.read_str()
+        except ConnectionError:
+            pass
+        except asyncio.IncompleteReadError:
+            pass
+        except asyncio.LimitOverrunError:
+            pass
+        except UnicodeError:
+            pass
 
-        client = mqtt_client.Client(mqtt_client.CallbackAPIVersion.VERSION1)
-        client.on_connect = on_connect
-        client.connect(self.rpii_broker, self.rpii_port)
-        return client
+        # Split new string by :
+        new_str = new_str.split(":")
+        if new_str[-1] == " Opened":
+            # status changed to open
+            pass
+        elif new_str[-1] == "Closed":
+            # status changed to closed
+            pass
+        else:
+            # error or button push
+            pass
 
-    def subscribe_mqtt(self, client: mqtt_client):
-        def on_message(client, userdata, msg):
-            self.log.debug(
-                f"Received `{msg.payload.decode()}` from `{msg.topic}` topic"
-            )
-            # TODO do this programatically to scale with topics
-            if msg.topic == "temp_scanner":
-                self.rpii_temperature = int(msg.payload.decode())
-            elif msg.topic == "interlock_status":
-                self.rpii_interlock = bool(msg.payload.decode())
-            else:
-                self.log.error(f"Received unimplemented topic: {msg.topic}")
+    async def laser_thermal_rpii_get_serial_str(self):
+        try:
+            new_str = await self.rpii_serialthermal_client.read_str()
+        except ConnectionError:
+            pass
+        except asyncio.IncompleteReadError:
+            pass
+        except asyncio.LimitOverrunError:
+            pass
+        except UnicodeError:
+            pass
 
-        for topic in self.mqtt_topics:
-            client.subscribe(topic)
-        client.on_message = on_message
+        if "New" in new_str:
+            # New temperature data
+            pass
+        else:
+            # error
+            pass
+
+    async def laser_thermal_rpii_get_executor_str(self):
+        try:
+            new_str = await self.rpii_executor_client.read_str()
+        except ConnectionError:
+            pass
+        except asyncio.IncompleteReadError:
+            pass
+        except asyncio.LimitOverrunError:
+            pass
+        except UnicodeError:
+            pass
+
+        # executor only publishes exceptions
+        new_str.split(":")
 
     @property
     def temperature(self):
@@ -587,6 +626,10 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
             self.log.warning(
                 "Tried to update_register but thermal ctrler is unconnected."
             )
-        # blocks and attempts to receive mqtt for 1 second
-        # TODO could change to programatically
-        self.rpii_mqtt_client.loop(1)
+
+        if self.rpii_executor_client.connected:
+            await self.laser_thermal_rpii_get_executor_str()
+        if self.rpii_alignment_client.connected:
+            await self.laser_thermal_rpii_get_alignment_str()
+        if self.rpii_serialthermal_client.connected:
+            await self.laser_thermal_rpii_get_serial_str()
