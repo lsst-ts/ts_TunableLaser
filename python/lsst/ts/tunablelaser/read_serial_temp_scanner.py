@@ -1,6 +1,28 @@
-# Script to readout temperature sensors from serial device for laser
-# The script is currently setup to write to a file every time a measurement
-# is made so that the file can be accessed while the script is running
+# This file is part of ts_tunablelaser.
+#
+# Developed for the Vera Rubin Observatory Telescope and Site Software.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+""" Script to readout temperature sensors from serial device for laser
+    The script is currently setup to write to a file every time a measurement
+    is made so that the file can be accessed while the script is running
+"""
 
 __all__ = ["SerialTemperatureScanner", "execute_serial_temperature_scanner"]
 
@@ -24,6 +46,29 @@ def execute_serial_temperature_scanner():
 
 
 class SerialTemperatureScanner(tcpip.OneClientServer):
+    """This is the class that implements the Serial Temperature Scanner script.
+
+    Parameters
+    ----------
+    logger : `logging.Logger`
+        logger object
+    port : `int`, optional
+        port that the server will be hosted on, default 1883
+    host : `str`, optional
+        IP the server will be hosted on, default tcpip.DEFAULT_LOCALHOST
+    encoding : `str`, optional
+        Encoding used for the packets
+    terminator: `bytes`, optional
+        terminating character used for packets
+    sample_wait_time: `int`, optional
+        time to wait between getting temperature samples
+    serial: `serial` or `None`, optional
+        serial object that the temperature scanner device is connected
+    temperature_windows: `int`, optional
+        Amount of temperature windows to average for rolling avg window
+
+    """
+
     def __init__(
         self,
         logger: logging.Logger,
@@ -31,9 +76,9 @@ class SerialTemperatureScanner(tcpip.OneClientServer):
         host: str | None = tcpip.DEFAULT_LOCALHOST,
         encoding: str = tcpip.DEFAULT_ENCODING,
         terminator: bytes = tcpip.DEFAULT_TERMINATOR,
-        sample_wait_time=60,
+        sample_wait_time: int = 5,
         serial=None,
-        temperature_windows=8,
+        temperature_windows: int = 8,
     ):
         super().__init__(
             log=logger,
@@ -104,15 +149,6 @@ class SerialTemperatureScanner(tcpip.OneClientServer):
             self.write_str(self.pending_messages.pop() + self.terminator)
 
     def config(self):
-        # define MQTT client
-        # self.client = tcpip.OneClientReadLoopServer(
-        #     host=self.host,
-        #     port=self.port,
-        #     log=self.logger,
-        #     terminator=bytes(self.terminator),
-        #     encoding=self.encoding,
-        # )
-
         # TODO: read config .yaml instead
         PORT = "/dev/ttyUSB0"
         BAUDRATE = 19200
