@@ -72,7 +72,7 @@ class SerialTemperatureScanner(tcpip.OneClientServer):
     def __init__(
         self,
         logger: logging.Logger,
-        port: int | None = 1883,
+        port: int | None = 1884,
         host: str | None = tcpip.DEFAULT_LOCALHOST,
         encoding: str = tcpip.DEFAULT_ENCODING,
         terminator: bytes = tcpip.DEFAULT_TERMINATOR,
