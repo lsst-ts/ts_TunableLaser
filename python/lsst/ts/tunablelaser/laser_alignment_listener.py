@@ -19,17 +19,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-""" This a script for the raspberry pi running alongside the TunableLaser CSC
-    This script's purpose is to listen for 1kHz laser misalignment and
-    activate an interlock
-"""
 
 __all__ = ["LaserAlignmentListener", "execute_laser_alignment_listener"]
 
 import asyncio
-import datetime
+import functools
 import logging
-from time import sleep
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -43,8 +38,20 @@ RELAY_OFF = 0
 
 
 def execute_laser_alignment_listener():
-    """Run the laser alignment task"""
-    asyncio.run(LaserAlignmentListener.amain(index=None))
+    """This a script for the raspberry pi running alongside the TunableLaser
+    CSC This script's purpose is to listen for 1kHz laser misalignment and
+    activate an interlock
+    """
+    logging.basicConfig(
+        format="%(asctime)s %(levelname)-8s %(message)s",
+        level=logging.INFO,
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    log = logging.getLogger(__name__)
+    log.propagate = True
+    laser_task = LaserAlignmentListener(log=log)
+    asyncio.run(laser_task.amain(index=None))
 
 
 class LaserAlignmentListener(tcpip.OneClientServer):
@@ -52,8 +59,8 @@ class LaserAlignmentListener(tcpip.OneClientServer):
 
     Parameters
     ----------
-    logger : `logging.Logger`
-        logger object
+    log : `logging.log`
+        log object
     port : `int`, optional
         port that the server will be hosted on, default 1883
     host : `str`, optional
@@ -74,7 +81,7 @@ class LaserAlignmentListener(tcpip.OneClientServer):
 
     def __init__(
         self,
-        logger: logging.Logger,
+        log: logging.Logger | None = None,
         port: int | None = 1883,
         host: str | None = tcpip.DEFAULT_LOCALHOST,
         encoding: str = tcpip.DEFAULT_ENCODING,
@@ -84,8 +91,10 @@ class LaserAlignmentListener(tcpip.OneClientServer):
         output: int = 4,
         fs: int | None = None,
     ):
+        self.log = log
+
         super().__init__(
-            log=logger,
+            log=self.log,
             host=host,
             port=port,
             connect_callback=None,
@@ -95,15 +104,13 @@ class LaserAlignmentListener(tcpip.OneClientServer):
             terminator=terminator,
         )
 
-        self.logger = logger
         self.relay_gpio = None
         self.configured = False
-        self.fileptr = None
-        self.pending_messages = []
 
         self.input = input
         self.output = output
         self.sample_record_dur = sample_record_dur
+        self.loop = asyncio.get_running_loop()
 
         sd.default.device = (input, output)
         if fs is None:
@@ -117,44 +124,40 @@ class LaserAlignmentListener(tcpip.OneClientServer):
 
     async def amain(self):
         """Script amain"""
-        self.open_laser_interrupt()
-        self.laser_alignment_task(self.sample_record_dur, self.fs)
+        await self.open_laser_interrupt()
+        await self.laser_alignment_task(self.sample_record_dur, self.fs)
 
-    def publish_msg(self, msg):
-        """Function that adds msg to be sent to pending msgs"""
-        self.pending_messages.append(msg)
-        self.read_and_dispatch()
-
-    def read_and_dispatch(self):
-        """Will pop off pending messages and send them"""
-        # read data
-        # incoming_data = self.read_str()
-        # handle data
-
-        # send data
-        while len(self.pending_messages) != 0:
-            self.write_str(self.pending_messages.pop() + self.terminator)
-
-    def record_data(self, duration, fs):
+    async def record_data(self, duration, fs):
         """Records sample data from sd device"""
-        self.logger.debug("Check input settings")
-        sd.check_input_settings(device=self.input, samplerate=fs, channels=1)
-        self.logger.debug(f"Starting to record for {duration} seconds")
-        data = sd.rec(
-            frames=int(duration * fs), samplerate=fs, channels=1, blocking=True
+        self.log.debug("Check input settings")
+        await self.loop.run_in_executor(
+            None,
+            functools.partial(
+                sd.check_input_settings, device=self.input, samplerate=fs, channels=1
+            ),
+        )
+        self.log.debug(f"Starting to record for {duration} seconds")
+        data = await self.loop.run_in_executor(
+            None,
+            functools.partial(
+                sd.rec,
+                frames=int(duration * fs),
+                samplerate=fs,
+                channels=1,
+                blocking=True,
+            ),
         )
         return data
 
-    def analyze_data(self, data, fs):
+    async def analyze_data(self, data, fs):
         """analyzes all sound data and determines if there is a problem"""
         # average the tracks
-        # a = (data.T[0] + data.T[1])/2.0
         a = data.T[0]
         # Make the array an even size
         if (len(a) % 2) != 0:
-            self.logger.debug(f"Length of a is {len(a)}, removing last value")
+            self.log.debug(f"Length of a is {len(a)}, removing last value")
             a = a[0:-1]
-            self.logger.debug(f"Length of a is now {len(a)}")
+            self.log.debug(f"Length of a is now {len(a)}")
 
         # sample points
         N = len(a)
@@ -168,25 +171,21 @@ class LaserAlignmentListener(tcpip.OneClientServer):
 
         psd = abs((2.0 / N) * yf) ** 2.0
 
-        # Only plot in debug mode
-        # if self.logger.level >= logging.DEBUG:
-        #    plot_data(data, fs, xf, yf, psd)
-
         # check if signal is detected
         # threshold is in sigma over the range of 950-1050 Hz
         threshold = 10
 
-        self.logger.debug(
+        self.log.debug(
             f"Median of frequency vals are {(np.median(xf[(xf > 995) * (xf < 1005)])):0.2f}"
         )
         psd_at_1kHz = np.max(psd[(xf > 995) * (xf < 1005)])
         bkg = np.median(psd[(xf > 950) * (xf < 1050)])
 
-        self.logger.debug(
+        self.log.debug(
             f"PSD max value in frequency window of 995-1050 Hz is {(psd_at_1kHz / bkg):0.2f} sigma"
         )
 
-        self.logger.debug(f"Median value over range from 900-1000 Hz is {bkg:0.2E}")
+        self.log.debug(f"Median value over range from 900-1000 Hz is {bkg:0.2E}")
         condition = (psd_at_1kHz) > threshold * bkg
         if condition:
             return True
@@ -221,135 +220,87 @@ class LaserAlignmentListener(tcpip.OneClientServer):
         plt.draw()
         plt.pause(0.001)
 
-    def set_relay(self, setting: int):
+    async def set_relay(self, setting: int):
         if not self.configured and not self.pi.connected:
-            self.publish_msg(
+            await self.write_str(
                 "LI: Error: Not configured properly before actuating relay"
             )
             raise ValueError("Not configured properly before actuating relay")
-        self.pi.write(self.relay_gpio, setting)
+        await self.loop.run_in_executor(
+            None, functools.partial(self.pi.write, self.relay_gpio, setting)
+        )
 
-    def set_relay_on(self):
-        self.set_relay(RELAY_ON)
+    async def set_relay_on(self):
+        await self.set_relay(RELAY_ON)
 
-    def set_relay_off(self):
-        self.set_relay(RELAY_OFF)
+    async def set_relay_off(self):
+        await self.set_relay(RELAY_OFF)
 
-    def open_laser_interrupt(self):
-        self.set_relay_off()
-        self.logger.info("Laser interrupt opened")
-        self.publish_msg("LI: Opened")
+    async def open_laser_interrupt(self):
+        await self.set_relay_off()
+        self.log.info("Laser interrupt opened")
+        await self.write_str("LI: Opened")
 
-    def close_laser_interrupt(self):
-        self.set_relay_on()
-        self.logger.info("Laser Interrupt Activated, laser propagation disabled")
-        self.publish_msg("LI: Closed")
+    async def close_laser_interrupt(self):
+        await self.set_relay_on()
+        self.log.info("Laser Interrupt Activated, laser propagation disabled")
+        await self.write_str("LI: Closed")
 
-    def restart(self):
-        self.logger.info("Reset button pushed")
-        self.publish_msg("LI: Reset button pushed")
-        self.open_laser_interrupt()
+    async def restart(self):
+        self.log.info("Reset button pushed")
+        await self.write_str("LI: Reset button pushed")
+        await self.open_laser_interrupt()
 
-    def get_relay_status(self):
+    async def get_relay_status(self) -> bool:
         # bits are flipped since self.relay.value returns a 0
         # when it's able to propagate
-        return not self.pi.read(self.relay_gpio)
+        pin_value = await self.loop.run_in_executor(
+            None, functools.partial(self.pi.read, self.relay_gpio)
+        )
+        return not pin_value
 
-    def laser_alignment_task(self, time: float | None = None, fs: float | None = None):
+    async def laser_alignment_task(
+        self, time: float | None = None, fs: float | None = None
+    ):
         if time is None:
             time = self.sample_record_dur
         if fs is None:
             fs = self.fs
         try:
-            self.logger.info("Starting monitoring task")
-
-            FILEFOLDER = "./logs"
-            FILENAME = "laser_alignment"
+            self.log.info("Starting monitoring task")
 
             # Declare how many iterations have to be
             # above the threshold to shut off the laser
             count_threshold = 7  # 10
             count = 0
 
-            self.fileptr = "{}/{}_{}.csv".format(
-                FILEFOLDER, FILENAME, str(datetime.now().date())
-            )
-            header = np.hstack([["Time"], ["fs"], ["Result"]])
-            with open(self.fileptr, "w") as file:
-                file.write(",".join(header))
-                file.write("\n")
-                file.close()
-
             # Loop forever
             while True:
-                if self.get_relay_status() is True:
-                    data = self.record_data(time, fs)
-                    result = self.analyze_data(data, fs)
+                relay_status = await self.get_relay_status()
+                if relay_status is True:
+                    data = await self.record_data(time, fs)
+                    result = await self.analyze_data(data, fs)
 
                     if result and count > count_threshold - 1:
-                        self.logger.warning(
+                        self.log.warning(
                             "Detected misalignment in audible safety circuit"
                         )
-                        self.close_laser_interrupt()
-                        self.logger.warning("Interlock sleeping for 10 seconds...")
-                        time.sleep(10)
-                        self.logger.warning("Interlock re-opening now...")
-                        self.open_laser_interrupt()
+                        await self.close_laser_interrupt()
+                        self.log.warning("Interlock sleeping for 10 seconds...")
+                        await asyncio.sleep(10)
+                        self.log.warning("Interlock re-opening now...")
+                        await self.open_laser_interrupt()
                         count = 0
                     elif result:
-                        self.logger.info(
+                        self.log.info(
                             f"Experienced value above threshold {count+1} times"
                         )
                         count += 1
                     else:
                         count = 0
-
-                    # TODO remove debug csv
-                    with open(self.fileptr, "w") as file:
-                        file.write(
-                            ",".join(datetime.time().now(), str(fs), str(result))
-                        )
-                        file.write("\n")
-                        file.close()
                 else:
-                    self.logger.info(f"Sleeping for {1} seconds.")
-                    sleep(1)
+                    self.log.info(f"Sleeping for {1} seconds.")
+                    await asyncio.sleep(1)
         except Exception as e:
-            self.publish_msg(f"LI: Exception: Main task excepted: {e}")
-            self.logger.exception(f"Main task excepted: {e}")
-
-
-if __name__ == "__main__":
-    logging.basicConfig(
-        format="%(asctime)s %(levelname)-8s %(message)s",
-        level=logging.INFO,
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
-    logger = logging.getLogger(__name__)
-    logger.propagate = True
-
-    logger.debug(f"Available devices are: {sd.query_devices()}")
-
-    laser_task = LaserAlignmentListener(logger=logger)
-
-    input = 2
-    output = 4
-    # sd.default.device = (1, 2)
-    # 2 works for output with IC94 sound setup input never worked
-    sd.default.device = (input, output)
-
-    # print(sd.query_devices(input))
-    fs = sd.query_devices(input)["default_samplerate"]
-    # time sampling
-    time = 0.1
-
-    logger.info(f"Using audio device is {sd.default.device}")
-    logger.info(f"Samplerate set to {fs}")
-    logger.info(f"Sample length is {time}")
-
-    logger.info("Opening laser interrupt to enable operation")
-
-    laser_task.open_laser_interrupt()
-
-    laser_task.laser_alignment_task(time, fs)
+            await self.write_str(f"LI: Exception: Main task excepted: {e}")
+            self.log.exception(f"Main task excepted: {e}")
