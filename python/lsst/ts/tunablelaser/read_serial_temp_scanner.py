@@ -27,12 +27,10 @@
 __all__ = ["SerialTemperatureScanner", "execute_serial_temperature_scanner"]
 
 import asyncio
+import functools
 import logging
-import time
 from collections import OrderedDict
-from datetime import datetime
 
-import numpy as np
 import pigpio
 import serial
 from lsst.ts import tcpip
@@ -42,7 +40,15 @@ FAN_OFF = 0
 
 
 def execute_serial_temperature_scanner():
-    asyncio.run(SerialTemperatureScanner.amain(index=None))
+    logging.basicConfig(
+        format="%(asctime)s %(levelname)-8s %(message)s",
+        level=logging.INFO,
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    log = logging.getLogger(__name__)
+    log.propagate = True
+    serial_temp_scanner = SerialTemperatureScanner(log=log)
+    asyncio.run(serial_temp_scanner.amain(index=None))
 
 
 class SerialTemperatureScanner(tcpip.OneClientServer):
@@ -71,7 +77,7 @@ class SerialTemperatureScanner(tcpip.OneClientServer):
 
     def __init__(
         self,
-        logger: logging.Logger,
+        log: logging.Logger | None = None,
         port: int | None = 1884,
         host: str | None = tcpip.DEFAULT_LOCALHOST,
         encoding: str = tcpip.DEFAULT_ENCODING,
@@ -80,8 +86,9 @@ class SerialTemperatureScanner(tcpip.OneClientServer):
         serial=None,
         temperature_windows: int = 8,
     ):
+        self.log = log
         super().__init__(
-            log=logger,
+            log=self.log,
             port=port,
             host=host,
             connect_callback=None,
@@ -93,19 +100,6 @@ class SerialTemperatureScanner(tcpip.OneClientServer):
 
         self.serial = serial
         self.sensor_dict = {}
-        self.fileptr = None
-        if logger is None:
-            logging.basicConfig(
-                format="%(asctime)s %(levelname)-8s %(message)s",
-                level=logging.INFO,
-                datefmt="%Y-%m-%d %H:%M:%S",
-            )
-
-            logger = logging.getLogger(__name__)
-            logger.propagate = True
-            self.logger = logger
-        else:
-            self.logger = logger
         self.sample_wait_time = sample_wait_time
 
         # Fan sensor
@@ -122,38 +116,19 @@ class SerialTemperatureScanner(tcpip.OneClientServer):
         self.configured = False
         self.first_run = True
         self.encoding = encoding
-        self.pending_messages = []
         self.port = port
         self.host = host
-
-        # TODO remove this debug stuff
-        self.header = None
+        self.loop = asyncio.get_running_loop()
 
         self.config()
 
     async def amain(self):
-        self.serial_temperature_task()
-
-    def publish_msg(self, msg):
-        self.pending_messages.append(msg)
-        self.read_and_dispatch()
-
-    async def read_and_dispatch(self) -> None:
-        # read any data
-        # incoming_data = self.read_str()
-
-        # deal with data
-
-        # send data
-        while len(self.pending_messages) != 0:
-            self.write_str(self.pending_messages.pop() + self.terminator)
+        await self.serial_temperature_task()
 
     def config(self):
         # TODO: read config .yaml instead
         PORT = "/dev/ttyUSB0"
         BAUDRATE = 19200
-        FILEFOLDER = "./logs"
-        FILENAME = "temp_scanner_two_sensors_cooldown"
         self.sensor_dict = OrderedDict(
             {"C01": "Ambient", "C02": "Laser", "C03": "FC"}
         )  # These will need to be in some configuration file
@@ -176,65 +151,48 @@ class SerialTemperatureScanner(tcpip.OneClientServer):
         hysteresis = 2
         self.fan_turn_off_temp = self.fan_turn_on_temp - hysteresis
 
-        # TODO Remove eventually, this is for debug
-        # start debug csv
-        date = str(datetime.now().date())
-        self.fileptr = "{}/{}_{}.csv".format(FILEFOLDER, FILENAME, date)
-        self.header = np.hstack([["Time"], list(self.sensor_dict.values())])
-        try:
-            with open(self.fileptr, "w") as file:
-                file.write(",".join(self.header))
-                file.write("\n")
-                file.close()
-        except Exception as e:
-            self.logger.exception(f"Got exception when opening csv file: {e}")
-            self.publish_msg(f"TS: Exception when opening csv: {e}")
-            raise Exception(e)
         self.configured = True
 
-    def set_fan(self, setting):
+    async def set_fan(self, setting):
         if not self.configured or not self.pi.connected:
-            self.publish_msg("TS: Error: Not configured properly before actuating fan")
+            await self.write_str(
+                "TS: Error: Not configured properly before actuating fan"
+            )
             raise ValueError("Not configured properly before actuating fan")
-        self.pi.write(self.fan_gpio, setting)
+        await self.loop.run_in_executor(
+            None, functools.partial(self.pi.write, self.fan_gpio, setting)
+        )
 
-    def set_fan_on(self):
-        self.set_fan(FAN_ON)
+    async def set_fan_on(self):
+        await self.set_fan(FAN_ON)
 
-    def set_fan_off(self):
-        self.set_fan(FAN_OFF)
+    async def set_fan_off(self):
+        await self.set_fan(FAN_OFF)
 
-    def handle_data(self, new_data):
-        # Get New Date
-        new_date = {"Time": str(datetime.now())}
-
+    async def handle_data(self, new_data):
         # We only care about one sensor's reading for operating the fan
         try:
             new_data[self.fan_sensor] = float(new_data[self.fan_sensor])
         except Exception as e:
-            self.publish_msg(
+            await self.write_str(
                 f"TS: Exception trying to convert data to int... Data: {new_data[self.fan_sensor], {str(e)}}"
             )
-            self.logger.exception(
+            self.log.exception(
                 f"Exception trying to convert data to int... Data: {new_data[self.fan_sensor], {str(e)}}"
             )
             return
         if new_data[self.fan_sensor] >= self.fan_turn_on_temp:
-            self.logger.info(
-                f"Turning ON fan, temperature: {new_data[self.fan_sensor]}"
-            )
+            self.log.info(f"Turning ON fan, temperature: {new_data[self.fan_sensor]}")
             self.set_fan_on()
         elif new_data[self.fan_sensor] < self.fan_turn_off_temp:
-            self.logger.info(
-                f"Turning OFF fan, temperature: {new_data[self.fan_sensor]}"
-            )
+            self.log.info(f"Turning OFF fan, temperature: {new_data[self.fan_sensor]}")
             self.set_fan_off()
 
         # Now for telemetry, do a rolling average of all 8 sensors
         new_temperature = 0
         for reading in new_data:
             data = float(new_data[reading])
-            self.logger.info(f"reading: {data}")
+            self.log.info(f"reading: {data}")
             new_temperature += data
         new_temperature = new_temperature / len(new_data)
 
@@ -250,39 +208,19 @@ class SerialTemperatureScanner(tcpip.OneClientServer):
                 self.rolling_temperature[i] = self.rolling_temperature[i - 1]
 
         # Update freshest at index 0
-        self.logger.info(f"New rolling temperature data logged: {new_temperature}")
-        self.publish_msg(f"TS: New: {new_temperature}, time: {new_date['Time']}")
+        self.log.info(f"New rolling temperature data logged: {new_temperature}")
+        await self.write_str(f"TS: New: {new_temperature}")
         self.rolling_temperature[0] = new_temperature
-        self.logger.info("test after rolling temp")
+        self.log.info("test after rolling temp")
 
-        # TODO remove this eventually, using it for debugging
-        # Write to file
+    async def get_data(self):
         try:
-            with open(self.fileptr, "a") as file:  # add to file
-                for key in self.header:
-                    if key == "Time":
-                        file.write(str(new_date["Time"]))
-                    else:
-                        file.write(str(new_data[key]))
-                    file.write(",")
-                file.write("\n")
-                file.close()
-        except Exception as e:
-            self.publish_msg(f"TS: Exception while writing to csv: {e}")
-            self.logger.exception(f"Exception while writing to csv: {e}")
-            raise Exception(e)
-        self.pending_messages = []
-
-        # TODO remove this debug stuff
-        self.header = None
-
-        self.config()
-
-    def get_data(self):
-        try:
-            readings = (
-                self.serial.read(self.serial.inWaiting()).decode("ISO-8859-1").rstrip()
+            in_waiting = await self.loop.run_in_executor(None, self.serial.inWaiting)
+            readings = await self.loop.run_in_executor(
+                None, functools(self.serial.read, in_waiting)
             )
+            readings = readings.decode("ISO-8859-1").rstrip()
+            readings = readings
             # reads all data since last read
             latest_reading = readings.split("\n")[-2]
             # Reason for taking second to last reading rather
@@ -292,45 +230,31 @@ class SerialTemperatureScanner(tcpip.OneClientServer):
                 sensor_location, sensor_reading = reading.split("=")
                 try:  # Not all inputs will be used
                     self.latest_data[self.sensor_dict[sensor_location]] = sensor_reading
-                    self.logger.info(
+                    self.log.info(
                         f"New data logged, reading: {sensor_reading}, location: {sensor_location}"
                     )
                 except Exception:
                     pass
         except Exception as e:
-            self.publish_msg(
+            await self.write_str(
                 f"TS: Exception: Serial Temperature Scanner tried to get data, got exception instead: {e}"
             )
-            self.logger.warning(
+            self.log.warning(
                 f"Serial Temperature Scanner tried to get data, got exception instead: {e}"
             )
 
-    def serial_temperature_task(self):
+    async def serial_temperature_task(self):
         # Read sensors, write to file, close file,
         # waiting for WAIT_TIME between readings
         while True:
             try:
                 # Get fresh data
-                self.get_data()
+                await self.get_data()
 
                 # Handle the data
-                self.handle_data(self.latest_data)
+                await self.handle_data(self.latest_data)
             except Exception as e:
-                self.publish_msg(f"TS: Exception: Main task excepted {e}")
-                self.logger.warning(f"Main task excepted {e}")
-                print(e)
-            self.logger.info(f"Waiting {self.sample_wait_time} seconds")
-            time.sleep(self.sample_wait_time)
-
-
-if __name__ == "__main__":
-    logging.basicConfig(
-        format="%(asctime)s %(levelname)-8s %(message)s",
-        level=logging.INFO,
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-
-    logger = logging.getLogger(__name__)
-    logger.propagate = True
-    serial_temp_scanner = SerialTemperatureScanner(sample_wait_time=5, logger=logger)
-    serial_temp_scanner.serial_temperature_task()
+                await self.write_str(f"TS: Exception: Main task excepted {e}")
+                self.log.warning(f"Main task excepted {e}")
+            self.log.info(f"Waiting {self.sample_wait_time} seconds")
+            await asyncio.sleep(self.sample_wait_time)
