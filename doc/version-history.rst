@@ -6,6 +6,16 @@ Version History
 
 .. towncrier release notes start
 
+ts_tunablelaser v2.1.1 (2024-04-11)
+===================================
+
+Bugfixes
+--------
+
+- Update port for TempCtrlServer to support dynamic ports to avoid restricted port 50. (`DM-43844 <https://rubinobs.atlassian.net/DM-43844>`_)
+- Add noarch to Jenkinsfile.conda file. (`DM-43844 <https://rubinobs.atlassian.net/DM-43844>`_)
+
+
 ts_tunablelaser v2.1.0 (2024-04-11)
 ===================================
 
