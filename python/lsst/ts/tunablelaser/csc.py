@@ -92,6 +92,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.telemetry_task = utils.make_done_future()
         self.simulator = None
         self.thermal_ctrl_simulator = None
+        self.laser_type = None
 
     @property
     def connected(self):
@@ -186,10 +187,8 @@ class LaserCSC(salobj.ConfigurableCsc):
                     detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING
                 )
                 await self.model.connect()
-                try:
-                    await self.model.maxi_opg.set_configuration()
-                except Exception:
-                    pass
+                if self.laser_type == "Main":
+                    await self.model.set_optical_configuration(self.optical_alignment)
                 await self.thermal_ctrl.connect()
             if (
                 self.summary_state == salobj.State.DISABLED
@@ -354,10 +353,21 @@ class LaserCSC(salobj.ConfigurableCsc):
             raise salobj.ExpectedError("Not connected.")
 
     async def do_setOpticalConfiguration(self, data):
-        """Not Implemented Yet."""
+        """Change Optical Alignment of the laser.
+        Parameters
+        ----------
+        data - with property 'configuration' setting optical
+               alignment of the laser.
+        """
         self.assert_enabled()
-
-        raise NotImplementedError("Command not implemented yet.")
+        if self.connected:
+            if self.laser_type == "Main":  # only main laser can do this
+                await self.model.set_optical_configuration(data.configuration)
+                await self.evt_opticalConfiguration.set_write(
+                    configuration=data.configuration
+                )
+        else:
+            raise salobj.ExpectedError("Not connected")
 
     async def publish_new_detailed_state(self, new_sub_state):
         """Publish the updated detailed state.
@@ -374,6 +384,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         """Configure the CSC."""
         self.log.debug(f"config={config}")
         self.log.debug(f"Connecting to laser {config.type}")
+        self.laser_type = config.type
         lasercls = getattr(component, f"{config.type}Laser")
         self.model = lasercls(csc=self, simulation_mode=bool(self.simulation_mode))
         self.optical_alignment = config.optical_configuration

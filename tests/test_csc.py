@@ -59,6 +59,7 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
             await self.check_standard_state_transitions(
                 enabled_commands=[
                     "changeWavelength",
+                    "setOpticalConfiguration",
                     "startPropagateLaser",
                     "stopPropagateLaser",
                     "clearLaserFault",
@@ -136,6 +137,28 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                     )
                     await self.remote.cmd_changeWavelength.set_start(
                         wavelength=wavelength, timeout=STD_TIMEOUT
+                    )
+
+    @parameterized.expand([(""), ("stubbs.yaml")])
+    async def test_change_alignment(self, config):
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, simulation_mode=1, override=config
+        ):
+            await self.remote.cmd_setOpticalConfiguration.set_start(
+                configuration="straight-through", timeout=STD_TIMEOUT
+            )
+            if config == "":
+                await self.assert_next_sample(
+                    topic=self.remote.evt_opticalConfiguration,
+                    configuration="F1",
+                )
+                await self.assert_next_sample(
+                    topic=self.remote.evt_opticalConfiguration,
+                    configuration="straight-through",
+                )
+                with pytest.raises(salobj.AckError):
+                    await self.remote.cmd_setOpticalConfiguration.set_start(
+                        configuration="Wumbo", timeout=STD_TIMEOUT
                     )
 
     @parameterized.expand([(""), ("stubbs.yaml")])

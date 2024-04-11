@@ -1,0 +1,1 @@
+Implmented do_setOpticalConfiguration to allow on-the-fly change changes to the optical configuration. Implemented supporting function in MainLaser component, as well as tracking which laser is being used.
