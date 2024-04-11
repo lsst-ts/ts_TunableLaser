@@ -21,7 +21,6 @@
 
 import asyncio
 import logging
-from time import sleep
 
 import laser_alignment_listener
 import read_serial_temp_scanner
@@ -38,7 +37,7 @@ class RpiiExecutor(tcpip.OneClientServer):
 
     Parameters
     ----------
-    logger : `logging.Logger`
+    log : `logging.Logger`
         logger object
     port : `int`, optional
         port that the server will be hosted on, default 1883
@@ -50,14 +49,14 @@ class RpiiExecutor(tcpip.OneClientServer):
 
     def __init__(
         self,
-        logger: logging.Logger,
+        log: logging.Logger | None = None,
         port: int | None = 1885,
         host: str | None = tcpip.DEFAULT_LOCALHOST,
         encoding: str = tcpip.DEFAULT_ENCODING,
         terminator: bytes = tcpip.DEFAULT_TERMINATOR,
     ):
         super().__init__(
-            log=logger,
+            log=log,
             host=host,
             port=port,
             connect_callback=None,
@@ -66,32 +65,29 @@ class RpiiExecutor(tcpip.OneClientServer):
             encoding=encoding,
             terminator=terminator,
         )
-        self.KillAll = False
-        self.UnreportedExceptions = []
-        self.ScriptList = [laser_alignment_listener, read_serial_temp_scanner]
+        self.unreported_exceptions = []
+        self.script_list = [laser_alignment_listener, read_serial_temp_scanner]
 
     async def amain(self):
-        self.execute_all_scripts()
+        await self.execute_all_scripts()
 
     # thread function that runs function in while 1 loop and reports exceptions
     async def execute_script_indefinitely(self, script):
-        try:
-            return await script()
-        except Exception as e:
-            self.UnreportedExceptions.append(f"Script: {str(script)} excepted: {e}")
-            sleep(30)
+        while True:
+            try:
+                return await script()
+            except Exception as e:
+                self.unreported_exceptions.append(
+                    f"Script: {str(script)} excepted: {e}"
+                )
+                asyncio.sleep(30)
 
     # kicks off all scripts, then reports any exceptions
-    def execute_all_scripts(self):
-        for script in self.ScriptList:
+    async def execute_all_scripts(self):
+        for script in self.script_list:
             asyncio.create_task(self.execute_script_indefinitely(script))
         while True:
             # sleep and check for exceptions
-            sleep(30)
-            while len(self.UnreportedExceptions) != 0:
-                self.write_str(self.UnreportedExceptions.pop() + self.terminator)
-
-
-if __name__ == "__main__":
-    executor = RpiiExecutor()
-    executor.execute_all_scripts()
+            asyncio.sleep(30)
+            while len(self.unreported_exceptions) != 0:
+                await self.write_str(self.unreported_exceptions.pop() + self.terminator)
