@@ -224,9 +224,6 @@ class CompoWayFModule(ABC):
 
     async def connect(self):
         """Connect to the module."""
-        if self.csc.simulation_mode:
-            self.host = self.csc.simulator.host
-            self.port = 50
         self.commander = tcpip.Client(
             host=self.host,
             port=self.port,
