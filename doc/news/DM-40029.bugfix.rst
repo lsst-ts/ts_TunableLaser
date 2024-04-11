@@ -1,1 +1,0 @@
-Call setOpticalConfiguration when connecting to the device (CSC disabled->enabled) which means when the laser is ready to be used it will be in the configured optical configuration.
