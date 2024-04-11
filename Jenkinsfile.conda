@@ -1,2 +1,2 @@
 @Library('JenkinsShared')_
-CondaPipeline(["ts_config_mtcalsys"], "ts-tunablelaser", "lsst.ts.tunablelaser")
+CondaPipeline(["ts_config_mtcalsys"], "ts-tunablelaser", "lsst.ts.tunablelaser", "noarch")
