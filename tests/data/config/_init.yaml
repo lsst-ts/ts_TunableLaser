@@ -8,5 +8,5 @@ timeout: 1
 type: "Main"
 temp_ctrl:
   host: 127.0.0.1
-  port: 50
+  port: 50000
   

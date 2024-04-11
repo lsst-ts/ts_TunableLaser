@@ -176,11 +176,12 @@ class LaserCSC(salobj.ConfigurableCsc):
                     await self.simulator.start_task
 
                     self.thermal_ctrl_simulator = mock_server.TempCtrlServer(
-                        host=self.thermal_ctrl.host, port=self.thermal_ctrl.port
+                        host=self.thermal_ctrl.host
                     )
                     # self.thermal_ctrl_simulator =
                     # mock_server.TempCtrlServer()
                     await self.thermal_ctrl_simulator.start_task
+                    self.thermal_ctrl.port = self.thermal_ctrl_simulator.port
 
             if not self.connected and self.model is not None:
                 await self.evt_detailedState.set_write(

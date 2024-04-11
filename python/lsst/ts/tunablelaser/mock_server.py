@@ -109,7 +109,7 @@ class TempCtrlServer(tcpip.OneClientReadLoopServer):
         The port that the server will start on.
     """
 
-    def __init__(self, host=tcpip.LOCAL_HOST, port=50) -> None:
+    def __init__(self, host=tcpip.LOCAL_HOST, port=0) -> None:
         self.device = MockNP5450()
         self.log = logging.getLogger(__name__)
         self.read_loop_task = asyncio.Future()
