@@ -1,1 +1,0 @@
-Add noarch to Jenkinsfile.conda file.
