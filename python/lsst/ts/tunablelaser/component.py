@@ -23,6 +23,7 @@ __all__ = ["MainLaser", "StubbsLaser", "TemperatureCtrl"]
 
 import asyncio
 
+from lsst.ts import tcpip
 from lsst.ts.xml.enums.TunableLaser import LaserDetailedState
 
 from . import canbus_modules, interfaces
@@ -541,6 +542,83 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
         self.host = host
         self.port = port
 
+        # need to replace with config
+        self.rpii_address = "140.252.147.122"
+        self.rpii_alignment_port = 1883
+        self.rpii_executor_port = 1885
+        self.rpii_serialthermal_port = 1884
+
+        self.rpii_alignment_client = tcpip.Client(
+            host=self.rpii_address, port=self.rpii_alignment_port, log=self.log
+        )
+        self.rpii_executor_client = tcpip.Client(
+            host=self.rpii_address, port=self.rpii_executor_port, log=self.log
+        )
+        self.rpii_serialthermal_client = tcpip.Client(
+            host=self.rpii_address, port=self.rpii_serialthermal_port, log=self.log
+        )
+
+        self.rpii_temperature = -1
+        self.rpii_interlock = False
+
+    async def laser_thermal_rpii_get_alignment_str(self):
+        try:
+            new_str = await self.rpii_alignment_client.read_str()
+        except ConnectionError:
+            pass
+        except asyncio.IncompleteReadError:
+            pass
+        except asyncio.LimitOverrunError:
+            pass
+        except UnicodeError:
+            pass
+
+        # Split new string by :
+        new_str = new_str.split(":")
+        if new_str[-1] == " Opened":
+            # status changed to open
+            pass
+        elif new_str[-1] == "Closed":
+            # status changed to closed
+            pass
+        else:
+            # error or button push
+            pass
+
+    async def laser_thermal_rpii_get_serial_str(self):
+        try:
+            new_str = await self.rpii_serialthermal_client.read_str()
+        except ConnectionError:
+            pass
+        except asyncio.IncompleteReadError:
+            pass
+        except asyncio.LimitOverrunError:
+            pass
+        except UnicodeError:
+            pass
+
+        if "New" in new_str:
+            # New temperature data
+            pass
+        else:
+            # error
+            pass
+
+    async def laser_thermal_rpii_get_executor_str(self):
+        try:
+            new_str = await self.rpii_executor_client.read_str()
+        except ConnectionError:
+            pass
+        except asyncio.IncompleteReadError:
+            pass
+        except asyncio.LimitOverrunError:
+            pass
+        except UnicodeError:
+            pass
+
+        # executor only publishes exceptions
+        new_str.split(":")
+
     @property
     def temperature(self):
         return (None,)
@@ -560,4 +638,16 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
         self.port = config.port
 
     async def read_all_registers(self):
-        await self.e5dc_b.update_register()
+        if self.e5dc_b is not None:
+            await self.e5dc_b.update_register()
+        else:
+            self.log.warning(
+                "Tried to update_register but thermal ctrler is unconnected."
+            )
+
+        if self.rpii_executor_client.connected:
+            await self.laser_thermal_rpii_get_executor_str()
+        if self.rpii_alignment_client.connected:
+            await self.laser_thermal_rpii_get_alignment_str()
+        if self.rpii_serialthermal_client.connected:
+            await self.laser_thermal_rpii_get_serial_str()
