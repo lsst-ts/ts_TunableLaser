@@ -178,8 +178,6 @@ class LaserCSC(salobj.ConfigurableCsc):
                     self.thermal_ctrl_simulator = mock_server.TempCtrlServer(
                         host=self.thermal_ctrl.host
                     )
-                    # self.thermal_ctrl_simulator =
-                    # mock_server.TempCtrlServer()
                     await self.thermal_ctrl_simulator.start_task
                     self.thermal_ctrl.port = self.thermal_ctrl_simulator.port
 
@@ -397,11 +395,6 @@ class LaserCSC(salobj.ConfigurableCsc):
             port=config.temp_ctrl["port"],
             simulation_mode=bool(self.simulation_mode),
         )
-        # self.thermal_ctrl = component.TemperatureCtrl(
-        #     csc=self,
-        #     port=50,
-        #     simulation_mode=bool(self.simulation_mode),
-        # )
 
     @staticmethod
     def get_config_pkg():
@@ -418,9 +411,9 @@ class LaserCSC(salobj.ConfigurableCsc):
         """
         await super().close_tasks()
         self.telemetry_task.cancel()
-        if self.model.is_propagating:
-            await self.model.stop_propagating()
         if self.model is not None:
+            if self.model.is_propagating:
+                await self.model.stop_propagating()
             await self.model.disconnect()
             self.model = None
         if self.thermal_ctrl is not None:

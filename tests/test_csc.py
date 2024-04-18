@@ -281,6 +281,17 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
             )
             await self.remote.cmd_turnOffTempCtrl.set_start(timeout=STD_TIMEOUT)
 
+    @parameterized.expand([("disconnected_temp_ctrl.yaml")])
+    async def test_unconnected_tempctrl(self, config):
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, simulation_mode=1, override=config
+        ):
+            await self.remote.cmd_turnOnTempCtrl.set_start(timeout=STD_TIMEOUT)
+            await self.remote.cmd_changeTempCtrlSetpoint.set_start(
+                setpoint=100, timeout=STD_TIMEOUT
+            )
+            await self.remote.cmd_turnOffTempCtrl.set_start(timeout=STD_TIMEOUT)
+
 
 if __name__ == "__main__":
     unittest.main()

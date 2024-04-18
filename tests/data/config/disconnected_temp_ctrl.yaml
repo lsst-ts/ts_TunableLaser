@@ -1,0 +1,12 @@
+host: 127.0.0.1
+port: 9000
+wavelength:
+  min: 300
+  max: 1100
+optical_configuration: "F1"
+timeout: 1
+type: "Main"
+temp_ctrl:
+  host: "none"
+  port: 25
+  

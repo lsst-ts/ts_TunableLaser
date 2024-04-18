@@ -224,11 +224,12 @@ class CompoWayFModule(ABC):
 
     async def connect(self):
         """Connect to the module."""
-        self.commander = tcpip.Client(
-            host=self.host,
-            port=self.port,
-            log=self.log,
-            terminator=bytes(self.terminator),
-            encoding=self.encoding,
-        )
-        await self.commander.start_task
+        if self.host is not None:
+            self.commander = tcpip.Client(
+                host=self.host,
+                port=self.port,
+                log=self.log,
+                terminator=bytes(self.terminator),
+                encoding=self.encoding,
+            )
+            await self.commander.start_task
