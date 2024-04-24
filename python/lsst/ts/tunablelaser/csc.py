@@ -271,7 +271,11 @@ class LaserCSC(salobj.ConfigurableCsc):
         """
         self.assert_enabled()
         self.assert_substate(
-            [TunableLaser.LaserDetailedState.NONPROPAGATING], "startPropagateLaser"
+            [
+                TunableLaser.LaserDetailedState.NONPROPAGATING,
+                TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER,
+        ], 
+            "startPropagateLaser"
         )
         if self.connected:
             await self.model.set_output_energy_level("MAX")
@@ -323,7 +327,7 @@ class LaserCSC(salobj.ConfigurableCsc):
             [
                 TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER
             ],
-            "trigger",
+            "Trigger",
         )
         await self.model.trigger_burst()
 
