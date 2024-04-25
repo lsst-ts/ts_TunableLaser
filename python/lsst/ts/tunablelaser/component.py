@@ -393,6 +393,7 @@ class StubbsLaser(interfaces.Laser):
         await self.csc.publish_new_detailed_state(
             LaserDetailedState.PROPAGATING_BURST_MODE_TRIGGERED
         )
+        await self.m_cpu800.set_propagation_mode(Mode.BURST)  # THIS IS NEW FROM PAF
         await self.csc.publish_new_detailed_state(
             LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER
         )
@@ -413,7 +414,11 @@ class StubbsLaser(interfaces.Laser):
             accepted range.
         """
         await self.m_cpu800.set_propagation_mode(Mode.BURST)
+        await self.csc.publish_new_detailed_state(
+            LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER
+        )
         await self.m_cpu800.set_burst_count(count)
+        await self.csc.evt_burstCountSet.set_write(count=count)
 
     async def set_continuous_mode(self):
         """Set the propagation mode to continuously pulse the laser."""

@@ -606,6 +606,242 @@ class MockNT252:
         """Return the error code."""
         return "0"
 
+    def do_midiopg_31_wavelength(self):
+        """Return current wavelength as formatted string.
+
+        Returns
+        -------
+        `str`
+            The current wavelength.
+        """
+        return f"{self.wavelength}nm"
+
+    def do_set_midiopg_31_wavelength(self, wavelength):
+        """Set wavelength.
+
+        Parameters
+        ----------
+        wavelength : `str`
+            The wavelength to set, must be between 300 and 1100 nanometers.
+
+        Returns
+        -------
+        reply : `str`
+            Successful reply: empty message
+            Error: starts with ''' plus error message
+        """
+        reply = self.check_limits(wavelength, 300, 1100)
+        if not reply.startswith("'''"):
+            self.wavelength = wavelength
+        return reply
+
+    def do_cpu8000_16_power(self):
+        """Return the power state of the module
+
+        Returns
+        -------
+        `str`
+            The current power state of the module.
+        """
+        return f"{self.cpu8000_power}"
+
+    def do_m_cpu800_17_power(self):
+        """Return the power state of the module
+
+        Returns
+        -------
+        `str`
+            The current power state of the module
+        """
+        return f"{self.m_cpu800_power}"
+
+    def do_m_cpu800_17_fault_code(self):
+        """Return the fault code of the module
+
+        Returns
+        -------
+        `str`
+            The current fault code.
+            Always returns 0.
+        """
+        return "0"
+
+    def do_m_cpu800_17_display_current(self):
+        """Return the power current of the module
+
+        Returns
+        -------
+        `str`
+            The displayed current.
+        """
+        return f"{self.m_cpu800_current}"
+
+    def do_set_m_cpu800_18_power(self, state):
+        """Set the propagation state of the laser.
+
+        Parameters
+        ----------
+        state : `str`, {OFF, ON, FAULT}
+            The propagation state
+
+            * OFF: Laser is not propagating
+            * ON: Laser is propagating
+            * FAULT: Laser is in fault, usually interlock is engaged
+
+        Returns
+        -------
+        `str`
+            An empty message
+        """
+        try:
+            self.propagating = Power(state).value
+            return ""
+        except ValueError:
+            self.log.error(f"{state} not in {list(Power)}")
+            return "'''Error: (13) Wrong value, not included in allowed values list"
+
+    def do_m_cpu800_18_power(self):
+        """Return propagation state.
+
+        Returns
+        -------
+        `str`
+        """
+        return f"{self.propagating}"
+
+    def do_m_cpu800_18_fault_code(self):
+        """Return the fault code of the module."""
+        return "0"
+
+    def do_m_cpu800_18_display_current(self):
+        """Return the power current of the module."""
+        return f"{self.m_cpu800_current}"
+
+    def do_cpu8000_16_display_current(self):
+        """Return current as formatted string.
+
+        Returns
+        -------
+        `str`
+        """
+        return f"{self.cpu8000_current}"
+
+    def do_cpu8000_16_fault_code(self):
+        """Return fault code of the module.
+
+        Returns
+        -------
+        `str`
+        """
+        return "0"
+
+    def do_m_cpu800_18_continuous_burst_mode_trigger_burst(self):
+        """Return laser propagation mode.
+
+        Returns
+        -------
+        `str`
+        """
+        return f"{self.propagation_mode}"
+
+    def do_set_m_cpu800_18_continuous_burst_mode_trigger_burst(self, mode):
+        """Set the propagation mode of the laser.
+
+        Parameters
+        ----------
+        mode : `str`, {Continuous, Burst, Trigger}
+            The mode to be set.
+
+        Returns
+        -------
+        `str`
+            An empty message if successful or an error message
+            if mode not in accepted values.
+        """
+        try:
+            self.propagation_mode = Mode(mode).value
+            return ""
+        except ValueError:
+            self.log.error(f"{mode} not in {list(Mode)}")
+            return "'''Error: (13) Wrong value, not included in allowed values list"
+
+    def do_m_cpu800_18_output_energy_level(self):
+        """Return current output energy level as formatted string.
+
+        Returns
+        -------
+        `str`
+        """
+        return f"{self.output_energy_level}"
+
+    def do_set_m_cpu800_18_output_energy_level(self, energy_level):
+        """Change output energy level as formatted string.
+
+        Returns
+        -------
+        `str`
+        """
+        self.output_energy_level = energy_level
+        return ""
+
+    def do_m_cpu800_18_frequency_divider(self):
+        """Return current frequency divider as formatted string.
+
+        Returns
+        -------
+        `str`
+        """
+        return "0"
+
+    def do_m_cpu800_18_burst_pulses_to_go(self):
+        """Return current burst pulses left as formatted string.
+
+        Returns
+        -------
+        `str`
+        """
+        return "0"
+
+    def do_m_cpu800_18_qsw_adjustment_output_delay(self):
+        """Return current qsw adjustment output delay as formatted string.
+
+        Returns
+        -------
+        `str`
+        """
+        return "0"
+
+    def do_m_cpu800_18_repetition_rate(self):
+        """Return current repetition rate as formatted string.
+
+        Returns
+        -------
+        `str`
+        """
+        return "1"
+
+    def do_m_cpu800_18_synchronization_mode(self):
+        """Return current synchronization mode as formatted string.
+
+        Returns
+        -------
+        `str`
+        """
+        return "0"
+
+    def do_m_cpu800_18_burst_length(self):
+        """Return current burst length as formatted string.
+
+        Returns
+        -------
+        `str`
+        """
+        return f"{self.burst_length}"
+
+    def do_set_m_cpu800_18_burst_length(self, count):
+        self.burst_length = count
+        return ""
+
 
 class MockNT900:
     """Implements a mock NT900 laser.
