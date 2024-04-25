@@ -274,8 +274,8 @@ class LaserCSC(salobj.ConfigurableCsc):
             [
                 TunableLaser.LaserDetailedState.NONPROPAGATING,
                 TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER,
-        ], 
-            "startPropagateLaser"
+            ],
+            "startPropagateLaser",
         )
         if self.connected:
             await self.model.set_output_energy_level("MAX")
