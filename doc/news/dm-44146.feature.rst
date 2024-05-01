@@ -1,0 +1,1 @@
+Hooking up the thermal ctrl telemetry to CSC
