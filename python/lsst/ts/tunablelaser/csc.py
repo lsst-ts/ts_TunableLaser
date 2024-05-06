@@ -134,6 +134,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                     m_ldco48_temperature=float(self.model.temperature[5]),
                     m_ldco48_temperature_2=float(self.model.temperature[6]),
                 )
+                await self.tel_scannerTemperature.set_write(
+                    scanner_temperature=float(self.thermal_ctrl.temperature[0]),
+                )
                 self.log.debug("Telemetry updated")
             except Exception:
                 self.log.exception("Telemetry loop failed.")
