@@ -179,12 +179,6 @@ class MainLaser(interfaces.Laser):
             Raised when mode parameter is not in list of accepted values.
         """
         await self.m_cpu800.set_propagation_mode(Mode.TRIGGER)
-        await self.csc.publish_new_detailed_state(
-            LaserDetailedState.PROPAGATING_BURST_MODE_TRIGGERED
-        )
-        await self.csc.publish_new_detailed_state(
-            LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER
-        )
 
     async def set_burst_mode(self, count):
         """Set the propagation mode to pulse the laser at regular intervals.
@@ -231,13 +225,15 @@ class MainLaser(interfaces.Laser):
             == Mode.BURST
         ):
             await self.csc.publish_new_detailed_state(
-                LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER
+                LaserDetailedState.PROPAGATING_BURST_MODE
             )
         elif (
             self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value
             == Mode.CONTINUOUS
         ):
-            await self.csc.publish_new_detailed_state(LaserDetailedState.PROPAGATING)
+            await self.csc.publish_new_detailed_state(
+                LaserDetailedState.PROPAGATING_CONTINUOUS_MODE
+            )
         else:
             raise RuntimeError(
                 f"""{self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value}
@@ -390,13 +386,6 @@ class StubbsLaser(interfaces.Laser):
             Raised when mode parameter is not in list of accepted values.
         """
         await self.m_cpu800.set_propagation_mode(Mode.TRIGGER)
-        await self.csc.publish_new_detailed_state(
-            LaserDetailedState.PROPAGATING_BURST_MODE_TRIGGERED
-        )
-        await self.m_cpu800.set_propagation_mode(Mode.BURST)  # THIS IS NEW FROM PAF
-        await self.csc.publish_new_detailed_state(
-            LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER
-        )
 
     async def set_burst_mode(self, count):
         """Set the propagation mode to pulse the laser at regular intervals.
@@ -414,9 +403,6 @@ class StubbsLaser(interfaces.Laser):
             accepted range.
         """
         await self.m_cpu800.set_propagation_mode(Mode.BURST)
-        await self.csc.publish_new_detailed_state(
-            LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER
-        )
         await self.m_cpu800.set_burst_count(count)
         await self.csc.evt_burstCountSet.set_write(count=count)
 
@@ -447,13 +433,15 @@ class StubbsLaser(interfaces.Laser):
             == Mode.BURST
         ):
             await self.csc.publish_new_detailed_state(
-                LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER
+                LaserDetailedState.PROPAGATING_BURST_MODE
             )
         elif (
             self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value
             == Mode.CONTINUOUS
         ):
-            await self.csc.publish_new_detailed_state(LaserDetailedState.PROPAGATING)
+            await self.csc.publish_new_detailed_state(
+                LaserDetailedState.PROPAGATING_CONTINUOUS_MODE
+            )
         else:
             raise RuntimeError(
                 f"""{self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value}

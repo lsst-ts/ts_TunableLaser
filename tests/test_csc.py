@@ -25,8 +25,43 @@ import unittest
 
 import pytest
 from lsst.ts import salobj, tunablelaser
-from lsst.ts.idl.enums import TunableLaser
+from lsst.ts.xml.enums import TunableLaser
 from parameterized import parameterized
+
+# Breaking the law
+# FIXME Remove when XML 21 is on the summit
+try:
+    getattr(TunableLaser.LaserDetailedState, "NONPROPAGATING_CONTINUOUS_MODE")
+except AttributeError:
+    setattr(
+        TunableLaser.LaserDetailedState,
+        "NONPROPAGATING_CONTINUOUS_MODE",
+        TunableLaser.LaserDetailedState.NONPROPAGATING,
+    )
+try:
+    getattr(TunableLaser.LaserDetailedState, "NONPROPAGATING_BURST_MODE")
+except AttributeError:
+    setattr(
+        TunableLaser.LaserDetailedState,
+        "NONPROPAGATING_BURST_MODE",
+        TunableLaser.LaserDetailedState.NONPROPAGATING,
+    )
+try:
+    getattr(TunableLaser.LaserDetailedState, "PROPAGATING_CONTINUOUS_MODE")
+except AttributeError:
+    setattr(
+        TunableLaser.LaserDetailedState,
+        "PROPAGATING_CONTINUOUS_MODE",
+        TunableLaser.LaserDetailedState.PROPAGATING,
+    )
+try:
+    getattr(TunableLaser.LaserDetailedState, "PROPAGATING_BURST_MODE")
+except AttributeError:
+    setattr(
+        TunableLaser.LaserDetailedState,
+        "PROPAGATING_BURST_MODE",
+        TunableLaser.LaserDetailedState.PROPAGATING,
+    )
 
 STD_TIMEOUT = 5
 TEST_CONFIG_DIR = pathlib.Path(__file__).parents[1].joinpath("tests", "data", "config")
@@ -168,23 +203,27 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
         ):
             await self.assert_next_sample(
                 topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING,
+                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE,
             )
             await self.remote.cmd_startPropagateLaser.set_start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(
                 topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.PROPAGATING,
+                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE,
             )
             await self.remote.cmd_stopPropagateLaser.set_start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(
                 topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING,
+                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE,
             )
             await self.remote.cmd_setBurstMode.set_start(count=1, timeout=STD_TIMEOUT)
+            await self.assert_next_sample(
+                topic=self.remote.evt_detailedState,
+                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE,
+            )
             await self.remote.cmd_startPropagateLaser.set_start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(
                 topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER,
+                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE,
             )
 
     @parameterized.expand([(""), ("stubbs.yaml")])
@@ -194,28 +233,28 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
         ):
             self.remote.evt_detailedState.flush()
             await self.csc.publish_new_detailed_state(
-                TunableLaser.LaserDetailedState.PROPAGATING
+                TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE
             )
             await self.assert_next_sample(
                 topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.PROPAGATING,
+                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE,
             )
             await self.remote.cmd_stopPropagateLaser.set_start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(
                 topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING,
+                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE,
             )
             with pytest.raises(salobj.AckError):
                 await self.remote.cmd_stopPropagateLaser.set_start(timeout=STD_TIMEOUT)
             await self.remote.cmd_startPropagateLaser.set_start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(
                 topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.PROPAGATING,
+                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE,
             )
             await self.remote.cmd_disable.set_start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(
                 topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING,
+                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE,
             )
 
     @parameterized.expand([(""), ("stubbs.yaml")])
@@ -252,23 +291,19 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
         ):
             await self.assert_next_sample(
                 topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING,
+                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE,
             )
             await self.remote.cmd_setBurstMode.set_start(count=1, timeout=STD_TIMEOUT)
+            await self.assert_next_sample(
+                topic=self.remote.evt_detailedState,
+                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE,
+            )
             await self.remote.cmd_startPropagateLaser.set_start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(
                 topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER,
+                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE,
             )
             await self.remote.cmd_triggerBurst.set_start(timeout=STD_TIMEOUT)
-            await self.assert_next_sample(
-                topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE_TRIGGERED,
-            )
-            await self.assert_next_sample(
-                topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE_WAITING_FOR_TRIGGER,
-            )
 
     @parameterized.expand([(""), ("stubbs.yaml")])
     async def test_tempctrl(self, config):
