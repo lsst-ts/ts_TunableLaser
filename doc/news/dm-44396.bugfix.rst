@@ -1,0 +1,1 @@
+Fixing two bugs with thermal ctrl system. The first is that if its not connected there is a chance it tries to access a None method. The second bug is that it improperly parses results.

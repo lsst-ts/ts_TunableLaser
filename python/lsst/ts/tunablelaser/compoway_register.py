@@ -479,15 +479,15 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
                 self.response_code = await self.component.commander.readexactly(4)
                 self.response_code = self.response_code.decode()
 
-                self.cmd_txt = await self.component.commander.readuntil(b"\x03")
+                self.cmd_txt = await self.component.commander.readuntil(b"\x03")[:-1]
                 self.cmd_txt = self.cmd_txt.decode()
-                self.register_value = self.cmd_txt
-                if self.register_value is None:
-                    self.log.error("Received no valid register value!")
+                try:
+                    self.register_value = int(self.cmd_txt, 16)
+                except Exception as e:
+                    self.log.error(
+                        f"Received no valid register value! {self.cmd_txt} {str(e)}"
+                    )
                     self.register_value = ""
-
-                # trim off ETX byte
-                self.cmd_txt = self.cmd_txt[:-1]
 
                 self.bcc = await self.component.commander.readexactly(1)
                 self.bcc = self.bcc.decode()

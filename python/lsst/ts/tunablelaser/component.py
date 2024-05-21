@@ -556,7 +556,10 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
 
     @property
     def temperature(self):
-        return (self.e5dc_b.set_point_register.register_value,)
+        if self.e5dc_b is not None:
+            return (self.e5dc_b.set_point_register.register_value,)
+        else:
+            return (-1,)
 
     async def laser_thermal_turn_on(self):
         if self.e5dc_b is not None:
