@@ -230,14 +230,14 @@ class LaserCSC(salobj.ConfigurableCsc):
         if self.connected:
             await self.model.set_burst_mode(data.count)
             await self.evt_burstModeSet.set_write()
-            if self.evt_detailedStatedata.detailedState in [
+            if self.evt_detailedState.data.detailedState in [
                 TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE,
                 TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE,
             ]:
                 await self.publish_new_detailed_state(
                     TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE
                 )
-            if self.evt_detailedStatedata.detailedState in [
+            if self.evt_detailedState.data.detailedState in [
                 TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE,
                 TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE,
             ]:
