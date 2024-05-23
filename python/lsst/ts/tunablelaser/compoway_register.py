@@ -135,7 +135,7 @@ class CompoWayFGeneralRegister(AsciiRegister):
     def generate_bcc(self, frame):
         if isinstance(frame, bytes):
             self.log.error(f"bytes sent into generate_bcc, decoding... {frame}")
-            frame = frame.decode()
+            frame = frame.decode().strip()
         result = 0
         for char in frame:
             char = str(char)
@@ -199,6 +199,13 @@ class CompoWayFGeneralRegister(AsciiRegister):
         cmd_txt = MRC + SRC + command_code + related_info
         return self.compoway_cmd_frame(cmd_txt)
 
+    def compare_string_values(self, expected, received):
+        passed = True
+        for expected, got in zip(expected, received):
+            if ord(expected) is not ord(got):
+                passed = False
+        return passed
+
     def create_get_message(self):
         # need to override the ascii register
         raise Exception(
@@ -226,7 +233,7 @@ class CompoWayFGeneralRegister(AsciiRegister):
     def get_response(self):
         translated_response = self.response_code
         if isinstance(self.response_code, bytes):
-            translated_response = translated_response.decode()
+            translated_response = translated_response.decode().strip()
         if translated_response in self.response_dict:
             return self.response_dict[translated_response]
         else:
@@ -235,7 +242,7 @@ class CompoWayFGeneralRegister(AsciiRegister):
     def get_end_code(self):
         translated_end_code = self.end_code
         if isinstance(self.end_code, bytes):
-            translated_end_code = translated_end_code.decode()
+            translated_end_code = translated_end_code.decode().strip()
         if translated_end_code in self.end_code_dict:
             return self.end_code_dict[translated_end_code]
         else:
@@ -452,47 +459,50 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
             )
 
             try:
-                stx_node_subadd = await self.component.commander.readexactly(5)
-                stx_node_subadd = stx_node_subadd.decode()
+                error_triggered = False
+                packet = await self.component.commander.readuntil(b"\x03")
+                self.bcc = await self.component.commander.readexactly(1)
+                packet = packet.decode().strip()
+                self.bcc = self.bcc.decode()
+
+                if len(packet) < 16:
+                    self.log.error(
+                        f"Packet length is too small, minimum 16. Packet: {packet}"
+                    )
+                    # read bcc and return
+                    await self.component.commander.readexactly(1)
+                    return
+
+                stx_node_subadd = packet[:5]
                 expected_stx_node_subadd = "\x02"
                 if int(self.node) < 10:
                     expected_stx_node_subadd += "\x30"
                 expected_stx_node_subadd += self.node + "\x30\x30"
-                if stx_node_subadd is not expected_stx_node_subadd:
-                    self.log.error(
-                        f"Received incorrect start of packet: {stx_node_subadd}, "
-                        f"expected: {expected_stx_node_subadd}"
+
+                if (
+                    self.compare_string_values(
+                        expected_stx_node_subadd, stx_node_subadd
                     )
-                    self.register_value = -1
-                self.end_code = await self.component.commander.readexactly(2)
-                self.end_code = self.end_code.decode()
-                mrc_src = await self.component.commander.readexactly(4)
-                mrc_src = mrc_src.decode()
+                    is False
+                ):
+                    error_triggered = True
+                self.end_code = packet[5:7]
+                mrc_src = packet[7:11]
                 # read variable area request MRC is 01, SRC is 01
                 expected_mrc_src = "\x30\x31\x30\x31"
-                if mrc_src is not expected_mrc_src:
-                    self.log.error(
-                        f"Received incorrect Request Codes: {mrc_src}, "
-                        f"expected: {expected_mrc_src}"
-                    )
-                    self.register_value = -1
-                self.response_code = await self.component.commander.readexactly(4)
-                self.response_code = self.response_code.decode()
 
-                self.cmd_txt = await self.component.commander.readuntil(b"\x03")
-                self.cmd_txt = self.cmd_txt.decode()
-                # trim off ETX byte
+                if self.compare_string_values(expected_mrc_src, mrc_src) is False:
+                    error_triggered = True
+
+                self.response_code = packet[11:15]
+                self.cmd_txt = packet[15:]
                 self.cmd_txt = self.cmd_txt[:-1]
+
                 try:
                     self.register_value = int(self.cmd_txt, 16)
                 except Exception as e:
-                    self.log.error(
-                        f"Received no valid register value! {self.cmd_txt} {str(e)}"
-                    )
-                    self.register_value = -1
-
-                self.bcc = await self.component.commander.readexactly(1)
-                self.bcc = self.bcc.decode()
+                    self.log.error(f"register_value conversion exception: {e}")
+                    error_triggered = True
 
                 # bcc should be calculated without STX, but with ETX byte
                 bcc_frame = (
@@ -503,59 +513,96 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
                     + self.cmd_txt
                     + "\x03"
                 )
+
                 expected_bcc = self.generate_bcc(bcc_frame)
                 if expected_bcc is not self.bcc:
+                    error_triggered = True
+
+                if error_triggered:
                     self.log.error(
-                        f"Incorrect BCC, got: {self.bcc}, expected: {expected_bcc}"
+                        "Error triggered in read_register_value, dumping packet: "
+                        f"packet: {packet}\n"
+                        f"stx_node_subadd: {stx_node_subadd} "
+                        f"expected: {expected_stx_node_subadd}\n"
+                        f"mrc_src: {mrc_src} "
+                        f"expected: {expected_mrc_src}\n"
+                        f"register value: {self.register_value}\n"
+                        f"bcc: {self.bcc} "
+                        f"expected: {expected_bcc}"
                     )
-                    self.register_value = -1
+                    self.log.error(f"ord BCC, expected: {ord(expected_bcc)}")
+                    self.log.error(f"ord BCC, got: {ord(self.bcc)}")
             except Exception as e:
-                self.log.error(f"Message format not as expected. Message: {e}")
+                self.log.error(
+                    f"Message format not as expected. packet: {packet}, exception: {e}"
+                )
 
     async def handle_set_response(self):
         async with self.component.lock:
             try:
-                stx_node_subadd = await self.component.commander.readexactly(5)
-                stx_node_subadd = stx_node_subadd.decode()
+                packet = await self.component.commander.readuntil(b"\x03")
+                packet = packet.decode().strip()
+                self.log.debug(
+                    f"New set_register_value packet: {packet}, length: {len(packet)}"
+                )
+                if len(packet) < 15:
+                    self.log.error("Packet length is too small, minimum 15")
+                    # read bcc and return
+                    await self.component.commander.readexactly(1)
+                    return
+
+                stx_node_subadd = packet[:5]
                 expected_stx_node_subadd = "\x02"
                 if int(self.node) < 10:
                     expected_stx_node_subadd += "\x30"
                 expected_stx_node_subadd += self.node + "\x30\x30"
-                if stx_node_subadd is not expected_stx_node_subadd:
+
+                if (
+                    self.compare_string_values(
+                        expected_stx_node_subadd, stx_node_subadd
+                    )
+                    is False
+                ):
                     self.log.error(
                         f"Received incorrect start of packet: {stx_node_subadd}, "
                         f"expected: {expected_stx_node_subadd}"
                     )
-                    self.register_value = ""
-                self.end_code = await self.component.commander.readexactly(2)
-                self.end_code = self.end_code.decode()
-                if self.end_code != "\x30\x30":
+                    self.register_value = -1
+
+                self.end_code = packet[5:7]
+                expected_end_code = "\x30\x30"
+
+                if (
+                    self.compare_string_values(expected_end_code, self.end_code)
+                    is False
+                ):
                     self.log.error(
                         f"Received bad end code: {self.end_code}: {self.end_code_dict[self.end_code]}"
                     )
 
-                mrc_src = await self.component.commander.readexactly(4)
-                mrc_src = mrc_src.decode()
+                mrc_src = packet[7:11]
                 # write variable area request MRC is 01, SRC is 02
                 expected_mrc_src = "\x30\x31\x30\x32"
-                if mrc_src is not expected_mrc_src:
+
+                if self.compare_string_values(expected_mrc_src, mrc_src) is False:
                     self.log.error(
                         f"Received incorrect Request Codes: {mrc_src}, "
                         f"expected: {expected_mrc_src}"
                     )
-                self.response_code = await self.component.commander.readexactly(4)
-                self.response_code = self.response_code.decode()
+                self.response_code = packet[11:15]
 
-                if self.response_code != "\x30\x30\x30\x30":
+                if (
+                    self.compare_string_values("\x30\x30\x30\x30", self.response_code)
+                    is False
+                ):
                     self.log.error(
                         "Received bad response code: "
                         f"{self.response_code}: {self.response_dict[self.response_code]}"
                     )
 
-                etx = await self.component.commander.readuntil(b"\x03")
-                etx = etx.decode()
+                etx = packet[15:16]
 
-                if etx != "\x03":
+                if self.compare_string_values("\x03", etx) is False:
                     self.log.error(f"Received bad ETX: {etx} expected: \x03")
 
                 self.bcc = await self.component.commander.readexactly(1)
@@ -762,47 +809,63 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
     async def handle_set_response(self):
         async with self.component.lock:
             try:
-                stx_node_subadd = await self.component.commander.readexactly(5)
-                stx_node_subadd = stx_node_subadd.decode()
+                packet = await self.component.commander.readuntil(b"\x03")
+                packet = packet.decode().strip()
+                self.log.debug(
+                    f"New set_response packet: {packet}, length: {len(packet)}"
+                )
+                if len(packet) < 15:
+                    self.log.error("Packet length is too small, minimum 15")
+                    # read bcc and return
+                    await self.component.commander.readexactly(1)
+                    return
+
+                stx_node_subadd = packet[:5]
                 expected_stx_node_subadd = "\x02"
                 if int(self.node) < 10:
                     expected_stx_node_subadd += "\x30"
                 expected_stx_node_subadd += self.node + "\x30\x30"
-                if stx_node_subadd is not expected_stx_node_subadd:
+
+                if (
+                    self.compare_string_values(
+                        expected_stx_node_subadd, stx_node_subadd
+                    )
+                    is False
+                ):
                     self.log.error(
                         f"Received incorrect start of packet: {stx_node_subadd}, "
                         f"expected: {expected_stx_node_subadd}"
                     )
-                    self.register_value = ""
-                self.end_code = await self.component.commander.readexactly(2)
-                self.end_code = self.end_code.decode()
-                if self.end_code != "\x30\x30":
+                    self.register_value = -1
+
+                self.end_code = packet[5:7]
+                if self.compare_string_values("\x30\x30", self.end_code) is False:
                     self.log.error(
                         f"Received bad end code: {self.end_code}: {self.end_code_dict[self.end_code]}"
                     )
 
-                mrc_src = await self.component.commander.readexactly(4)
-                mrc_src = mrc_src.decode()
+                mrc_src = packet[7:11]
                 # write variable area request MRC is 30, SRC is 05
                 expected_mrc_src = "\x33\x30\x30\x35"
-                if mrc_src is not expected_mrc_src:
+                if self.compare_string_values(expected_mrc_src, mrc_src) is False:
                     self.log.error(
                         f"Received incorrect Request Codes: {mrc_src}, "
                         f"expected: {expected_mrc_src}"
                     )
-                self.response_code = await self.component.commander.readexactly(4)
-                self.response_code = self.response_code.decode()
+                self.response_code = packet[11:15]
 
-                if self.response_code != "\x30\x30\x30\x30":
+                if (
+                    self.compare_string_values("\x30\x30\x30\x30", self.response_code)
+                    is False
+                ):
                     self.log.error(
                         "Received bad response code: "
                         f"{self.response_code}: {self.response_dict[self.response_code]}"
                     )
 
-                etx = await self.component.commander.readuntil(b"\x03")
-                etx = etx.decode()
+                etx = packet[15:16]
 
-                if etx != "\x03":
+                if self.compare_string_values("\x03", etx) is False:
                     self.log.error(f"Received bad ETX: {etx} expected: \x03")
 
                 self.bcc = await self.component.commander.readexactly(1)

@@ -94,11 +94,14 @@ class MainLaserServer(tcpip.OneClientReadLoopServer):
         )
 
     async def read_and_dispatch(self):
-        """Return reply based on messaged received."""
-        reply = await self.readuntil(b"\r")
-        reply = reply.strip(self.terminator).decode(self.encoding)
-        reply = self.device.parse_message(reply)
-        await self.write_str(reply)
+        try:
+            """Return reply based on messaged received."""
+            reply = await self.readuntil(b"\r")
+            reply = reply.strip(self.terminator).decode(self.encoding)
+            reply = self.device.parse_message(reply)
+            await self.write_str(reply)
+        except Exception as e:
+            self.log.error(f"read_and_dispatch excepted: {e}")
 
 
 class TempCtrlServer(tcpip.OneClientReadLoopServer):
@@ -139,14 +142,17 @@ class TempCtrlServer(tcpip.OneClientReadLoopServer):
             self.device = None
 
     async def read_and_dispatch(self):
-        if self.device is not None:
-            """Return reply based on messaged received."""
-            reply = await self.readuntil(b"\r")
-            reply = reply.strip(self.terminator)
-            reply = self.device.parse_message(reply)
-            await self.write_str(reply)
-        else:
-            await self.write_str("TempCtrler Unconnected")
+        try:
+            if self.device is not None:
+                """Return reply based on messaged received."""
+                reply = await self.readuntil(b"\r")
+                reply = reply.strip(self.terminator)
+                reply = self.device.parse_message(reply)
+                await self.write_str(reply)
+            else:
+                await self.write_str("TempCtrler Unconnected")
+        except Exception as e:
+            self.log.error(f"read_and_dispatch excepted: {e}")
 
 
 class MockMessage:
@@ -450,15 +456,6 @@ class MockNP5450:
         bcc = bcc_maker.generate_bcc(frame=returnmsg)
         returnmsg = "\x02" + returnmsg + bcc
         return returnmsg
-
-    def do_set_temperature(self):
-        """Change setpoint temperature as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
-        return f"{self.temperature}C"
 
 
 class MockNT252:
@@ -1260,6 +1257,12 @@ class MockNT900:
         return f"{self.temperature}"
 
     def do_tk6_45_display_temperature(self):
+        return f"{self.temperature}"
+
+    def do_tk6_44_set_temperature(self):
+        return f"{self.temperature}"
+
+    def do_tk6_45_set_temperature(self):
         return f"{self.temperature}"
 
     def do_set_temperature(self):
