@@ -463,7 +463,7 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
                         f"Received incorrect start of packet: {stx_node_subadd}, "
                         f"expected: {expected_stx_node_subadd}"
                     )
-                    self.register_value = ""
+                    self.register_value = -1
                 self.end_code = await self.component.commander.readexactly(2)
                 self.end_code = self.end_code.decode()
                 mrc_src = await self.component.commander.readexactly(4)
@@ -475,19 +475,21 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
                         f"Received incorrect Request Codes: {mrc_src}, "
                         f"expected: {expected_mrc_src}"
                     )
-                    self.register_value = ""
+                    self.register_value = -1
                 self.response_code = await self.component.commander.readexactly(4)
                 self.response_code = self.response_code.decode()
 
-                self.cmd_txt = await self.component.commander.readuntil(b"\x03")[:-1]
+                self.cmd_txt = await self.component.commander.readuntil(b"\x03")
                 self.cmd_txt = self.cmd_txt.decode()
+                # trim off ETX byte
+                self.cmd_txt = self.cmd_txt[:-1]
                 try:
                     self.register_value = int(self.cmd_txt, 16)
                 except Exception as e:
                     self.log.error(
                         f"Received no valid register value! {self.cmd_txt} {str(e)}"
                     )
-                    self.register_value = ""
+                    self.register_value = -1
 
                 self.bcc = await self.component.commander.readexactly(1)
                 self.bcc = self.bcc.decode()
@@ -506,7 +508,7 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
                     self.log.error(
                         f"Incorrect BCC, got: {self.bcc}, expected: {expected_bcc}"
                     )
-                    self.register_value = ""
+                    self.register_value = -1
             except Exception as e:
                 self.log.error(f"Message format not as expected. Message: {e}")
 
