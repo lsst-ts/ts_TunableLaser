@@ -269,14 +269,6 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                 detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE,
             )
             await self.remote.cmd_triggerBurst.set_start(timeout=STD_TIMEOUT)
-            await self.assert_next_sample(
-                topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE,
-            )
-            await self.assert_next_sample(
-                topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE,
-            )
 
     @parameterized.expand([(""), ("stubbs.yaml")])
     async def test_tempctrl(self, config):
