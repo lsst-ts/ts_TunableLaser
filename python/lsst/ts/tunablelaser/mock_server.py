@@ -842,6 +842,12 @@ class MockNT252:
         self.burst_length = count
         return ""
 
+    def do_tk6_44_display_temperature(self):
+        return f"{self.temperature}"
+
+    def do_tk6_45_display_temperature(self):
+        return f"{self.temperature}"
+
 
 class MockNT900:
     """Implements a mock NT900 laser.
