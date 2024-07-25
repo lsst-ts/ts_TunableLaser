@@ -28,41 +28,6 @@ from lsst.ts import salobj, tunablelaser
 from lsst.ts.xml.enums import TunableLaser
 from parameterized import parameterized
 
-# Breaking the law
-# FIXME Remove when XML 21 is on the summit
-try:
-    getattr(TunableLaser.LaserDetailedState, "NONPROPAGATING_CONTINUOUS_MODE")
-except AttributeError:
-    setattr(
-        TunableLaser.LaserDetailedState,
-        "NONPROPAGATING_CONTINUOUS_MODE",
-        TunableLaser.LaserDetailedState.NONPROPAGATING,
-    )
-try:
-    getattr(TunableLaser.LaserDetailedState, "NONPROPAGATING_BURST_MODE")
-except AttributeError:
-    setattr(
-        TunableLaser.LaserDetailedState,
-        "NONPROPAGATING_BURST_MODE",
-        TunableLaser.LaserDetailedState.NONPROPAGATING,
-    )
-try:
-    getattr(TunableLaser.LaserDetailedState, "PROPAGATING_CONTINUOUS_MODE")
-except AttributeError:
-    setattr(
-        TunableLaser.LaserDetailedState,
-        "PROPAGATING_CONTINUOUS_MODE",
-        TunableLaser.LaserDetailedState.PROPAGATING,
-    )
-try:
-    getattr(TunableLaser.LaserDetailedState, "PROPAGATING_BURST_MODE")
-except AttributeError:
-    setattr(
-        TunableLaser.LaserDetailedState,
-        "PROPAGATING_BURST_MODE",
-        TunableLaser.LaserDetailedState.PROPAGATING,
-    )
-
 STD_TIMEOUT = 5
 TEST_CONFIG_DIR = pathlib.Path(__file__).parents[1].joinpath("tests", "data", "config")
 

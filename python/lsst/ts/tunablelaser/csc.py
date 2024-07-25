@@ -29,41 +29,6 @@ import asyncio
 from lsst.ts import salobj, utils
 from lsst.ts.xml.enums import TunableLaser
 
-# Breaking the law
-# FIXME Remove when XML 21 is on the summit
-try:
-    getattr(TunableLaser.LaserDetailedState, "NONPROPAGATING_CONTINUOUS_MODE")
-except AttributeError:
-    setattr(
-        TunableLaser.LaserDetailedState,
-        "NONPROPAGATING_CONTINUOUS_MODE",
-        TunableLaser.LaserDetailedState.NONPROPAGATING,
-    )
-try:
-    getattr(TunableLaser.LaserDetailedState, "NONPROPAGATING_BURST_MODE")
-except AttributeError:
-    setattr(
-        TunableLaser.LaserDetailedState,
-        "NONPROPAGATING_BURST_MODE",
-        TunableLaser.LaserDetailedState.NONPROPAGATING,
-    )
-try:
-    getattr(TunableLaser.LaserDetailedState, "PROPAGATING_CONTINUOUS_MODE")
-except AttributeError:
-    setattr(
-        TunableLaser.LaserDetailedState,
-        "PROPAGATING_CONTINUOUS_MODE",
-        TunableLaser.LaserDetailedState.PROPAGATING,
-    )
-try:
-    getattr(TunableLaser.LaserDetailedState, "PROPAGATING_BURST_MODE")
-except AttributeError:
-    setattr(
-        TunableLaser.LaserDetailedState,
-        "PROPAGATING_BURST_MODE",
-        TunableLaser.LaserDetailedState.PROPAGATING,
-    )
-
 from . import __version__, component, mock_server
 from .config_schema import CONFIG_SCHEMA
 
