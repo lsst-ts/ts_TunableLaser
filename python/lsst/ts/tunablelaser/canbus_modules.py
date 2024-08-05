@@ -49,7 +49,7 @@ import logging
 
 from . import interfaces
 from .compoway_register import CompoWayFDataRegister, CompoWayFOperationRegister
-from .enums import Mode, NoSCU, Output, Power, SCUConfiguration
+from .enums import Mode, OpticalConfiguration, Output, Power
 from .register import AsciiRegister
 
 
@@ -510,14 +510,11 @@ class MaxiOPG(interfaces.CanbusModule):
         Handles the "Configuration" register.
     """
 
-    def __init__(
-        self, component, simulation_mode=False, configuration=NoSCU.NO_SCU.value
-    ):
+    def __init__(self, component, simulation_mode=False):
         super().__init__(component=component)
         self.name = "MaxiOPG"
         self.id = 31
-        self.configuration = configuration
-        self.optical_alignment = "straight-through"
+        self.optical_alignment = OpticalConfiguration.NO_SCU.value
         self.wavelength_register = AsciiRegister(
             component=self.component,
             module_name=self.name,
@@ -526,26 +523,14 @@ class MaxiOPG(interfaces.CanbusModule):
             read_only=False,
             accepted_values=range(300, 1100),
         )
-        if self.configuration == NoSCU.NO_SCU.value:
-            self.configuration_register = AsciiRegister(
-                component=self.component,
-                module_name=self.name,
-                module_id=self.id,
-                register_name="Configuration",
-                read_only=False,
-                accepted_values=list(NoSCU),
-            )
-        elif self.configuration == SCUConfiguration.SCU.value:
-            self.configuration_register = AsciiRegister(
-                component=self.component,
-                module_name=self.name,
-                module_id=self.id,
-                register_name="Configuration",
-                read_only=False,
-                accepted_values=list(SCUConfiguration),
-            )
-        else:
-            raise ValueError("Invalid configuration value")
+        self.configuration_register = AsciiRegister(
+            component=self.component,
+            module_name=self.name,
+            module_id=self.id,
+            register_name="Configuration",
+            read_only=False,
+            accepted_values=list(OpticalConfiguration),
+        )
 
     async def change_wavelength(self, wavelength):
         """Change the wavelength of the laser.
@@ -578,12 +563,7 @@ class MaxiOPG(interfaces.CanbusModule):
         None
 
         """
-        if self.optical_alignment == "straight-through":
-            await self.configuration_register.send_command(self.configuration)
-        else:
-            await self.configuration_register.send_command(
-                f"{self.optical_alignment} {self.configuration}"
-            )
+        await self.configuration_register.send_command(f"{self.optical_alignment}")
 
     async def update_register(self):
         """Publish the register values of the modules.

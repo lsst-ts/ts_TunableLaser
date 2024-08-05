@@ -39,7 +39,7 @@ from ipaddress import ip_address
 from lsst.ts import tcpip
 
 from .compoway_register import CompoWayFGeneralRegister
-from .enums import Mode, NoSCU, Output, Power, SCUConfiguration
+from .enums import Mode, OpticalConfiguration, Output, Power
 
 TERMINATOR = b"\r\n\x03"
 
@@ -694,7 +694,7 @@ class MockNT252:
             An empty message
         """
         try:
-            self.propagating = Power(state).value
+            self.propagating = Power(state)
             return ""
         except ValueError:
             self.log.error(f"{state} not in {list(Power)}")
@@ -759,7 +759,7 @@ class MockNT252:
             if mode not in accepted values.
         """
         try:
-            self.propagation_mode = Mode(mode).value
+            self.propagation_mode = Mode(mode)
             return ""
         except ValueError:
             self.log.error(f"{mode} not in {list(Mode)}")
@@ -876,15 +876,15 @@ class MockNT900:
         self.temperature = random.randrange(19, 21)
         self.cpu8000_current = "19A"
         self.m_cpu800_current = "19A"
-        self.cpu8000_power = Power.ON.value
-        self.m_cpu800_power = Power.ON.value
-        self.propagating = Power.OFF.value
-        self.output_energy_level = Output.OFF.value
+        self.cpu8000_power = Power.ON
+        self.m_cpu800_power = Power.ON
+        self.propagating = Power.OFF
+        self.output_energy_level = Output.OFF
         if not self.scu:
-            self.configuration = NoSCU.NO_SCU.value
+            self.configuration = OpticalConfiguration.NO_SCU
         else:
-            self.configuration = SCUConfiguration.SCU.value
-        self.propagation_mode = Mode.CONTINUOUS.value
+            self.configuration = OpticalConfiguration.SCU
+        self.propagation_mode = Mode.CONTINUOUS
         self.burst_length = 1
         self.log = logging.getLogger(__name__)
         self.log.debug("MockNT900 initialized")
@@ -1073,7 +1073,7 @@ class MockNT900:
             An empty message
         """
         try:
-            self.propagating = Power(state).value
+            self.propagating = Power(state)
             return ""
         except ValueError:
             self.log.error(f"{state} not in {list(Power)}")
@@ -1138,7 +1138,7 @@ class MockNT900:
             if mode not in accepted values.
         """
         try:
-            self.propagation_mode = Mode(mode).value
+            self.propagation_mode = Mode(mode)
             return ""
         except ValueError:
             self.log.error(f"{mode} not in {list(Mode)}")
@@ -1240,12 +1240,9 @@ class MockNT900:
         -------
         `str`
         """
-        if not self.scu:
-            self.configuration = NoSCU(configuration)
-            return ""
-        else:
-            self.configuration = SCUConfiguration(configuration)
-            return ""
+
+        self.configuration = OpticalConfiguration(configuration)
+        return ""
 
     def do_miniopg_56_error_code(self):
         """Return current error code as formatted string.
