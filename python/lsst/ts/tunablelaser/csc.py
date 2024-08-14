@@ -101,46 +101,48 @@ class LaserCSC(salobj.ConfigurableCsc):
     async def telemetry(self):
         """Send out the TunableLaser's telemetry."""
         while True:
-            try:
-                self.log.debug("Telemetry updating")
-                await self.model.read_all_registers()
-                await self.thermal_ctrl.read_all_registers()
-                self.log.debug(f"model={self.model}")
-                self.log.debug(
-                    f"detailed_state={self.evt_detailedState.data.detailedState}"
-                )
-                if (
-                    self.model.cpu8000.power_register.register_value == "FAULT"
-                    or self.model.m_cpu800.power_register.register_value == "FAULT"
-                    or self.model.m_cpu800.power_register_2.register_value == "FAULT"
-                ):
-                    await self.fault(
-                        code=TunableLaser.LaserErrorCode.HW_CPU_ERROR,
-                        report=(
-                            f"cpu8000 fault:{self.model.cpu8000.fault_register.register_value}"
-                            f"m_cpu800 fault:{self.model.m_cpu800.fault_register.register_value}"
-                            f"m_cpu800 fault2:{self.model.m_cpu800.fault_register_2.register_value}"
-                        ),
+            if self.model is not None:
+                try:
+                    self.log.debug("Telemetry updating")
+                    await self.model.read_all_registers()
+                    await self.thermal_ctrl.read_all_registers()
+                    self.log.debug(f"model={self.model}")
+                    self.log.debug(
+                        f"detailed_state={self.evt_detailedState.data.detailedState}"
                     )
-                await self.tel_wavelength.set_write(
-                    wavelength=float(self.model.wavelength)
-                )
-                await self.tel_temperature.set_write(
-                    tk6_temperature=float(self.model.temperature[0]),
-                    tk6_temperature_2=float(self.model.temperature[1]),
-                    ldco48bp_temperature=float(self.model.temperature[2]),
-                    ldco48bp_temperature_2=float(self.model.temperature[3]),
-                    ldco48bp_temperature_3=float(self.model.temperature[4]),
-                    m_ldco48_temperature=float(self.model.temperature[5]),
-                    m_ldco48_temperature_2=float(self.model.temperature[6]),
-                )
-                await self.tel_scannerTemperature.set_write(
-                    scanner_temperature=float(self.thermal_ctrl.temperature[0]),
-                )
-                self.log.debug("Telemetry updated")
-            except Exception:
-                self.log.exception("Telemetry loop failed.")
-            await asyncio.sleep(self.telemetry_rate)
+                    if (
+                        self.model.cpu8000.power_register.register_value == "FAULT"
+                        or self.model.m_cpu800.power_register.register_value == "FAULT"
+                        or self.model.m_cpu800.power_register_2.register_value
+                        == "FAULT"
+                    ):
+                        await self.fault(
+                            code=TunableLaser.LaserErrorCode.HW_CPU_ERROR,
+                            report=(
+                                f"cpu8000 fault:{self.model.cpu8000.fault_register.register_value}"
+                                f"m_cpu800 fault:{self.model.m_cpu800.fault_register.register_value}"
+                                f"m_cpu800 fault2:{self.model.m_cpu800.fault_register_2.register_value}"
+                            ),
+                        )
+                    await self.tel_wavelength.set_write(
+                        wavelength=float(self.model.wavelength)
+                    )
+                    await self.tel_temperature.set_write(
+                        tk6_temperature=float(self.model.temperature[0]),
+                        tk6_temperature_2=float(self.model.temperature[1]),
+                        ldco48bp_temperature=float(self.model.temperature[2]),
+                        ldco48bp_temperature_2=float(self.model.temperature[3]),
+                        ldco48bp_temperature_3=float(self.model.temperature[4]),
+                        m_ldco48_temperature=float(self.model.temperature[5]),
+                        m_ldco48_temperature_2=float(self.model.temperature[6]),
+                    )
+                    await self.tel_scannerTemperature.set_write(
+                        scanner_temperature=float(self.thermal_ctrl.temperature[0]),
+                    )
+                    self.log.debug("Telemetry updated")
+                except Exception:
+                    self.log.exception("Telemetry loop failed.")
+                await asyncio.sleep(self.telemetry_rate)
 
     def assert_substate(self, substates, action):
         """Assert that the action is happening while in the PropagatingState.
@@ -419,6 +421,8 @@ class LaserCSC(salobj.ConfigurableCsc):
             self.model = lasercls(csc=self, simulation_mode=bool(self.simulation_mode))
             self.optical_alignment = config.optical_configuration
             await self.model.configure(config)
+        else:
+            self.log.debug("Laser is not connected")
 
         self.thermal_ctrl = component.TemperatureCtrl(
             csc=self,
