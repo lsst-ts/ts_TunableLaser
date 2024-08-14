@@ -265,6 +265,7 @@ class MainLaser(interfaces.Laser):
     async def configure(self, config):
         """Set the configuration for the TunableLaser."""
         self.log.debug("Setting config.")
+
         self.host = config.host
         self.port = config.port
         self.maxi_opg.wavelength_register.accepted_values = range(

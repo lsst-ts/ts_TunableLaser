@@ -415,9 +415,10 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.log.debug(f"Connecting to laser {config.type}")
         self.laser_type = config.type
         lasercls = getattr(component, f"{config.type}Laser")
-        self.model = lasercls(csc=self, simulation_mode=bool(self.simulation_mode))
-        self.optical_alignment = config.optical_configuration
-        await self.model.configure(config)
+        if str(config.host).lower() != "none":
+            self.model = lasercls(csc=self, simulation_mode=bool(self.simulation_mode))
+            self.optical_alignment = config.optical_configuration
+            await self.model.configure(config)
 
         self.thermal_ctrl = component.TemperatureCtrl(
             csc=self,
