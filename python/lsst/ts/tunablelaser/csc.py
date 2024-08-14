@@ -171,7 +171,14 @@ class LaserCSC(salobj.ConfigurableCsc):
         """Handle the summary state transitons."""
         if self.disabled_or_enabled:
             if self.simulation_mode:
-                if self.simulator is None:
+                if self.model is None and self.simulator is None:
+                    self.thermal_ctrl_simulator = mock_server.TempCtrlServer(
+                        host=self.thermal_ctrl.host
+                    )
+                    await self.thermal_ctrl_simulator.start_task
+                    self.thermal_ctrl.port = self.thermal_ctrl_simulator.port
+
+                elif self.simulator is None:
                     self.log.debug("Starting simulator.")
                     simulatorcls = getattr(
                         mock_server, f"{type(self.model).__name__}Server"
@@ -194,6 +201,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                 if self.laser_type == "Main":
                     await self.model.set_optical_configuration(self.optical_alignment)
                 await self.thermal_ctrl.connect()
+            elif not self.connected and self.model is None:
+                await self.thermal_ctrl.connect()
+
             if (
                 self.summary_state == salobj.State.DISABLED
                 and self.model.is_propagating
