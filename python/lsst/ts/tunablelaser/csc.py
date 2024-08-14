@@ -176,7 +176,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         """Handle the summary state transitons."""
         if self.disabled_or_enabled:
             if self.simulation_mode:
-                if self.simulator is None:
+                if self.model is not None:
                     self.log.debug("Starting simulator.")
                     simulatorcls = getattr(
                         mock_server, f"{type(self.model).__name__}Server"
@@ -206,14 +206,15 @@ class LaserCSC(salobj.ConfigurableCsc):
                 if self.laser_type == "Main":
                     await self.model.set_optical_configuration(self.optical_alignment)
                 await self.thermal_ctrl.connect()
-            if (
-                self.summary_state == salobj.State.DISABLED
-                and self.model.is_propagating
-            ):
-                await self.model.stop_propagating()
-                await self.publish_new_detailed_state(
-                    TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
-                )
+            elif not self.connected and self.model is None:
+                await self.thermal_ctrl.connect()
+
+            if self.summary_state == salobj.State.DISABLED and self.model is not None:
+                if self.model.is_propagating:
+                    await self.model.stop_propagating()
+                    await self.publish_new_detailed_state(
+                        TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
+                    )
             if self.telemetry_task.done():
                 self.telemetry_task = asyncio.create_task(self.telemetry())
         else:
@@ -369,7 +370,10 @@ class LaserCSC(salobj.ConfigurableCsc):
             [TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE],
             "Trigger",
         )
-        await self.model.trigger_burst()
+        if self.connected:
+            await self.model.trigger_burst()
+        else:
+            raise salobj.ExpectedError("Not connected.")
 
     async def do_changeTempCtrlSetpoint(self, data):
         """Change the set point of the laser thermal reader."""
@@ -429,9 +433,12 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.log.debug(f"Connecting to laser {config.type}")
         self.laser_type = config.type
         lasercls = getattr(component, f"{config.type}Laser")
-        self.model = lasercls(csc=self, simulation_mode=bool(self.simulation_mode))
-        self.optical_alignment = config.optical_configuration
-        await self.model.configure(config)
+        if str(config.host).lower() != "none":
+            self.model = lasercls(csc=self, simulation_mode=bool(self.simulation_mode))
+            self.optical_alignment = config.optical_configuration
+            await self.model.configure(config)
+        else:
+            self.log.debug("Laser is not connected")
 
         self.thermal_ctrl = component.TemperatureCtrl(
             csc=self,
