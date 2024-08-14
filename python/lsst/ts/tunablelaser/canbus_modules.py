@@ -514,7 +514,7 @@ class MaxiOPG(interfaces.CanbusModule):
         super().__init__(component=component)
         self.name = "MaxiOPG"
         self.id = 31
-        self.optical_alignment = OpticalConfiguration.NO_SCU.value
+        self.optical_alignment = OpticalConfiguration.NO_SCU
         self.wavelength_register = AsciiRegister(
             component=self.component,
             module_name=self.name,
