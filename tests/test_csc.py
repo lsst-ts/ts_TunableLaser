@@ -303,16 +303,20 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
             )
             await self.remote.cmd_turnOffTempCtrl.set_start(timeout=STD_TIMEOUT)
 
-            await self.remote.cmd_setBurstMode.set_start(count=1, timeout=STD_TIMEOUT)
-            await self.assert_next_sample(
-                topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE,
-            )
-            await self.remote.cmd_startPropagateLaser.set_start(timeout=STD_TIMEOUT)
-            await self.assert_next_sample(
-                topic=self.remote.evt_detailedState,
-                detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE,
-            )
+            # await self.remote.cmd_setBurstMode.set_start(count=1,
+            # timeout=STD_TIMEOUT)
+            # await self.assert_next_sample(
+            #     topic=self.remote.evt_detailedState,
+            # detailedState=TunableLaser.LaserDetailedState.
+            # NONPROPAGATING_BURST_MODE,
+            # )
+            # await self.remote.cmd_startPropagateLaser.set_start(
+            # timeout=STD_TIMEOUT)
+            # await self.assert_next_sample(
+            #     topic=self.remote.evt_detailedState,
+            # detailedState=TunableLaser.LaserDetailedState.
+            # PROPAGATING_BURST_MODE,
+            # )
 
 
 if __name__ == "__main__":

@@ -171,14 +171,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         """Handle the summary state transitons."""
         if self.disabled_or_enabled:
             if self.simulation_mode:
-                if self.model is None and self.simulator is None:
-                    self.thermal_ctrl_simulator = mock_server.TempCtrlServer(
-                        host=self.thermal_ctrl.host
-                    )
-                    await self.thermal_ctrl_simulator.start_task
-                    self.thermal_ctrl.port = self.thermal_ctrl_simulator.port
-
-                elif self.simulator is None:
+                if self.model is not None:
                     self.log.debug("Starting simulator.")
                     simulatorcls = getattr(
                         mock_server, f"{type(self.model).__name__}Server"
@@ -187,31 +180,30 @@ class LaserCSC(salobj.ConfigurableCsc):
                     self.log.debug(f"Chose {self.simulator=}")
                     await self.simulator.start_task
 
-                    self.thermal_ctrl_simulator = mock_server.TempCtrlServer(
-                        host=self.thermal_ctrl.host
+                self.thermal_ctrl_simulator = mock_server.TempCtrlServer(
+                    host=self.thermal_ctrl.host
+                )
+                await self.thermal_ctrl_simulator.start_task
+                self.thermal_ctrl.port = self.thermal_ctrl_simulator.port
+
+            if not self.connected:
+                if self.model is not None:
+                    await self.evt_detailedState.set_write(
+                        detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
                     )
-                    await self.thermal_ctrl_simulator.start_task
-                    self.thermal_ctrl.port = self.thermal_ctrl_simulator.port
-
-            if not self.connected and self.model is not None:
-                await self.evt_detailedState.set_write(
-                    detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
-                )
-                await self.model.connect()
-                if self.laser_type == "Main":
-                    await self.model.set_optical_configuration(self.optical_alignment)
-                await self.thermal_ctrl.connect()
-            elif not self.connected and self.model is None:
+                    await self.model.connect()
+                    if self.laser_type == "Main":
+                        await self.model.set_optical_configuration(
+                            self.optical_alignment
+                        )
                 await self.thermal_ctrl.connect()
 
-            if (
-                self.summary_state == salobj.State.DISABLED
-                and self.model.is_propagating
-            ):
-                await self.model.stop_propagating()
-                await self.publish_new_detailed_state(
-                    TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
-                )
+            if self.summary_state == salobj.State.DISABLED and self.model is not None:
+                if self.model.is_propagating:
+                    await self.model.stop_propagating()
+                    await self.publish_new_detailed_state(
+                        TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
+                    )
             if self.telemetry_task.done():
                 self.telemetry_task = asyncio.create_task(self.telemetry())
         else:
@@ -367,7 +359,10 @@ class LaserCSC(salobj.ConfigurableCsc):
             [TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE],
             "Trigger",
         )
-        await self.model.trigger_burst()
+        if self.connected:
+            await self.model.trigger_burst()
+        else:
+            raise salobj.ExpectedError("Not connected.")
 
     async def do_changeTempCtrlSetpoint(self, data):
         """Change the set point of the laser thermal reader."""
