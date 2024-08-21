@@ -3,7 +3,7 @@ port: 9001
 wavelength:
   min: 300
   max: 1100
-optical_configuration: F1
+optical_configuration: "F1 No SCU"
 timeout: 1
 type: "Stubbs"
 temp_ctrl:

@@ -22,7 +22,6 @@
 import unittest
 import unittest.mock
 
-import pytest
 from lsst.ts.tunablelaser.canbus_modules import CPU8000, MaxiOPG
 
 
@@ -64,19 +63,12 @@ class TestCPU8000(unittest.IsolatedAsyncioTestCase):
 
 class TestMaxiOPG(unittest.IsolatedAsyncioTestCase):
     def test_scu_configuration(self):
-        self.maxiopg = MaxiOPG(None, configuration="SCU")
+        self.maxiopg = MaxiOPG(None)
         assert self.maxiopg.configuration_register.accepted_values == [
             "SCU",
             "F1 SCU",
             "F2 SCU",
-        ]
-        self.maxiopg = MaxiOPG(None)
-        assert self.maxiopg.configuration_register.accepted_values == [
             "No SCU",
             "F1 No SCU",
             "F2 No SCU",
         ]
-
-    def test_invalid_configuration(self):
-        with pytest.raises(ValueError):
-            self.maxiopg = MaxiOPG(None, configuration="wumbo")

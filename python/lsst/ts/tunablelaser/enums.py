@@ -1,4 +1,4 @@
-__all__ = ["Power", "Mode", "Output", "SCUConfiguration", "NoSCU"]
+__all__ = ["Power", "Mode", "Output", "OpticalConfiguration"]
 
 import enum
 
@@ -33,8 +33,8 @@ class Output(enum.StrEnum):
     """Maximum energy level for the laser."""
 
 
-class SCUConfiguration(enum.StrEnum):
-    """The Spectral Cleaning Unit configuration"""
+class OpticalConfiguration(enum.StrEnum):
+    """Configuration of the optical output"""
 
     SCU = "SCU"
     """Pass the beam straight-through the SCU."""
@@ -42,11 +42,6 @@ class SCUConfiguration(enum.StrEnum):
     """Direct the beam through the F1 after passing through the SCU."""
     F2_SCU = "F2 SCU"
     """Direct the beam through the F2 after passing through the SCU."""
-
-
-class NoSCU(enum.StrEnum):
-    """The no Spectral Cleaning Unit configuration"""
-
     NO_SCU = "No SCU"
     """Pass the beam straight-through."""
     F1_NO_SCU = "F1 No SCU"
