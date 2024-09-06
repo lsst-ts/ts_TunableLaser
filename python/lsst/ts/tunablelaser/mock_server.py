@@ -30,25 +30,24 @@ __all__ = [
 ]
 
 import asyncio
-
-# TODO: (DM-46168) Revert workaround for TunableLaser XML changes
 import enum
 import inspect
 import io
 import logging
 import random
+import warnings
 from ipaddress import ip_address
 
-import warning
 from lsst.ts import tcpip
 
 from .compoway_register import CompoWayFGeneralRegister
 from .enums import Mode, Output, Power
 
+# TODO: (DM-46168) Revert workaround for TunableLaser XML changes
 try:
     from lsst.ts.xml.enums.TunableLaser import OpticalConfiguration
 except ImportError:
-    warning.warn(
+    warnings.warn(
         "OpticalConfiguration enumeration not availble in ts-xml. Using local version."
     )
 
