@@ -28,15 +28,15 @@ import asyncio
 
 # TODO: (DM-46168) Revert workaround for TunableLaser XML changes
 import enum
+import warnings
 
-import warning
 from lsst.ts import salobj, utils
 from lsst.ts.xml.enums.TunableLaser import LaserDetailedState, LaserErrorCode
 
 try:
     from lsst.ts.xml.enums.TunableLaser import OpticalConfiguration
 except ImportError:
-    warning.warn(
+    warnings.warn(
         "OpticalConfiguration enumeration not availble in ts-xml. Using local version."
     )
 
@@ -431,19 +431,21 @@ class LaserCSC(salobj.ConfigurableCsc):
                alignment of the laser.
         """
         self.assert_enabled()
-        if data.configuration not in OpticalConfiguration:
+        try:
+            configuration = OpticalConfiguration(data.configuration)
+        except Exception:
             raise salobj.ExpectedError(
                 f"Optical Configuration {data.configuration} not included in allowable options"
             )
+
+        if self.connected:
+            if self.laser_type == "Main":  # only main laser can do this
+                await self.model.set_optical_configuration(configuration)
+                await self.evt_opticalConfiguration.set_write(
+                    configuration=configuration
+                )
         else:
-            if self.connected:
-                if self.laser_type == "Main":  # only main laser can do this
-                    await self.model.set_optical_configuration(data.configuration)
-                    await self.evt_opticalConfiguration.set_write(
-                        configuration=data.configuration
-                    )
-            else:
-                raise salobj.ExpectedError("Not connected")
+            raise salobj.ExpectedError("Not connected")
 
     async def publish_new_detailed_state(self, new_sub_state):
         """Publish the updated detailed state.
