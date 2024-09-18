@@ -23,8 +23,10 @@ __all__ = ["CONFIG_SCHEMA"]
 
 import yaml
 
+from .enums import OpticalConfiguration
+
 CONFIG_SCHEMA = yaml.safe_load(
-    """
+    f"""
 $schema: http://json-schema.org/draft-07/schema#
 $id: https://github.com/lsst-ts/ts_TunableLaser/blob/master/schema/TunableLaser.yaml
 title: TunableLaser v4
