@@ -45,38 +45,13 @@ __all__ = [
     "MidiOPG",
     "E5DCB",
 ]
-# TODO: (DM-46168) Revert workaround for TunableLaser XML changes
-import enum
+
 import logging
-import warnings
 
 from . import interfaces
 from .compoway_register import CompoWayFDataRegister, CompoWayFOperationRegister
-from .enums import Mode, Output, Power
+from .enums import Mode, OpticalConfiguration, Output, Power
 from .register import AsciiRegister
-
-try:
-    from lsst.ts.xml.enums.TunableLaser import OpticalConfiguration
-except ImportError:
-    warnings.warn(
-        "OpticalConfiguration enumeration not availble in ts-xml. Using local version."
-    )
-
-    class OpticalConfiguration(enum.StrEnum):
-        """Configuration of the optical output"""
-
-        SCU = "SCU"
-        """Pass the beam straight-through the SCU."""
-        F1_SCU = "F1 SCU"
-        """Direct the beam through the F1 after passing through the SCU."""
-        F2_SCU = "F2 SCU"
-        """Direct the beam through the F2 after passing through the SCU."""
-        NO_SCU = "No SCU"
-        """Pass the beam straight-through."""
-        F1_NO_SCU = "F1 No SCU"
-        """Pass the beam to F1 output."""
-        F2_NO_SCU = "F2 No SCU"
-        """Pass the beam to F2 output."""
 
 
 class CPU8000(interfaces.CanbusModule):

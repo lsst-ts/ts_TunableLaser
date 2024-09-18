@@ -1,6 +1,7 @@
-__all__ = ["Power", "Mode", "Output"]
+__all__ = ["Power", "Mode", "Output", "OpticalConfiguration"]
 
 import enum
+import warnings
 
 
 class Power(enum.StrEnum):
@@ -31,3 +32,28 @@ class Output(enum.StrEnum):
     """A calibration energy level where the energy level adjusts."""
     MAX = "MAX"
     """Maximum energy level for the laser."""
+
+
+# TODO: (DM-46168) Revert workaround for TunableLaser XML changes
+try:
+    from lsst.ts.xml.enums.TunableLaser import OpticalConfiguration
+except ImportError:
+    warnings.warn(
+        "OpticalConfiguration enumeration not availble in ts-xml. Using local version."
+    )
+
+    class OpticalConfiguration(enum.StrEnum):
+        """Configuration of the optical output"""
+
+        SCU = "SCU"
+        """Pass the beam straight-through the SCU."""
+        F1_SCU = "F1 SCU"
+        """Direct the beam through the F1 after passing through the SCU."""
+        F2_SCU = "F2 SCU"
+        """Direct the beam through the F2 after passing through the SCU."""
+        NO_SCU = "No SCU"
+        """Pass the beam straight-through."""
+        F1_NO_SCU = "F1 No SCU"
+        """Pass the beam to F1 output."""
+        F2_NO_SCU = "F2 No SCU"
+        """Pass the beam to F2 output."""

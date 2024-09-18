@@ -46,7 +46,7 @@ properties:
     type: number
   optical_configuration:
     description: The mirror alignment configuration for the laser
-    enum: ["SCU","F1 SCU","F2 SCU","No SCU","F1 No SCU","F2 No SCU"]
+    enum: {[e.value for e in OpticalConfiguration]}
   wavelength:
     description: The min and max wavelengths for the laser
     type: object
