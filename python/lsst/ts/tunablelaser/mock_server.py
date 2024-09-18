@@ -30,43 +30,16 @@ __all__ = [
 ]
 
 import asyncio
-import enum
 import inspect
 import io
 import logging
 import random
-import warnings
 from ipaddress import ip_address
 
 from lsst.ts import tcpip
 
 from .compoway_register import CompoWayFGeneralRegister
-from .enums import Mode, Output, Power
-
-# TODO: (DM-46168) Revert workaround for TunableLaser XML changes
-try:
-    from lsst.ts.xml.enums.TunableLaser import OpticalConfiguration
-except ImportError:
-    warnings.warn(
-        "OpticalConfiguration enumeration not availble in ts-xml. Using local version."
-    )
-
-    class OpticalConfiguration(enum.StrEnum):
-        """Configuration of the optical output"""
-
-        SCU = "SCU"
-        """Pass the beam straight-through the SCU."""
-        F1_SCU = "F1 SCU"
-        """Direct the beam through the F1 after passing through the SCU."""
-        F2_SCU = "F2 SCU"
-        """Direct the beam through the F2 after passing through the SCU."""
-        NO_SCU = "No SCU"
-        """Pass the beam straight-through."""
-        F1_NO_SCU = "F1 No SCU"
-        """Pass the beam to F1 output."""
-        F2_NO_SCU = "F2 No SCU"
-        """Pass the beam to F2 output."""
-
+from .enums import Mode, OpticalConfiguration, Output, Power
 
 TERMINATOR = b"\r\n\x03"
 
