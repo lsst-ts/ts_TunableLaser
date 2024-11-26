@@ -6,6 +6,28 @@ Version History
 
 .. towncrier release notes start
 
+ts_tunablelaser v2.2.0 (2024-11-26)
+===================================
+
+Features
+--------
+
+- Changed optical configuration so that it takes SCU/No SCU rather than being hard coded. (`DM-44592 <https://rubinobs.atlassian.net/DM-44592>`_)
+- Hooking up the thermal ctrl telemetry to CSC (`dm-44146 <https://rubinobs.atlassian.net/dm-44146>`_)
+
+
+Bugfixes
+--------
+
+- Fixing two bugs with thermal ctrl system. The first is that if its not connected there is a chance it tries to access a None method. The second bug is that it improperly parses results. (`dm-44396 <https://rubinobs.atlassian.net/dm-44396>`_)
+
+
+Misc
+----
+
+- `DM-44083 <https://rubinobs.atlassian.net/DM-44083>`_
+
+
 ts_tunablelaser v2.1.1 (2024-04-11)
 ===================================
 
