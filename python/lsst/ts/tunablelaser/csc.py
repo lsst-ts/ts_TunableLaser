@@ -182,6 +182,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                         host=self.thermal_ctrl.host
                     )
                     await self.thermal_ctrl_simulator.start_task
+                    self.thermal_ctrl.host = self.thermal_ctrl_simulator.host
                     self.thermal_ctrl.port = self.thermal_ctrl_simulator.port
 
             if not self.connected and self.model is not None:

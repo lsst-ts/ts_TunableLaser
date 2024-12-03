@@ -131,7 +131,7 @@ class TempCtrlServer(tcpip.OneClientReadLoopServer):
             super().__init__(
                 name="TempCtrl Mock Server",
                 host=tcpip.LOCAL_HOST,
-                port=25,
+                port=25000,
                 log=self.log,
                 terminator=b"\r",
                 encoding="ascii",
