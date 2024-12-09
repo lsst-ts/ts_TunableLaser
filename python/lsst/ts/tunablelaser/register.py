@@ -162,6 +162,8 @@ class AsciiRegister:
         -------
         None
         """
+        if not self.component.connected:
+            raise RuntimeError("Not connected.")
         async with self.component.lock:
             if set_value:
                 message = self.create_set_message(set_value=set_value)

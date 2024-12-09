@@ -292,6 +292,17 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
             )
             await self.remote.cmd_turnOffTempCtrl.set_start(timeout=STD_TIMEOUT)
 
+    async def test_bad_connection(self):
+        async with self.make_csc(initial_state=salobj.State.STANDBY, simulation_mode=1):
+            self.csc.unstable = True
+            await self.assert_next_summary_state(salobj.State.STANDBY)
+            await salobj.set_summary_state(self.remote, salobj.State.DISABLED)
+            await self.assert_next_summary_state(salobj.State.FAULT)
+            self.csc.unstable = False
+            await salobj.set_summary_state(self.remote, salobj.State.DISABLED)
+            await self.assert_next_summary_state(salobj.State.STANDBY)
+            await self.assert_next_summary_state(salobj.State.DISABLED)
+
 
 if __name__ == "__main__":
     unittest.main()

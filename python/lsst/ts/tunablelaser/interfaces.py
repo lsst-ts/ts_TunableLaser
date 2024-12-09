@@ -55,6 +55,10 @@ class Laser(ABC):
         return self.commander.connected
 
     @property
+    def should_be_connected(self):
+        return self.commander.should_be_connected
+
+    @property
     @abstractmethod
     def wavelength(self):
         """The wavelength of the laser."""
@@ -128,14 +132,22 @@ class Laser(ABC):
         if self.csc.simulation_mode:
             self.host = self.csc.simulator.host
             self.port = self.csc.simulator.port
-        self.commander = tcpip.Client(
-            host=self.host,
-            port=self.port,
-            log=self.log,
-            terminator=bytes(self.terminator),
-            encoding=self.encoding,
-        )
-        await self.commander.start_task
+        for _ in range(3):
+            try:
+                self.commander = tcpip.Client(
+                    host=self.host,
+                    port=self.port,
+                    log=self.log,
+                    terminator=bytes(self.terminator),
+                    encoding=self.encoding,
+                )
+                await self.commander.start_task
+            except Exception:
+                self.log.exception("Connection failed.")
+            if self.commander.connected:
+                break
+        # if not self.commander.connected:
+        #     raise Exception("Connect call failed.")
 
 
 class CanbusModule(ABC):

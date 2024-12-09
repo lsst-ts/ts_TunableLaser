@@ -69,6 +69,7 @@ class LaserCSC(salobj.ConfigurableCsc):
 
     valid_simulation_modes = (0, 1)
     version = __version__
+    unstable = False
 
     def __init__(
         self,
@@ -102,6 +103,9 @@ class LaserCSC(salobj.ConfigurableCsc):
         """Send out the TunableLaser's telemetry."""
         while True:
             try:
+                if not self.model.connected and self.model.should_be_connected:
+                    await self.fault(code=4, report="Device lost connection.")
+                    return
                 self.log.debug("Telemetry updating")
                 await self.model.read_all_registers()
                 await self.thermal_ctrl.read_all_registers()
@@ -140,6 +144,8 @@ class LaserCSC(salobj.ConfigurableCsc):
                 self.log.debug("Telemetry updated")
             except Exception:
                 self.log.exception("Telemetry loop failed.")
+                await self.fault(code=4, report="Telemetry loop failed.")
+                return
             await asyncio.sleep(self.telemetry_rate)
 
     def assert_substate(self, substates, action):
@@ -174,9 +180,10 @@ class LaserCSC(salobj.ConfigurableCsc):
                     simulatorcls = getattr(
                         mock_server, f"{type(self.model).__name__}Server"
                     )
-                    self.simulator = simulatorcls()
-                    self.log.debug(f"Chose {self.simulator=}")
-                    await self.simulator.start_task
+                    if not self.unstable:
+                        self.simulator = simulatorcls()
+                        self.log.debug(f"Chose {self.simulator=}")
+                        await self.simulator.start_task
 
                     self.thermal_ctrl_simulator = mock_server.TempCtrlServer(
                         host=self.thermal_ctrl.host
@@ -189,7 +196,11 @@ class LaserCSC(salobj.ConfigurableCsc):
                 await self.evt_detailedState.set_write(
                     detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
                 )
-                await self.model.connect()
+                try:
+                    await self.model.connect()
+                except Exception:
+                    await self.fault(code=2, report="Connection failed.")
+                    return
                 await self.model.clear_fault()
                 if self.laser_type == "Main":
                     await self.model.set_optical_configuration(self.optical_alignment)
