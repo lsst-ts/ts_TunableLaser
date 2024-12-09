@@ -126,6 +126,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                             f"m_cpu800 fault2:{self.model.m_cpu800.fault_register_2.register_value}"
                         ),
                     )
+                    return
                 await self.tel_wavelength.set_write(
                     wavelength=float(self.model.wavelength)
                 )

@@ -95,10 +95,15 @@ class MainLaserServer(tcpip.OneClientReadLoopServer):
 
     async def read_and_dispatch(self):
         """Return reply based on messaged received."""
+        unstable = random.choices([True, False], [0.4, 0.6])
         reply = await self.readuntil(b"\r")
         reply = reply.strip(self.terminator).decode(self.encoding)
         reply = self.device.parse_message(reply)
-        await self.write_str(reply)
+        if not unstable[0]:
+            await self.write_str(reply)
+        else:
+            reply = "'''Error: (8) Timeout waiting for device answer"
+            await self.write_str(reply)
 
 
 class TempCtrlServer(tcpip.OneClientReadLoopServer):

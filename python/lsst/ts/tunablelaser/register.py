@@ -170,12 +170,31 @@ class AsciiRegister:
                 await self.component.commander.write(
                     message.encode(self.component.commander.encoding)
                 )
-                await self.component.commander.read_str()
+                msg = await self.component.commander.read_str()
+                self.log.debug(f"{msg=}")
+                if msg.startswith("'''"):
+                    for _ in range(15):
+                        await self.component.commander.write(
+                            message.encode(self.component.commander.encoding)
+                        )
+                        msg = await self.component.commander.read_str()
+                        if not msg.startswith("'''"):
+                            break
             message = self.create_get_message()
             await self.component.commander.write(
                 message.encode(self.component.commander.encoding)
             )
-            self.register_value = await self.component.commander.read_str()
+            msg = await self.component.commander.read_str()
+            if msg.startswith("'''"):
+                for _ in range(15):
+                    await self.component.commander.write(
+                        message.encode(self.component.commander.encoding)
+                    )
+                    msg = await self.component.commander.read_str()
+                    self.log.debug(f"{msg=}")
+                    if not msg.startswith("'''"):
+                        break
+            self.register_value = msg
             if self.register_value is None:
                 raise TimeoutError
             self.register_value = self.register_value.rstrip("nmC\r\n")
