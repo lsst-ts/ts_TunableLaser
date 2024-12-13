@@ -95,7 +95,7 @@ class MainLaserServer(tcpip.OneClientReadLoopServer):
 
     async def read_and_dispatch(self):
         """Return reply based on messaged received."""
-        unstable = random.choices([True, False], [0.4, 0.6])
+        unstable = random.choices([True, False], [0.3, 0.7])
         reply = await self.readuntil(b"\r")
         reply = reply.strip(self.terminator).decode(self.encoding)
         reply = self.device.parse_message(reply)
