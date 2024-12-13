@@ -33,6 +33,8 @@ class as they contain the bulk of the functionality.
 __all__ = ["AsciiRegister"]
 import logging
 
+from .wizardry import NUMBER_OF_RETRIES
+
 
 class AsciiRegister:
     """A representation of an Ascii register inside of a module of the laser.
@@ -173,7 +175,7 @@ class AsciiRegister:
                 msg = await self.component.commander.read_str()
                 self.log.debug(f"{msg=}")
                 if msg.startswith("'''"):
-                    for _ in range(15):
+                    for _ in range(NUMBER_OF_RETRIES):
                         await self.component.commander.write(
                             message.encode(self.component.commander.encoding)
                         )
@@ -186,7 +188,7 @@ class AsciiRegister:
             )
             msg = await self.component.commander.read_str()
             if msg.startswith("'''"):
-                for _ in range(15):
+                for _ in range(NUMBER_OF_RETRIES):
                     await self.component.commander.write(
                         message.encode(self.component.commander.encoding)
                     )
