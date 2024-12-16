@@ -3,6 +3,7 @@ __all__ = ["Laser", "CompoWayFModule"]
 from abc import ABC, abstractmethod
 
 from lsst.ts import tcpip
+from lsst.ts.tunablelaser.wizardry import NUMBER_OF_RETRIES
 
 
 class Laser(ABC):
@@ -53,6 +54,10 @@ class Laser(ABC):
     def connected(self):
         """Is the laser connected?"""
         return self.commander.connected
+
+    @property
+    def should_be_connected(self):
+        return self.commander.should_be_connected
 
     @property
     @abstractmethod
@@ -128,14 +133,20 @@ class Laser(ABC):
         if self.csc.simulation_mode:
             self.host = self.csc.simulator.host
             self.port = self.csc.simulator.port
-        self.commander = tcpip.Client(
-            host=self.host,
-            port=self.port,
-            log=self.log,
-            terminator=bytes(self.terminator),
-            encoding=self.encoding,
-        )
-        await self.commander.start_task
+        for _ in range(NUMBER_OF_RETRIES):
+            try:
+                self.commander = tcpip.Client(
+                    host=self.host,
+                    port=self.port,
+                    log=self.log,
+                    terminator=bytes(self.terminator),
+                    encoding=self.encoding,
+                )
+                await self.commander.start_task
+            except Exception:
+                self.log.exception("Connection failed.")
+            if self.commander.connected:
+                break
 
 
 class CanbusModule(ABC):

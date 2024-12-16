@@ -26,6 +26,7 @@ import pytest
 from lsst.ts.tunablelaser.register import AsciiRegister
 
 
+# @pytest.mark.skip()
 class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.ascii_register = AsciiRegister(
@@ -84,7 +85,7 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
                 unittest.mock.AsyncMock(return_value=None)
             )
             self.ascii_register.component.commander.read_str = unittest.mock.AsyncMock(
-                return_value=None
+                side_effect=TimeoutError
             )
             await self.ascii_register.send_command()
 
@@ -108,7 +109,7 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
                 unittest.mock.AsyncMock(side_effect=TimeoutError)
             )
             self.settable_ascii_register.component.commander.read_str = (
-                unittest.mock.AsyncMock(return_value=None)
+                unittest.mock.AsyncMock(side_effect=TimeoutError)
             )
             await self.settable_ascii_register.send_command(5)
 

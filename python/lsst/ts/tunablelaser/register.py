@@ -33,6 +33,8 @@ class as they contain the bulk of the functionality.
 __all__ = ["AsciiRegister"]
 import logging
 
+from .wizardry import NUMBER_OF_RETRIES
+
 
 class AsciiRegister:
     """A representation of an Ascii register inside of a module of the laser.
@@ -162,18 +164,39 @@ class AsciiRegister:
         -------
         None
         """
+        if not self.component.connected:
+            raise RuntimeError("Not connected.")
         async with self.component.lock:
             if set_value:
                 message = self.create_set_message(set_value=set_value)
                 await self.component.commander.write(
                     message.encode(self.component.commander.encoding)
                 )
-                await self.component.commander.read_str()
+                msg = await self.component.commander.read_str()
+                self.log.debug(f"{msg=}")
+                if msg.startswith("'''"):
+                    for _ in range(NUMBER_OF_RETRIES):
+                        await self.component.commander.write(
+                            message.encode(self.component.commander.encoding)
+                        )
+                        msg = await self.component.commander.read_str()
+                        if not msg.startswith("'''"):
+                            break
             message = self.create_get_message()
             await self.component.commander.write(
                 message.encode(self.component.commander.encoding)
             )
-            self.register_value = await self.component.commander.read_str()
+            msg = await self.component.commander.read_str()
+            if msg.startswith("'''"):
+                for _ in range(NUMBER_OF_RETRIES):
+                    await self.component.commander.write(
+                        message.encode(self.component.commander.encoding)
+                    )
+                    msg = await self.component.commander.read_str()
+                    self.log.debug(f"{msg=}")
+                    if not msg.startswith("'''"):
+                        break
+            self.register_value = msg
             if self.register_value is None:
                 raise TimeoutError
             self.register_value = self.register_value.rstrip("nmC\r\n")
