@@ -516,7 +516,7 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
         self,
         csc,
         host="127.0.0.1",
-        port=50,
+        port=50000,
         terminator=b"\x03",
         encoding="ascii",
         simulation_mode=False,
