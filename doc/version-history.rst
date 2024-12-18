@@ -6,6 +6,15 @@ Version History
 
 .. towncrier release notes start
 
+ts_tunablelaser v2.2.1 (2024-12-18)
+===================================
+
+Bugfixes
+--------
+
+- Added retry attempt in case of communication instability. (`DM-47555 <https://rubinobs.atlassian.net/DM-47555>`_)
+
+
 ts_tunablelaser v2.2.0 (2024-11-26)
 ===================================
 
