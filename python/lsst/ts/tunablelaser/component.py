@@ -265,6 +265,7 @@ class MainLaser(interfaces.Laser):
     async def configure(self, config):
         """Set the configuration for the TunableLaser."""
         self.log.debug("Setting config.")
+
         self.host = config.host
         self.port = config.port
         self.maxi_opg.wavelength_register.accepted_values = range(
@@ -515,7 +516,7 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
         self,
         csc,
         host="127.0.0.1",
-        port=50,
+        port=50000,
         terminator=b"\x03",
         encoding="ascii",
         simulation_mode=False,

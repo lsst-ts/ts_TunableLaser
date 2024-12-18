@@ -34,7 +34,6 @@ import inspect
 import io
 import logging
 import random
-from ipaddress import ip_address
 
 from lsst.ts import tcpip
 
@@ -119,29 +118,14 @@ class TempCtrlServer(tcpip.OneClientReadLoopServer):
         self.device = MockNP5450()
         self.log = logging.getLogger(__name__)
         self.read_loop_task = asyncio.Future()
-        try:
-            ip_address(host)
-            super().__init__(
-                name="TempCtrl Mock Server",
-                host=host,
-                port=port,
-                log=self.log,
-                terminator=b"\r",
-                encoding="ascii",
-            )
-        except ValueError:
-            self.log.error(
-                f"TempCtrlServer hostname was invalid, assuming temp ctrler unconnected: {host}"
-            )
-            super().__init__(
-                name="TempCtrl Mock Server",
-                host=tcpip.LOCAL_HOST,
-                port=25000,
-                log=self.log,
-                terminator=b"\r",
-                encoding="ascii",
-            )
-            self.device = None
+        super().__init__(
+            name="TempCtrl Mock Server",
+            host=host,
+            port=port,
+            log=self.log,
+            terminator=b"\r",
+            encoding="ascii",
+        )
 
     async def read_and_dispatch(self):
         if self.device is not None:
