@@ -45,6 +45,7 @@ __all__ = [
     "MidiOPG",
     "E5DCB",
 ]
+
 import logging
 
 from . import interfaces
