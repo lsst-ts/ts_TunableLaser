@@ -291,8 +291,6 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
             self.csc.unstable = True
             await self.assert_next_summary_state(salobj.State.STANDBY)
             await salobj.set_summary_state(self.remote, salobj.State.DISABLED)
-            await self.assert_next_sample(self.remote.evt_errorCode, errorCode=0)
-            await self.assert_next_sample(self.remote.evt_errorCode, errorCode=2)
 
     @parameterized.expand([("disconnected_laser_ctrl.yaml")])
     async def test_unconnected_laserctrl(self, config):

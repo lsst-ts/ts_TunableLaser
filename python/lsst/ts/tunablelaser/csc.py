@@ -205,12 +205,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                 try:
                     await self.model.connect()
                 except Exception:
-                    self.log.exception("Connection to laser failed.")
-                    await self.evt_errorCode.set_write(
-                        errorCode=2, errorReport="Connection failed."
+                    self.log.exception(
+                        "Connection to the laser failed. CSC will operate in reduced capacity."
                     )
-                    # await self.fault(code=2, report="Connection failed.")
-                    # return
                 if self.laser_connected:
                     await self.model.clear_fault()
                     if self.laser_type == "Main":
@@ -221,7 +218,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                 try:
                     await self.thermal_ctrl.connect()
                 except Exception:
-                    self.log.exception("Connection to omron failed.")
+                    self.log.exception(
+                        "Connection to omron failed. CSC will operate at reduced capacity."
+                    )
 
             if self.summary_state == salobj.State.DISABLED and self.laser_connected:
                 if self.model.is_propagating:
@@ -276,7 +275,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                     TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE
                 )
         else:
-            raise salobj.ExpectedError("Not connected.")
+            raise salobj.ExpectedError(
+                "Laser is not connected. Command rejected. If unexpected perform state cycle again."
+            )
 
     async def do_setContinuousMode(self, data):
         """Set continuous mode for the laser.
@@ -294,7 +295,9 @@ class LaserCSC(salobj.ConfigurableCsc):
             await self.model.set_continuous_mode()
             await self.evt_continuousModeSet.set_write()
         else:
-            raise salobj.ExpectedError("Not connected.")
+            raise salobj.ExpectedError(
+                "Laser is not connected. Command rejected. If unexpected perform state cycle again."
+            )
 
     async def do_changeWavelength(self, data):
         """Change the wavelength of the laser.
@@ -308,7 +311,9 @@ class LaserCSC(salobj.ConfigurableCsc):
             await self.model.change_wavelength(data.wavelength)
             await self.evt_wavelengthChanged.set_write(wavelength=data.wavelength)
         else:
-            raise salobj.ExpectedError("Not connected")
+            raise salobj.ExpectedError(
+                "Laser is not connected. Command rejected. If unexpected perform state cycle again."
+            )
 
     async def do_startPropagateLaser(self, data):
         """Change the state to the Propagating State of the laser.
@@ -329,7 +334,9 @@ class LaserCSC(salobj.ConfigurableCsc):
             await self.model.set_output_energy_level("MAX")
             await self.model.start_propagating(data)
         else:
-            raise salobj.ExpectedError("Not connected.")
+            raise salobj.ExpectedError(
+                "Laser is not connected. Command rejected. If unexpected perform state cycle again."
+            )
 
     async def do_stopPropagateLaser(self, data):
         """Stop the Propagating State of the laser.
@@ -363,7 +370,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                     TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
                 )
         else:
-            raise salobj.ExpectedError("Not connected.")
+            raise salobj.ExpectedError(
+                "Laser is not connected. Command rejected. If unexpected perform state cycle again."
+            )
 
     async def do_clearLaserFault(self, data):
         """Clear the hardware fault state of the laser by turning the power
@@ -377,7 +386,9 @@ class LaserCSC(salobj.ConfigurableCsc):
         if self.laser_connected:
             await self.model.clear_fault()
         else:
-            raise salobj.ExpectedError("Not connected.")
+            raise salobj.ExpectedError(
+                "Laser is not connected. Command rejected. If unexpected perform state cycle again."
+            )
 
     async def do_triggerBurst(self, data):
         """Trigger a burst."""
@@ -389,7 +400,9 @@ class LaserCSC(salobj.ConfigurableCsc):
         if self.laser_connected:
             await self.model.trigger_burst()
         else:
-            raise salobj.ExpectedError("Not connected.")
+            raise salobj.ExpectedError(
+                "Laser is not connected. Command rejected. If unexpected perform state cycle again."
+            )
 
     async def do_changeTempCtrlSetpoint(self, data):
         """Change the set point of the laser thermal reader."""
@@ -397,7 +410,9 @@ class LaserCSC(salobj.ConfigurableCsc):
         if self.omron_connected:
             await self.thermal_ctrl.laser_thermal_change_set_point(value=data.setpoint)
         else:
-            raise salobj.ExpectedError("Not connected.")
+            raise salobj.ExpectedError(
+                "Omron is not connected. Command rejected. If unexpected perform state cycle again."
+            )
 
     async def do_turnOffTempCtrl(self, data):
         """Turn off the run mode of the laser thermal reader."""
@@ -405,7 +420,9 @@ class LaserCSC(salobj.ConfigurableCsc):
         if self.omron_connected:
             await self.thermal_ctrl.laser_thermal_turn_off()
         else:
-            raise salobj.ExpectedError("Not connected.")
+            raise salobj.ExpectedError(
+                "Omron is not connected. Command rejected. If unexpected perform state cycle again."
+            )
 
     async def do_turnOnTempCtrl(self, data):
         """Turn on the run mode of the laser thermal reader."""
@@ -413,7 +430,9 @@ class LaserCSC(salobj.ConfigurableCsc):
         if self.omron_connected:
             await self.thermal_ctrl.laser_thermal_turn_on()
         else:
-            raise salobj.ExpectedError("Not connected.")
+            raise salobj.ExpectedError(
+                "Omron is not connected. Command rejected. If unexpected perform state cycle again."
+            )
 
     async def do_setOpticalConfiguration(self, data):
         """Change Optical Alignment of the laser.
@@ -430,7 +449,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                     configuration=data.configuration
                 )
         else:
-            raise salobj.ExpectedError("Not connected")
+            raise salobj.ExpectedError(
+                "Laser is not connected. Command rejected. If unexpected perform state cycle again."
+            )
 
     async def publish_new_detailed_state(self, new_sub_state):
         """Publish the updated detailed state.
