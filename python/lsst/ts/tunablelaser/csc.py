@@ -208,6 +208,10 @@ class LaserCSC(salobj.ConfigurableCsc):
                     self.log.exception(
                         "Connection to the laser failed. CSC will operate in reduced capacity."
                     )
+                    if not self.model.ignore_disconnection:
+                        await self.fault(
+                            code=2, report="Laser should be able to connect but is not."
+                        )
                 if self.laser_connected:
                     await self.model.clear_fault()
                     if self.laser_type == "Main":
@@ -221,6 +225,11 @@ class LaserCSC(salobj.ConfigurableCsc):
                     self.log.exception(
                         "Connection to omron failed. CSC will operate at reduced capacity."
                     )
+                    if not self.thermal_ctrl.ignore_disconnection:
+                        await self.fault(
+                            code=3,
+                            report="Thermal controller should be able to connect but is not.",
+                        )
 
             if self.summary_state == salobj.State.DISABLED and self.laser_connected:
                 if self.model.is_propagating:

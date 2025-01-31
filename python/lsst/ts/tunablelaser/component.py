@@ -100,6 +100,7 @@ class MainLaser(interfaces.Laser):
         self.m_ldcO48 = canbus_modules.MLDCO48(component=self)
         self.laser_warmup_delay = 10
         self.lock = asyncio.Lock()
+        self.ignore_disconnection = None
 
     @property
     def is_propagating(self):
@@ -265,6 +266,7 @@ class MainLaser(interfaces.Laser):
     async def configure(self, config):
         """Set the configuration for the TunableLaser."""
         self.log.debug("Setting config.")
+        self.ignore_disconnection = config.allow_disconnected["laser"]
 
         self.host = config.host
         self.port = config.port
@@ -347,6 +349,7 @@ class StubbsLaser(interfaces.Laser):
         self.m_ldcO48 = canbus_modules.MLDCO48(component=self)
         self.laser_warmup_delay = 10
         self.lock = asyncio.Lock()
+        self.ignore_disconnection = None
 
     @property
     def is_propagating(self):
@@ -460,6 +463,7 @@ class StubbsLaser(interfaces.Laser):
 
     async def configure(self, config):
         self.log.debug("Setting config.")
+        self.ignore_disconnection = config.allow_disconnected["laser"]
         self.host = config.host
         self.port = config.port
 
@@ -542,6 +546,7 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
             self.host = None
             self.e5dc_b = None
         self.port = port
+        self.ignore_disconnection = None
 
     @property
     def temperature(self):
@@ -578,6 +583,7 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
         self.log.debug("Setting config.")
         self.host = config.host
         self.port = config.port
+        self.ignore_disconnection = config.allow_disconnected["thermal_controller"]
 
     async def read_all_registers(self):
         if self.e5dc_b is not None:

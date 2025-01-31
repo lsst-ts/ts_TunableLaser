@@ -7,6 +7,9 @@ optical_configuration: "F1 No SCU"
 timeout: 1
 type: "Main"
 temp_ctrl:
-  host: "none"
+  host: None
   port: 50000
+allow_disconnected:
+  laser: false
+  thermal_controller: true
   
