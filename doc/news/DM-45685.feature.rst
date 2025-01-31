@@ -1,0 +1,1 @@
+Made CSC function without connecting to laser so that temperature control can be commanded.

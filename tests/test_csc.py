@@ -79,15 +79,6 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
         ):
             await self.assert_next_sample(topic=self.remote.tel_wavelength)
             await self.assert_next_sample(topic=self.remote.tel_temperature)
-            await self.assert_next_sample(
-                topic=self.remote.evt_summaryState,
-                summaryState=salobj.State.ENABLED,
-            )
-            self.csc.simulator.device.propagating = "FAULT"
-            await self.assert_next_sample(
-                topic=self.remote.evt_summaryState,
-                summaryState=salobj.State.FAULT,
-            )
 
     @parameterized.expand([(""), ("stubbs.yaml")])
     async def test_change_wavelength(self, config):
@@ -286,22 +277,31 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
         async with self.make_csc(
             initial_state=salobj.State.ENABLED, simulation_mode=1, override=config
         ):
-            await self.remote.cmd_turnOnTempCtrl.set_start(timeout=STD_TIMEOUT)
-            await self.remote.cmd_changeTempCtrlSetpoint.set_start(
-                setpoint=100, timeout=STD_TIMEOUT
-            )
-            await self.remote.cmd_turnOffTempCtrl.set_start(timeout=STD_TIMEOUT)
+            with pytest.raises(salobj.AckError):
+                await self.remote.cmd_turnOnTempCtrl.set_start(timeout=STD_TIMEOUT)
+            with pytest.raises(salobj.AckError):
+                await self.remote.cmd_changeTempCtrlSetpoint.set_start(
+                    setpoint=100, timeout=STD_TIMEOUT
+                )
+            with pytest.raises(salobj.AckError):
+                await self.remote.cmd_turnOffTempCtrl.set_start(timeout=STD_TIMEOUT)
 
     async def test_bad_connection(self):
         async with self.make_csc(initial_state=salobj.State.STANDBY, simulation_mode=1):
             self.csc.unstable = True
             await self.assert_next_summary_state(salobj.State.STANDBY)
             await salobj.set_summary_state(self.remote, salobj.State.DISABLED)
-            await self.assert_next_summary_state(salobj.State.FAULT)
-            self.csc.unstable = False
-            await salobj.set_summary_state(self.remote, salobj.State.DISABLED)
-            await self.assert_next_summary_state(salobj.State.STANDBY)
-            await self.assert_next_summary_state(salobj.State.DISABLED)
+
+    @parameterized.expand([("disconnected_laser_ctrl.yaml")])
+    async def test_unconnected_laserctrl(self, config):
+        async with self.make_csc(
+            initial_state=salobj.State.ENABLED, simulation_mode=1, override=config
+        ):
+            await self.remote.cmd_turnOnTempCtrl.set_start(timeout=STD_TIMEOUT)
+            await self.remote.cmd_changeTempCtrlSetpoint.set_start(
+                setpoint=100, timeout=STD_TIMEOUT
+            )
+            await self.remote.cmd_turnOffTempCtrl.set_start(timeout=STD_TIMEOUT)
 
 
 if __name__ == "__main__":

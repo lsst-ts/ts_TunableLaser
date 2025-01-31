@@ -27,7 +27,7 @@ CONFIG_SCHEMA = yaml.safe_load(
     """
 $schema: http://json-schema.org/draft-07/schema#
 $id: https://github.com/lsst-ts/ts_TunableLaser/blob/master/schema/TunableLaser.yaml
-title: TunableLaser v4
+title: TunableLaser v5
 description: Schema for TunableLaser configuration files
 type: object
 properties:
@@ -73,7 +73,22 @@ properties:
       port:
         type: integer
         default: 50
-      additionalProperties: false
+    required:
+      - host
+      - port
+    additionalProperties: false
+  allow_disconnected:
+    description: Allows for CSC to work with disconnected devices.
+    type: object
+    properties:
+      laser:
+        type: boolean
+      thermal_controller:
+        type: boolean
+      required:
+        - laser
+        - thermal_controller
+    additionalProperties: false
 required:
   - type
   - host
@@ -82,6 +97,7 @@ required:
   - optical_configuration
   - wavelength
   - temp_ctrl
+  - allow_disconnected
 additionalProperties: false
 """
 )
