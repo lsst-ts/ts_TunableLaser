@@ -22,7 +22,9 @@
 __all__ = ["MainLaser", "StubbsLaser", "TemperatureCtrl"]
 
 import asyncio
+import logging
 
+from lsst.ts import tcpip
 from lsst.ts.xml.enums.TunableLaser import LaserDetailedState
 
 from . import canbus_modules, interfaces
@@ -508,14 +510,14 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
     lock : `asyncio.Lock`
     A lock for writing/reading messages.
     host : `string`
-    the host for the temp controller to connect to during simulation mode
+    The host for the temp controller to connect to during simulation mode
     """
 
     def __init__(
         self,
         csc,
         host="127.0.0.1",
-        port=50,
+        port=50000,
         terminator=b"\x03",
         encoding="ascii",
         simulation_mode=False,
@@ -544,12 +546,14 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
 
     @property
     def temperature(self):
+        """Return temperature value."""
         if self.e5dc_b is not None:
             return (self.e5dc_b.set_point_register.register_value,)
         else:
             return (-1,)
 
     async def laser_thermal_turn_on(self):
+        """Turn the heater and fans on."""
         if self.e5dc_b is not None:
             await self.e5dc_b.run_stop_register.set_register_value(True)
         else:
@@ -558,6 +562,7 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
             )
 
     async def laser_thermal_turn_off(self):
+        """Turn the heater and fans off."""
         if self.e5dc_b is not None:
             await self.e5dc_b.run_stop_register.set_register_value(False)
         else:
@@ -566,6 +571,7 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
             )
 
     async def laser_thermal_change_set_point(self, value):
+        """Change the temperature set point value."""
         if self.e5dc_b is not None:
             await self.e5dc_b.set_point_register.set_register_value(value)
         else:
@@ -574,14 +580,133 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
             )
 
     async def configure(self, config):
+        """Configure the thermal controller."""
         self.log.debug("Setting config.")
         self.host = config.host
         self.port = config.port
 
     async def read_all_registers(self):
+        """Read all of the registers."""
         if self.e5dc_b is not None:
             await self.e5dc_b.update_register()
         else:
             self.log.warning(
                 "Tried to update_register but thermal ctrler is unconnected."
             )
+
+
+class FanControlClient:
+    """Implement fan control client.
+
+    Parameters
+    ----------
+    simulation_mode : `bool`, optional
+        Is the client in simulation mode.
+
+    Attributes
+    ----------
+    host : `str`
+        The hostname.
+    port : `int`
+        The port.
+    log : `logging.Logger`
+        The log object.
+    client : `tcpip.Client`
+        The client.
+    response : `None`
+        The latest response.
+    """
+
+    def __init__(self, simulation_mode=False):
+        self.host = ""
+        self.port = None
+        self.log = logging.getLogger(__name__)
+        self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
+        self.response = None
+
+    @property
+    def connected(self):
+        """Is the client connected."""
+        return self.client.connected
+
+    async def connect(self):
+        """Connect to the service."""
+        self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
+        await self.client.start_task
+
+    async def disconnect(self):
+        """Disconnect from the service."""
+        await self.client.close()
+        self.host = ""
+        self.port = None
+        self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
+
+    async def get_messages(self):
+        """Get messages recieved from the service."""
+        while True:
+            try:
+                async with asyncio.timeout(10):
+                    response = await self.client.read_json()
+            except asyncio.TimeoutError:
+                self.log.exception("Response timed out")
+                response = "Response timed out"
+            finally:
+                self.response = response
+                self.client.log.info(response)
+                await asyncio.sleep(1)
+
+
+class LaserAlignmentClient:
+    """Implement the laser alignment client.
+
+    Attributes
+    ----------
+    host : `str`
+        The hostname.
+    port : `int`
+        The port.
+    log : `logging.Logger`
+        The log object.
+    client : `tcpip.Client`
+        The client.
+    response : `None`
+        The latest response.
+    """
+
+    def __init__(self):
+        self.host = ""
+        self.port = None
+        self.log = logging.getLogger(__name__)
+        self.response = None
+        self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
+
+    @property
+    def connected(self):
+        """Is the client connected."""
+        return self.client.connected
+
+    async def connect(self):
+        """Connect to the service."""
+        self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
+        await self.client.start_task
+
+    async def disconnect(self):
+        """Disconnect from the service."""
+        await self.client.close()
+        self.host = ""
+        self.port = None
+        self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
+
+    async def get_messages(self):
+        """Get messages recieved from the service."""
+        while True:
+            try:
+                async with asyncio.timeout(10):
+                    response = await self.client.read_json()
+            except asyncio.TimeoutError:
+                self.log.exception("Response timed out.")
+                response = "Response timed out"
+            finally:
+                self.response = response
+                self.client.log.info(response)
+                await asyncio.sleep(1)

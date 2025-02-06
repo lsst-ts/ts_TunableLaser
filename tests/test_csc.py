@@ -88,6 +88,8 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                 topic=self.remote.evt_summaryState,
                 summaryState=salobj.State.FAULT,
             )
+            assert self.csc.fc_client.response is not None
+            assert self.csc.la_client.response is not None
 
     @parameterized.expand([(""), ("stubbs.yaml")])
     async def test_change_wavelength(self, config):

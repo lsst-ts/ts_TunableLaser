@@ -38,6 +38,10 @@ def run_tunablelaser():
     asyncio.run(LaserCSC.amain(index=None))
 
 
+def command_tunablelaser():
+    asyncio.run(salobj.CscCommander.amain(name="TunableLaser"))
+
+
 class LaserCSC(salobj.ConfigurableCsc):
     """This is the class that implements the TunableLaser CSC.
 
@@ -94,6 +98,10 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.simulator = None
         self.thermal_ctrl_simulator = None
         self.laser_type = None
+        self.fc_client = component.FanControlClient()
+        self.la_client = component.LaserAlignmentClient()
+        self.fc_task = utils.make_done_future()
+        self.la_task = utils.make_done_future()
 
     @property
     def connected(self):
@@ -109,6 +117,8 @@ class LaserCSC(salobj.ConfigurableCsc):
                 self.log.debug("Telemetry updating")
                 await self.model.read_all_registers()
                 await self.thermal_ctrl.read_all_registers()
+                self.log.info(self.fc_client.response)
+                self.log.info(self.la_client.response)
                 self.log.debug(f"model={self.model}")
                 self.log.debug(
                     f"detailed_state={self.evt_detailedState.data.detailedState}"
@@ -192,7 +202,14 @@ class LaserCSC(salobj.ConfigurableCsc):
                     await self.thermal_ctrl_simulator.start_task
                     self.thermal_ctrl.host = self.thermal_ctrl_simulator.host
                     self.thermal_ctrl.port = self.thermal_ctrl_simulator.port
-
+                    self.fc_simulator = mock_server.MockFanControlServer()
+                    await self.fc_simulator.start_task
+                    self.fc_client.host = self.fc_simulator.host
+                    self.fc_client.port = self.fc_simulator.port
+                    self.la_simulator = mock_server.MockLaserAlignmentServer()
+                    await self.la_simulator.start_task
+                    self.la_client.host = self.la_simulator.host
+                    self.la_client.port = self.la_simulator.port
             if not self.connected and self.model is not None:
                 await self.evt_detailedState.set_write(
                     detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
@@ -206,6 +223,8 @@ class LaserCSC(salobj.ConfigurableCsc):
                 if self.laser_type == "Main":
                     await self.model.set_optical_configuration(self.optical_alignment)
                 await self.thermal_ctrl.connect()
+                await self.fc_client.connect()
+                await self.la_client.connect()
             if (
                 self.summary_state == salobj.State.DISABLED
                 and self.model.is_propagating
@@ -216,18 +235,26 @@ class LaserCSC(salobj.ConfigurableCsc):
                 )
             if self.telemetry_task.done():
                 self.telemetry_task = asyncio.create_task(self.telemetry())
+            if self.fc_task.done():
+                self.fc_task = asyncio.create_task(self.fc_client.get_messages())
+            if self.la_task.done():
+                self.la_task = asyncio.create_task(self.la_client.get_messages())
         else:
             if self.model is not None and self.model.connected:
                 await self.model.disconnect()
                 self.model = None
                 await self.thermal_ctrl.disconnect()
                 self.thermal_ctrl = None
+                await self.fc_client.disconnect()
+                await self.la_client.disconnect()
             if self.simulator is not None:
                 await self.simulator.close()
                 self.simulator = None
                 await self.thermal_ctrl_simulator.close()
                 self.thermal_ctrl_simulator = None
             self.telemetry_task.cancel()
+            self.fc_task.cancel()
+            self.la_task.cancel()
 
     async def do_setBurstMode(self, data):
         """Set burst mode for the laser.
