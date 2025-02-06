@@ -22,7 +22,9 @@
 __all__ = ["MainLaser", "StubbsLaser", "TemperatureCtrl"]
 
 import asyncio
+import logging
 
+from lsst.ts import tcpip
 from lsst.ts.xml.enums.TunableLaser import LaserDetailedState
 
 from . import canbus_modules, interfaces
@@ -515,7 +517,7 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
         self,
         csc,
         host="127.0.0.1",
-        port=50,
+        port=50000,
         terminator=b"\x03",
         encoding="ascii",
         simulation_mode=False,
@@ -585,3 +587,75 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
             self.log.warning(
                 "Tried to update_register but thermal ctrler is unconnected."
             )
+
+
+class FanControlClient:
+    def __init__(self, simulation_mode=False):
+        self.host = ""
+        self.port = None
+        self.log = logging.getLogger(__name__)
+        self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
+        self.response = None
+
+    @property
+    def connected(self):
+        return self.client.connected
+
+    async def connect(self):
+        self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
+        await self.client.start_task
+
+    async def disconnect(self):
+        await self.client.close()
+        self.host = ""
+        self.port = None
+        self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
+
+    async def get_messages(self):
+        while True:
+            try:
+                async with asyncio.timeout(10):
+                    response = await self.client.read_json()
+            except asyncio.TimeoutError:
+                self.log.exception("Response timed out")
+                response = "Response timed out"
+            finally:
+                self.response = response
+                self.client.log.info(response)
+                await asyncio.sleep(1)
+
+
+class LaserAlignmentClient:
+    def __init__(self):
+        self.host = ""
+        self.port = None
+        self.log = logging.getLogger(__name__)
+        self.response = None
+        self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
+
+    @property
+    def connected(self):
+        return self.client.connected
+
+    async def connect(self):
+        self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
+        await self.client.start_task
+
+    async def disconnect(self):
+        await self.client.close()
+        self.host = ""
+        self.port = None
+        self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
+
+    async def get_messages(self):
+        while True:
+            try:
+                async with asyncio.timeout(10):
+                    response = await self.client.read_json()
+            except asyncio.TimeoutError:
+                self.log.exception("Response timed out.")
+                response = "Response timed out"
+            finally:
+                self.response = response
+                self.client.log.info(response)
+                await asyncio.sleep(1)

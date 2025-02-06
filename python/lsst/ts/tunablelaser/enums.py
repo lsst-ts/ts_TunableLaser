@@ -3,6 +3,10 @@ __all__ = ["Power", "Mode", "Output", "OpticalConfiguration"]
 import enum
 
 
+class Error(enum.IntEnum):
+    pass
+
+
 class Power(enum.StrEnum):
     """The power states for the laser's propagation module."""
 
