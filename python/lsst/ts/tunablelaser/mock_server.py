@@ -36,7 +36,7 @@ import logging
 import random
 from ipaddress import ip_address
 
-from lsst.ts import tcpip
+from lsst.ts import tcpip, utils
 
 from .compoway_register import CompoWayFGeneralRegister
 from .enums import Mode, OpticalConfiguration, Output, Power
@@ -106,6 +106,76 @@ class MainLaserServer(tcpip.OneClientReadLoopServer):
             await self.write_str(reply)
 
 
+class MockFanControlServer(tcpip.OneClientServer):
+    def __init__(self):
+        self.send_messages_task = utils.make_done_future()
+        self._status = False
+        self._did_change = False
+        super().__init__(host=tcpip.LOCAL_HOST, port=0, log=logging.getLogger(__name__))
+
+    @property
+    def status(self):
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        self._status = status
+        self._did_change = True
+
+    async def start(self, **kwargs):
+        self.send_messages_task = asyncio.create_task(self.send_messages())
+        return await super().start(**kwargs)
+
+    async def close(self):
+        self.send_messages_task.cancel()
+        return await super().close()
+
+    async def send_messages(self):
+        self.status = False
+        while True:
+            if self.connected:
+                msg = {"status": self.status}
+                if self._did_change:
+                    await self.write_json(msg)
+                    self._did_change = False
+            await asyncio.sleep(1)
+
+
+class MockLaserAlignmentServer(tcpip.OneClientServer):
+    def __init__(self):
+        self.send_messages_task = utils.make_done_future()
+        self._status = False
+        self._did_change = False
+        super().__init__(host=tcpip.LOCAL_HOST, port=0, log=logging.getLogger(__name__))
+
+    @property
+    def status(self):
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        self._status = status
+        self._did_change = True
+
+    async def start(self, **kwargs):
+        self.send_messages_task = asyncio.create_task(self.send_messages())
+        return await super().start(**kwargs)
+
+    async def close(self):
+        self.send_messages_task.cancel()
+        return await super().close()
+
+    async def send_messages(self):
+        self.status = False
+        while True:
+            if self.connected:
+                msg = {"status": self.status}
+                if self._did_change:
+                    await self.write_json(msg)
+                    self._did_change = False
+            await asyncio.sleep(1)
+
+
 class TempCtrlServer(tcpip.OneClientReadLoopServer):
     """Simulates the tcpip server for the temp ctrl.
 
@@ -136,7 +206,7 @@ class TempCtrlServer(tcpip.OneClientReadLoopServer):
             super().__init__(
                 name="TempCtrl Mock Server",
                 host=tcpip.LOCAL_HOST,
-                port=25000,
+                port=50000,
                 log=self.log,
                 terminator=b"\r",
                 encoding="ascii",
