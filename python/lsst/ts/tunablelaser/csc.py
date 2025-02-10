@@ -222,6 +222,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                 await self.model.clear_fault()
                 if self.laser_type == "Main":
                     await self.model.set_optical_configuration(self.optical_alignment)
+                    await self.evt_opticalConfiguration.set_write(
+                        configuration=self.optical_alignment
+                    )
                 await self.thermal_ctrl.connect()
                 await self.fc_client.connect()
                 await self.la_client.connect()
