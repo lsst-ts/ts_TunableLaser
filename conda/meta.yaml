@@ -15,7 +15,7 @@ build:
 test:
   requires:
     - ts-conda-build =0.4
-    - ts-idl {{ idl_version }}
+    - ts-xml {{ xml_version }}
     - ts-salobj {{ salobj_version }}
     - parameterized
   source_files:
@@ -40,5 +40,5 @@ requirements:
     - setuptools
     - setuptools_scm
     - ts-salobj
-    - ts-idl
+    - ts-xml
     - ts-tcpip
