@@ -133,11 +133,14 @@ class MainLaser(interfaces.Laser):
         ----------
         wavelength : `float`
             The wavelength to change to.
+            This remains as float because it was used in other places.
+            However, it should have been a long int.
 
             :Units: nanometers
         """
         self.log.debug("Changing wavelength")
-        await self.maxi_opg.change_wavelength(wavelength)
+        wave = int(wavelength)
+        await self.maxi_opg.change_wavelength(wave)
 
     async def set_optical_configuration(self, optical_configuration):
         """Change the optical alignment of the laser.

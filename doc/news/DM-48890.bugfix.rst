@@ -1,0 +1,1 @@
+Made sure that change wavelength was fed an integer and added an event for the opticalConfiguration during config
