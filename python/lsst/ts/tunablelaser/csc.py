@@ -27,10 +27,11 @@ __all__ = ["run_tunablelaser", "LaserCSC"]
 import asyncio
 
 from lsst.ts import salobj, utils
-from lsst.ts.xml.enums import TunableLaser
+from lsst.ts.xml.enums.TunableLaser import LaserDetailedState, LaserErrorCode
 
 from . import __version__, component, mock_server
 from .config_schema import CONFIG_SCHEMA
+from .enums import OpticalConfiguration
 
 
 def run_tunablelaser():
@@ -129,7 +130,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                     or self.model.m_cpu800.power_register_2.register_value == "FAULT"
                 ):
                     await self.fault(
-                        code=TunableLaser.LaserErrorCode.HW_CPU_ERROR,
+                        code=LaserErrorCode.HW_CPU_ERROR,
                         report=(
                             f"cpu8000 fault:{self.model.cpu8000.fault_register.register_value}"
                             f"m_cpu800 fault:{self.model.m_cpu800.fault_register.register_value}"
@@ -176,7 +177,7 @@ class LaserCSC(salobj.ConfigurableCsc):
 
         """
         if self.evt_detailedState.data.detailedState not in [
-            TunableLaser.LaserDetailedState(substate) for substate in substates
+            LaserDetailedState(substate) for substate in substates
         ]:
             raise salobj.ExpectedError(
                 f"{action} not allowed in state {self.evt_detailedState.data.detailedState!r}"
@@ -212,7 +213,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                     self.la_client.port = self.la_simulator.port
             if not self.connected and self.model is not None:
                 await self.evt_detailedState.set_write(
-                    detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
+                    detailedState=LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
                 )
                 try:
                     await self.model.connect()
@@ -234,7 +235,7 @@ class LaserCSC(salobj.ConfigurableCsc):
             ):
                 await self.model.stop_propagating()
                 await self.publish_new_detailed_state(
-                    TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
+                    LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
                 )
             if self.telemetry_task.done():
                 self.telemetry_task = asyncio.create_task(self.telemetry())
@@ -275,18 +276,18 @@ class LaserCSC(salobj.ConfigurableCsc):
             await self.model.set_burst_mode(data.count)
             await self.evt_burstModeSet.set_write()
             if self.evt_detailedState.data.detailedState in [
-                TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE,
-                TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE,
+                LaserDetailedState.PROPAGATING_BURST_MODE,
+                LaserDetailedState.PROPAGATING_CONTINUOUS_MODE,
             ]:
                 await self.publish_new_detailed_state(
-                    TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE
+                    LaserDetailedState.PROPAGATING_BURST_MODE
                 )
             if self.evt_detailedState.data.detailedState in [
-                TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE,
-                TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE,
+                LaserDetailedState.NONPROPAGATING_BURST_MODE,
+                LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE,
             ]:
                 await self.publish_new_detailed_state(
-                    TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE
+                    LaserDetailedState.NONPROPAGATING_BURST_MODE
                 )
         else:
             raise salobj.ExpectedError("Not connected.")
@@ -333,8 +334,8 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.assert_enabled()
         self.assert_substate(
             [
-                TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE,
-                TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE,
+                LaserDetailedState.NONPROPAGATING_BURST_MODE,
+                LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE,
             ],
             "startPropagateLaser",
         )
@@ -354,8 +355,8 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.assert_enabled()
         self.assert_substate(
             [
-                TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE,
-                TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE,
+                LaserDetailedState.PROPAGATING_BURST_MODE,
+                LaserDetailedState.PROPAGATING_CONTINUOUS_MODE,
             ],
             "stopPropagateLaser",
         )
@@ -363,17 +364,17 @@ class LaserCSC(salobj.ConfigurableCsc):
             await self.model.stop_propagating()
             if (
                 self.evt_detailedState.data.detailedState
-                == TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE
+                == LaserDetailedState.PROPAGATING_BURST_MODE
             ):
                 await self.publish_new_detailed_state(
-                    TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE
+                    LaserDetailedState.NONPROPAGATING_BURST_MODE
                 )
             elif (
                 self.evt_detailedState.data.detailedState
-                == TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE
+                == LaserDetailedState.PROPAGATING_CONTINUOUS_MODE
             ):
                 await self.publish_new_detailed_state(
-                    TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
+                    LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
                 )
         else:
             raise salobj.ExpectedError("Not connected.")
@@ -396,7 +397,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         """Trigger a burst."""
         self.assert_enabled()
         self.assert_substate(
-            [TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE],
+            [LaserDetailedState.PROPAGATING_BURST_MODE],
             "Trigger",
         )
         await self.model.trigger_burst()
@@ -433,11 +434,18 @@ class LaserCSC(salobj.ConfigurableCsc):
                alignment of the laser.
         """
         self.assert_enabled()
+        try:
+            configuration = OpticalConfiguration(data.configuration)
+        except Exception:
+            raise salobj.ExpectedError(
+                f"Optical Configuration {data.configuration} not included in allowable options"
+            )
+
         if self.connected:
             if self.laser_type == "Main":  # only main laser can do this
-                await self.model.set_optical_configuration(data.configuration)
+                await self.model.set_optical_configuration(configuration)
                 await self.evt_opticalConfiguration.set_write(
-                    configuration=data.configuration
+                    configuration=configuration
                 )
         else:
             raise salobj.ExpectedError("Not connected")
@@ -450,7 +458,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         new_sub_state : `LaserDetailedState`
             The new sub state to publish.
         """
-        new_sub_state = TunableLaser.LaserDetailedState(new_sub_state)
+        new_sub_state = LaserDetailedState(new_sub_state)
         await self.evt_detailedState.set_write(detailedState=new_sub_state)
 
     async def configure(self, config):

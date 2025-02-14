@@ -147,7 +147,7 @@ class MainLaser(interfaces.Laser):
 
         Parameters
         ----------
-        optical_configuration: `str`, {straight-through,F1,F2}
+        optical_configuration: `str`, OpticalConfiguration(enum.StrEnum)
             The optical alignment to switch to.
         """
         self.maxi_opg.optical_alignment = optical_configuration
