@@ -5,7 +5,9 @@
 # included by low-level LSST packages such as utils or daf_base.
 # Any other package whose interface is used should be listed explicitly
 # rather than assuming it will be included recursively.
-
+setupRequired(ts_salobj)
+setupRequired(ts_tcpip)
+setupRequired(ts_utils)
 
 # The following is boilerplate for all packages.
 # See Tech Note DMTN-001 for details on LSST_LIBRARY_PATH

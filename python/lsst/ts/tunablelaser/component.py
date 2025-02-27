@@ -654,9 +654,10 @@ class FanControlClient:
                 self.log.exception("Response timed out")
                 response = "Response timed out"
             finally:
-                self.response = response
-                self.client.log.info(response)
-                await asyncio.sleep(1)
+                if self.response != response:
+                    self.response = response
+                    self.client.log.info(self.response)
+            await asyncio.sleep(60)
 
 
 class LaserAlignmentClient:
@@ -710,6 +711,7 @@ class LaserAlignmentClient:
                 self.log.exception("Response timed out.")
                 response = "Response timed out"
             finally:
-                self.response = response
-                self.client.log.info(response)
-                await asyncio.sleep(1)
+                if self.response != response:
+                    self.response = response
+                    self.client.log.info(self.response)
+            await asyncio.sleep(60)

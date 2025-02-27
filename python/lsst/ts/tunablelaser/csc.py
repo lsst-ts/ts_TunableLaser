@@ -22,7 +22,7 @@
 """Implements CSC for the TunableLaser.
 
 """
-__all__ = ["run_tunablelaser", "LaserCSC"]
+__all__ = ["run_tunablelaser", "LaserCSC", "command_tunablelaser"]
 
 import asyncio
 
@@ -39,7 +39,7 @@ def run_tunablelaser():
 
 
 def command_tunablelaser():
-    asyncio.run(salobj.CscCommander.amain(name="TunableLaser"))
+    asyncio.run(salobj.CscCommander.amain(name="TunableLaser", index=None))
 
 
 class LaserCSC(salobj.ConfigurableCsc):
@@ -117,8 +117,6 @@ class LaserCSC(salobj.ConfigurableCsc):
                 self.log.debug("Telemetry updating")
                 await self.model.read_all_registers()
                 await self.thermal_ctrl.read_all_registers()
-                self.log.info(self.fc_client.response)
-                self.log.info(self.la_client.response)
                 self.log.debug(f"model={self.model}")
                 self.log.debug(
                     f"detailed_state={self.evt_detailedState.data.detailedState}"
@@ -225,6 +223,8 @@ class LaserCSC(salobj.ConfigurableCsc):
                     await self.evt_opticalConfiguration.set_write(
                         configuration=self.optical_alignment
                     )
+                self.fc_client.log = self.log
+                self.la_client.log = self.log
                 await self.thermal_ctrl.connect()
                 await self.fc_client.connect()
                 await self.la_client.connect()
