@@ -19,9 +19,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["Power", "Mode", "Output", "OpticalConfiguration"]
+__all__ = ["Power", "Mode", "Output", "OpticalConfiguration", "SimulationMode"]
 
 import enum
+
+
+class SimulationMode(enum.IntEnum):
+    OFF = 0
+    ON = 1
+    MOCK_INSTABILITY = 2
 
 
 class Error(enum.IntEnum):

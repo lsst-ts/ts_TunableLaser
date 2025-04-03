@@ -198,13 +198,17 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
         async with self.make_csc(
             initial_state=salobj.State.ENABLED, simulation_mode=1, override=config
         ):
-            self.remote.evt_detailedState.flush()
+            await self.assert_next_sample(
+                topic=self.remote.evt_detailedState,
+                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE,
+            )
             await self.csc.publish_new_detailed_state(
                 TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE
             )
             await self.assert_next_sample(
                 topic=self.remote.evt_detailedState,
                 detailedState=TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE,
+                flush=True,
             )
             await self.remote.cmd_stopPropagateLaser.set_start(timeout=STD_TIMEOUT)
             await self.assert_next_sample(
@@ -296,11 +300,11 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
 
     async def test_bad_connection(self):
         async with self.make_csc(initial_state=salobj.State.STANDBY, simulation_mode=1):
-            self.csc.unstable = True
+            self.csc.simulator_fails_to_start = True
             await self.assert_next_summary_state(salobj.State.STANDBY)
             await salobj.set_summary_state(self.remote, salobj.State.DISABLED)
             await self.assert_next_summary_state(salobj.State.FAULT)
-            self.csc.unstable = False
+            self.csc.simulator_fails_to_start = False
             await salobj.set_summary_state(self.remote, salobj.State.DISABLED)
             await self.assert_next_summary_state(salobj.State.STANDBY)
             await self.assert_next_summary_state(salobj.State.DISABLED)

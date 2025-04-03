@@ -646,7 +646,7 @@ class FanControlClient:
 
     async def get_messages(self):
         """Get messages recieved from the service."""
-        while True:
+        while self.connected:
             try:
                 async with asyncio.timeout(10):
                     response = await self.client.read_json()
@@ -702,7 +702,7 @@ class LaserAlignmentClient:
 
     async def get_messages(self):
         """Get messages recieved from the service."""
-        while True:
+        while self.connected:
             try:
                 async with asyncio.timeout(10):
                     response = await self.client.read_json()
