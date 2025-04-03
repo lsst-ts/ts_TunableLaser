@@ -99,7 +99,7 @@ class AsciiRegister:
         accepted_values=None,
     ):
         self.component = component
-        self.log = logging.getLogger(f"{register_name.replace(' ','')}Register")
+        self.log = logging.getLogger(f"{register_name.replace(' ', '')}Register")
         self.module_name = module_name
         self.module_id = module_id
         self.register_name = register_name

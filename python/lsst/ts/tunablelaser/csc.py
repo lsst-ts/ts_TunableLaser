@@ -31,6 +31,7 @@ from lsst.ts.xml.enums import TunableLaser
 
 from . import __version__, component, mock_server
 from .config_schema import CONFIG_SCHEMA
+from .enums import SimulationMode
 
 
 def run_tunablelaser():
@@ -71,9 +72,9 @@ class LaserCSC(salobj.ConfigurableCsc):
 
     """
 
-    valid_simulation_modes = (0, 1)
+    valid_simulation_modes = tuple(SimulationMode)
     version = __version__
-    unstable = False
+    simulator_fails_to_start = False
 
     def __init__(
         self,
@@ -191,10 +192,12 @@ class LaserCSC(salobj.ConfigurableCsc):
                     simulatorcls = getattr(
                         mock_server, f"{type(self.model).__name__}Server"
                     )
-                    if not self.unstable:
+                    if not self.simulator_fails_to_start:
                         self.simulator = simulatorcls()
                         self.log.debug(f"Chose {self.simulator=}")
                         await self.simulator.start_task
+                        if self.simulation_mode == SimulationMode.MOCK_INSTABILITY:
+                            self.simulator.simulate_connection_instability = True
 
                     self.thermal_ctrl_simulator = mock_server.TempCtrlServer(
                         host=self.thermal_ctrl.host
