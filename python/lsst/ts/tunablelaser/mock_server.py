@@ -84,6 +84,7 @@ class MainLaserServer(tcpip.OneClientReadLoopServer):
         self.device = MockNT900()
         self.log = logging.getLogger(__name__)
         self.read_loop_task = asyncio.Future()
+        self.simulate_connection_unstability = False
         super().__init__(
             name="TunableLaser Mock Server",
             host=tcpip.LOCAL_HOST,
@@ -95,7 +96,10 @@ class MainLaserServer(tcpip.OneClientReadLoopServer):
 
     async def read_and_dispatch(self):
         """Return reply based on messaged received."""
-        unstable = random.choices([True, False], [0.3, 0.7])
+        if self.simulate_connection_unstability:
+            unstable = random.choices([True, False], [0.3, 0.7])
+        else:
+            unstable = [False]
         reply = await self.readuntil(b"\r")
         reply = reply.strip(self.terminator).decode(self.encoding)
         reply = self.device.parse_message(reply)
