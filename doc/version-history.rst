@@ -6,6 +6,17 @@ Version History
 
 .. towncrier release notes start
 
+ts_tunablelaser v2.3.0 (2025-05-18)
+===================================
+
+Bugfixes
+--------
+
+- Made unstable simulation behavior a second simulation mode. (`DM-48457 <https://rubinobs.atlassian.net/DM-48457>`_)
+- Made sure that change wavelength was fed an integer and added an event for the opticalConfiguration during config (`DM-48890 <https://rubinobs.atlassian.net/DM-48890>`_)
+- Switched from ts-idl to ts-xml in conda build. (`DM-48900 <https://rubinobs.atlassian.net/DM-48900>`_)
+
+
 ts_tunablelaser v2.2.1 (2024-12-18)
 ===================================
 
