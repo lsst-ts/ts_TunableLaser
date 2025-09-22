@@ -57,11 +57,10 @@ class Laser(ABC):
         A TCP/IP client.
     """
 
-    def __init__(self, csc, terminator, encoding, simulation_mode=False) -> None:
-        self.csc = csc
+    def __init__(self, log, terminator, encoding, simulation_mode=False) -> None:
         self.terminator = terminator
         self.encoding = encoding
-        self.log = csc.log
+        self.log = log
         self.simulation_mode = simulation_mode
         self.commander = tcpip.Client(host="", port=0, log=self.log)
 
@@ -151,9 +150,6 @@ class Laser(ABC):
 
     async def connect(self):
         """Connect to the laser."""
-        if self.csc.simulation_mode:
-            self.host = self.csc.simulator.host
-            self.port = self.csc.simulator.port
         for _ in range(NUMBER_OF_RETRIES):
             try:
                 self.commander = tcpip.Client(
@@ -224,11 +220,10 @@ class CompoWayFModule(ABC):
     """
 
     def __init__(
-        self, csc, terminator=b"\x03", encoding="utf-8", simulation_mode=False
+        self, log, terminator=b"\x03", encoding="utf-8", simulation_mode=False
     ) -> None:
-        self.csc = csc
         self.encoding = encoding
-        self.log = csc.log
+        self.log = log
         self.simulation_mode = simulation_mode
         self.terminator = terminator
         self.commander = tcpip.Client(host="", port=0, log=self.log)

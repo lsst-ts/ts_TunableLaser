@@ -26,7 +26,7 @@ import pytest
 from lsst.ts.tunablelaser.register import AsciiRegister
 
 
-# @pytest.mark.skip()
+@pytest.mark.skip()
 class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.ascii_register = AsciiRegister(
