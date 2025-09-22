@@ -1,0 +1,1 @@
+Only publish FanControl and LaserAlignment logs when not None.

@@ -146,10 +146,15 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
         async with self.make_csc(
             initial_state=salobj.State.ENABLED, simulation_mode=1, override=config
         ):
-            await self.remote.cmd_setOpticalConfiguration.set_start(
-                configuration="SCU", timeout=STD_TIMEOUT
-            )
+            if config == "stubbs.yaml":
+                with pytest.raises(salobj.AckError):
+                    await self.remote.cmd_setOpticalConfiguration.set_start(
+                        configuration="SCU", timeout=STD_TIMEOUT
+                    )
             if config == "":
+                await self.remote.cmd_setOpticalConfiguration.set_start(
+                    configuration="SCU", timeout=STD_TIMEOUT
+                )
                 await self.assert_next_sample(
                     topic=self.remote.evt_opticalConfiguration,
                     configuration="F1 No SCU",

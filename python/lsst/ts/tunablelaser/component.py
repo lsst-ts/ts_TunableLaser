@@ -25,7 +25,6 @@ import asyncio
 import logging
 
 from lsst.ts import tcpip
-from lsst.ts.xml.enums.TunableLaser import LaserDetailedState
 
 from . import canbus_modules, interfaces
 from .enums import Mode, Power
@@ -81,10 +80,10 @@ class MainLaser(interfaces.Laser):
     """
 
     def __init__(
-        self, csc, simulation_mode=False, encoding="ascii", terminator=b"\x03"
+        self, log, simulation_mode=False, encoding="ascii", terminator=b"\x03"
     ):
         super().__init__(
-            csc=csc,
+            log=log,
             terminator=terminator,
             encoding=encoding,
             simulation_mode=simulation_mode,
@@ -156,9 +155,6 @@ class MainLaser(interfaces.Laser):
             f"Optical alignment is {self.maxi_opg.optical_alignment}"
         )
         await self.maxi_opg.set_configuration()
-        await self.csc.evt_opticalConfiguration.set_write(
-            configuration=optical_configuration
-        )
 
     async def set_output_energy_level(self, output_energy_level):
         """Set the output energy level of the laser.
@@ -216,34 +212,11 @@ class MainLaser(interfaces.Laser):
             The amount to pulse the laser.
         """
         await self.m_cpu800.set_burst_count(count)
-        await self.csc.evt_burstCountSet.set_write(count=count)
 
     async def start_propagating(self, data):
         """Start propagating the beam of the laser."""
         await self.m_cpu800.start_propagating()
-        await self.csc.cmd_startPropagateLaser.ack_in_progress(
-            data=data, timeout=self.laser_warmup_delay
-        )
         await asyncio.sleep(self.laser_warmup_delay)  # laser warmup delay
-        if (
-            self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value
-            == Mode.BURST
-        ):
-            await self.csc.publish_new_detailed_state(
-                LaserDetailedState.PROPAGATING_BURST_MODE
-            )
-        elif (
-            self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value
-            == Mode.CONTINUOUS
-        ):
-            await self.csc.publish_new_detailed_state(
-                LaserDetailedState.PROPAGATING_CONTINUOUS_MODE
-            )
-        else:
-            raise RuntimeError(
-                f"""{self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value}
-                not in list of {list(Mode)} valid laser modes."""
-            )
 
     async def stop_propagating(self):
         """Stop propagating the beam of the laser"""
@@ -332,10 +305,10 @@ class StubbsLaser(interfaces.Laser):
     """
 
     def __init__(
-        self, csc, terminator=b"\x03", encoding="ascii", simulation_mode=False
+        self,log , terminator=b"\x03", encoding="ascii", simulation_mode=False
     ) -> None:
         super().__init__(
-            csc=csc,
+            log=log,
             terminator=terminator,
             encoding=encoding,
             simulation_mode=simulation_mode,
@@ -409,7 +382,6 @@ class StubbsLaser(interfaces.Laser):
         """
         await self.m_cpu800.set_propagation_mode(Mode.BURST)
         await self.m_cpu800.set_burst_count(count)
-        await self.csc.evt_burstCountSet.set_write(count=count)
 
     async def set_continuous_mode(self):
         """Set the propagation mode to continuously pulse the laser."""
@@ -424,34 +396,11 @@ class StubbsLaser(interfaces.Laser):
             The amount to pulse the laser.
         """
         await self.m_cpu800.set_burst_count(count)
-        await self.csc.evt_burstCountSet.set_write(count=count)
 
     async def start_propagating(self, data):
         """Start propagating the beam of the laser."""
         await self.m_cpu800.start_propagating()
-        await self.csc.cmd_startPropagateLaser.ack_in_progress(
-            data=data, timeout=self.laser_warmup_delay
-        )
         await asyncio.sleep(self.laser_warmup_delay)  # laser warmup delay
-        if (
-            self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value
-            == Mode.BURST
-        ):
-            await self.csc.publish_new_detailed_state(
-                LaserDetailedState.PROPAGATING_BURST_MODE
-            )
-        elif (
-            self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value
-            == Mode.CONTINUOUS
-        ):
-            await self.csc.publish_new_detailed_state(
-                LaserDetailedState.PROPAGATING_CONTINUOUS_MODE
-            )
-        else:
-            raise RuntimeError(
-                f"""{self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value}
-                not in list of {list(Mode)} valid laser modes."""
-            )
 
     async def stop_propagating(self):
         """Stop propagating the beam of the laser"""
@@ -518,7 +467,7 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
 
     def __init__(
         self,
-        csc,
+        log,
         host="127.0.0.1",
         port=50000,
         terminator=b"\x03",
@@ -526,7 +475,7 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
         simulation_mode=False,
     ) -> None:
         super().__init__(
-            csc=csc,
+            log=log,
             terminator=terminator,
             encoding=encoding,
             simulation_mode=simulation_mode,
@@ -648,6 +597,7 @@ class FanControlClient:
         """Get messages recieved from the service."""
         while self.connected:
             try:
+                response = None
                 async with asyncio.timeout(10):
                     response = await self.client.read_json()
             except asyncio.TimeoutError:
@@ -704,6 +654,7 @@ class LaserAlignmentClient:
         """Get messages recieved from the service."""
         while self.connected:
             try:
+                response = None
                 async with asyncio.timeout(10):
                     response = await self.client.read_json()
             except asyncio.TimeoutError:
