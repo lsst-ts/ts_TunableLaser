@@ -77,11 +77,11 @@ class LaserCSC(salobj.ConfigurableCsc):
 
     def __init__(
         self,
-        initial_state=salobj.State.STANDBY,
-        config_dir=None,
-        simulation_mode=0,
-        override="",
-    ):
+        initial_state: salobj.State = salobj.State.STANDBY,
+        config_dir: None | str = None,
+        simulation_mode: int = 0,
+        override: str = "",
+    ) -> None:
         super().__init__(
             name="TunableLaser",
             config_schema=CONFIG_SCHEMA,
@@ -91,24 +91,31 @@ class LaserCSC(salobj.ConfigurableCsc):
             simulation_mode=simulation_mode,
             override=override,
         )
-        self.model = None
-        self.thermal_ctrl = None
-        self.telemetry_rate = 1
-        self.telemetry_task = utils.make_done_future()
-        self.simulator = None
-        self.thermal_ctrl_simulator = None
-        self.laser_type = None
-        self.fc_client = component.FanControlClient()
-        self.la_client = component.LaserAlignmentClient()
-        self.fc_task = utils.make_done_future()
-        self.la_task = utils.make_done_future()
+        self.model: None | component.MainLaser | component.StubbsLaser = None
+        self.thermal_ctrl: None | component.TemperatureCtrl = None
+        self.telemetry_rate: int = 1
+        self.telemetry_task: asyncio.Future = utils.make_done_future()
+        self.simulator: None | mock_server.MainLaserServer = None
+        self.thermal_ctrl_simulator: None | mock_server.TempCtrlServer = None
+        self.laser_type: None | str = None
+        self.fc_client: component.FanControlClient = component.FanControlClient()
+        self.la_client: component.LaserAlignmentClient = component.LaserAlignmentClient()
+        self.fc_task: asyncio.Future = utils.make_done_future()
+        self.la_task: asyncio.Future = utils.make_done_future()
 
     @property
-    def connected(self):
+    def laser_connected(self) -> bool:
+        """Is the laser connected?"""
         return self.model is not None and self.model.connected
 
     @property
-    def detailed_state(self):
+    def omron_connected(self) -> bool:
+        """Is the omron connected?"""
+        return self.thermal_ctrl is not None and self.thermal_ctrl.connected
+
+    @property
+    def detailed_state(self) -> TunableLaser.LaserDetailedState:
+        """Return the detailed state."""
         if self.evt_detailedState.has_data:
             return self.evt_detailedState.data.detailedState
         else:
@@ -119,10 +126,11 @@ class LaserCSC(salobj.ConfigurableCsc):
         """Send out the TunableLaser's telemetry."""
         while True:
             try:
-                if not self.model.connected and self.model.should_be_connected:
+                if not self.laser_connected and self.model.should_be_connected:
                     await self.fault(code=4, report="Device lost connection.")
                     return
-                await self.model.read_all_registers()
+                if self.laser_key_turned:
+                    await self.model.read_all_registers()
                 await self.thermal_ctrl.read_all_registers()
                 if self.fc_client.response is not None:
                     self.log.info(self.fc_client.response)
@@ -142,16 +150,17 @@ class LaserCSC(salobj.ConfigurableCsc):
                         ),
                     )
                     return
-                await self.tel_wavelength.set_write(wavelength=float(self.model.wavelength))
-                await self.tel_temperature.set_write(
-                    tk6_temperature=float(self.model.temperature[0]),
-                    tk6_temperature_2=float(self.model.temperature[1]),
-                    ldco48bp_temperature=float(self.model.temperature[2]),
-                    ldco48bp_temperature_2=float(self.model.temperature[3]),
-                    ldco48bp_temperature_3=float(self.model.temperature[4]),
-                    m_ldco48_temperature=float(self.model.temperature[5]),
-                    m_ldco48_temperature_2=float(self.model.temperature[6]),
-                )
+                if self.laser_key_turned:
+                    await self.tel_wavelength.set_write(wavelength=float(self.model.wavelength))
+                    await self.tel_temperature.set_write(
+                        tk6_temperature=float(self.model.temperature[0]),
+                        tk6_temperature_2=float(self.model.temperature[1]),
+                        ldco48bp_temperature=float(self.model.temperature[2]),
+                        ldco48bp_temperature_2=float(self.model.temperature[3]),
+                        ldco48bp_temperature_3=float(self.model.temperature[4]),
+                        m_ldco48_temperature=float(self.model.temperature[5]),
+                        m_ldco48_temperature_2=float(self.model.temperature[6]),
+                    )
                 await self.tel_scannerTemperature.set_write(
                     scanner_temperature=float(self.thermal_ctrl.temperature[0]),
                 )
@@ -208,7 +217,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                     await self.la_simulator.start_task
                     self.la_client.host = self.la_simulator.host
                     self.la_client.port = self.la_simulator.port
-            if not self.connected and self.model is not None:
+            if not self.laser_connected and self.laser_key_turned:
                 await self.evt_detailedState.set_write(
                     detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
                 )
@@ -225,9 +234,10 @@ class LaserCSC(salobj.ConfigurableCsc):
                 if self.laser_type == "Main":
                     await self.model.set_optical_configuration(self.optical_alignment)
                     await self.evt_opticalConfiguration.set_write(configuration=self.optical_alignment)
+            if not self.omron_connected:
                 await self.thermal_ctrl.connect()
-                await self.fc_client.connect()
-                await self.la_client.connect()
+            await self.fc_client.connect()
+            await self.la_client.connect()
             if self.summary_state == salobj.State.DISABLED and self.model.is_propagating:
                 await self.model.stop_propagating()
                 await self.publish_new_detailed_state(
@@ -240,7 +250,7 @@ class LaserCSC(salobj.ConfigurableCsc):
             if self.la_task.done():
                 self.la_task = asyncio.create_task(self.la_client.get_messages())
         else:
-            if self.model is not None and self.model.connected:
+            if self.laser_connected:
                 await self.model.disconnect()
                 self.model = None
                 await self.thermal_ctrl.disconnect()
@@ -268,7 +278,7 @@ class LaserCSC(salobj.ConfigurableCsc):
             The command data.
         """
         self.assert_enabled()
-        if self.connected:
+        if self.laser_connected:
             await self.model.set_burst_mode(data.count)
             await self.evt_burstModeSet.set_write()
             if self.detailed_state in [
@@ -298,7 +308,7 @@ class LaserCSC(salobj.ConfigurableCsc):
             The command data.
         """
         self.assert_enabled()
-        if self.connected:
+        if self.laser_connected:
             await self.model.set_continuous_mode()
             await self.evt_continuousModeSet.set_write()
         else:
@@ -312,7 +322,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         data
         """
         self.assert_enabled()
-        if self.connected:
+        if self.laser_connected:
             await self.model.change_wavelength(data.wavelength)
             await self.evt_wavelengthChanged.set_write(wavelength=data.wavelength)
         else:
@@ -332,7 +342,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                 TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE,
             ],
         )
-        if self.connected:
+        if self.laser_connected:
+            if not self.laser_key_turned:
+                raise salobj.ExpectedError("laser_key_turned is set to false.")
             await self.cmd_startPropagateLaser.ack_in_progress(data, self.model.laser_warmup_delay)
             await self.model.set_output_energy_level("MAX")
             await self.model.start_propagating(data)
@@ -364,7 +376,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                 TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE,
             ],
         )
-        if self.connected:
+        if self.laser_connected:
             await self.model.stop_propagating()
             match self.detailed_state:
                 case TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE:
@@ -389,7 +401,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         data
         """
         self.assert_enabled()
-        if self.connected:
+        if self.laser_connected:
             await self.model.clear_fault()
         else:
             raise salobj.ExpectedError("Not connected.")
@@ -405,7 +417,7 @@ class LaserCSC(salobj.ConfigurableCsc):
     async def do_changeTempCtrlSetpoint(self, data):
         """Change the set point of the laser thermal reader."""
         self.assert_enabled()
-        if self.connected:
+        if self.omron_connected:
             await self.thermal_ctrl.laser_thermal_change_set_point(value=data.setpoint)
         else:
             raise salobj.ExpectedError("Not connected.")
@@ -413,7 +425,7 @@ class LaserCSC(salobj.ConfigurableCsc):
     async def do_turnOffTempCtrl(self, data):
         """Turn off the run mode of the laser thermal reader."""
         self.assert_enabled()
-        if self.connected:
+        if self.omron_connected:
             await self.thermal_ctrl.laser_thermal_turn_off()
         else:
             raise salobj.ExpectedError("Not connected.")
@@ -421,7 +433,7 @@ class LaserCSC(salobj.ConfigurableCsc):
     async def do_turnOnTempCtrl(self, data):
         """Turn on the run mode of the laser thermal reader."""
         self.assert_enabled()
-        if self.connected:
+        if self.omron_connected:
             await self.thermal_ctrl.laser_thermal_turn_on()
         else:
             raise salobj.ExpectedError("Not connected.")
@@ -434,7 +446,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                alignment of the laser.
         """
         self.assert_enabled()
-        if self.connected:
+        if self.laser_connected:
             if self.laser_type == "Main":  # only main laser can do this
                 await self.model.set_optical_configuration(data.configuration)
                 await self.evt_opticalConfiguration.set_write(configuration=data.configuration)
@@ -459,6 +471,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.log.debug(f"config={config}")
         self.log.debug(f"Connecting to laser {config.type}")
         self.laser_type = config.type
+        self.laser_key_turned = config.laser_key_turned
         lasercls = getattr(component, f"{config.type}Laser")
         self.model = lasercls(log=self.log, simulation_mode=bool(self.simulation_mode))
         self.optical_alignment = config.optical_configuration

@@ -20,9 +20,7 @@ class TestMockNT900(unittest.TestCase):
     def test_do_change_continuous_burst_mode_trigger_burst(self):
         device = MockNT900()
         reply = device.do_set_m_cpu800_18_continuous_burst_mode_trigger_burst("wumbo")
-        assert (
-            reply == "'''Error: (13) Wrong value, not included in allowed values list"
-        )
+        assert reply == "'''Error: (13) Wrong value, not included in allowed values list"
 
 
 class TestMockNP5450(unittest.TestCase):

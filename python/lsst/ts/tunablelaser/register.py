@@ -30,6 +30,7 @@ The most important classes are the `TCPIPClient` class and the `AsciiRegister`
 class as they contain the bulk of the functionality.
 
 """
+
 __all__ = ["AsciiRegister"]
 import logging
 
@@ -105,9 +106,7 @@ class AsciiRegister:
         self.register_name = register_name
         self.read_only = read_only
         if not self.read_only and accepted_values is None:
-            raise AttributeError(
-                "If read_only is false than accepted_values should not be None."
-            )
+            raise AttributeError("If read_only is false than accepted_values should not be None.")
         self.accepted_values = accepted_values
         self.register_value = None
         self.log.debug(f"{self.register_name} Register initialized")
@@ -148,10 +147,7 @@ class AsciiRegister:
         if not self.read_only:
             if set_value not in self.accepted_values:
                 raise ValueError(f"{set_value} not in {self.accepted_values}")
-            set_message = (
-                f"/{self.module_name}/{self.module_id}/{self.register_name}/"
-                f"{set_value}\r"
-            )
+            set_message = f"/{self.module_name}/{self.module_id}/{self.register_name}/{set_value}\r"
             self.log.debug(f"set_message={set_message}")
             return set_message
         else:
@@ -169,9 +165,7 @@ class AsciiRegister:
         async with self.component.lock:
             if set_value:
                 message = self.create_set_message(set_value=set_value)
-                await self.component.commander.write(
-                    message.encode(self.component.commander.encoding)
-                )
+                await self.component.commander.write(message.encode(self.component.commander.encoding))
                 msg = await self.component.commander.read_str()
                 self.log.debug(f"{msg=}")
                 if msg.startswith("'''"):
@@ -183,15 +177,11 @@ class AsciiRegister:
                         if not msg.startswith("'''"):
                             break
             message = self.create_get_message()
-            await self.component.commander.write(
-                message.encode(self.component.commander.encoding)
-            )
+            await self.component.commander.write(message.encode(self.component.commander.encoding))
             msg = await self.component.commander.read_str()
             if msg.startswith("'''"):
                 for _ in range(NUMBER_OF_RETRIES):
-                    await self.component.commander.write(
-                        message.encode(self.component.commander.encoding)
-                    )
+                    await self.component.commander.write(message.encode(self.component.commander.encoding))
                     msg = await self.component.commander.read_str()
                     self.log.debug(f"{msg=}")
                     if not msg.startswith("'''"):

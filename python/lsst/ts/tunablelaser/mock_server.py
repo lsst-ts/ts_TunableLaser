@@ -204,9 +204,7 @@ class TempCtrlServer(tcpip.OneClientReadLoopServer):
                 encoding="ascii",
             )
         except ValueError:
-            self.log.error(
-                f"TempCtrlServer hostname was invalid, assuming temp ctrler unconnected: {host}"
-            )
+            self.log.error(f"TempCtrlServer hostname was invalid, assuming temp ctrler unconnected: {host}")
             super().__init__(
                 name="TempCtrl Mock Server",
                 host=tcpip.LOCAL_HOST,
@@ -317,49 +315,31 @@ class MockCompoWayFMessage:
 
                 self.log.info(f"got cmdframe: {self.cmd_txt}")
 
-                bcc_frame = (
-                    self.node
-                    + subadd
-                    + SID
-                    + self.MRC
-                    + self.SRC
-                    + self.cmd_txt
-                    + "\x03"
-                )
+                bcc_frame = self.node + subadd + SID + self.MRC + self.SRC + self.cmd_txt + "\x03"
 
                 bcc_maker = CompoWayFGeneralRegister()
                 expected_bcc = bcc_maker.generate_bcc(frame=bcc_frame)
 
                 self.bcc = f.read(1).decode()
                 if expected_bcc is not self.bcc:
-                    raise ValueError(
-                        f"Mismatch of BCC, got: {self.bcc}, expected: {expected_bcc}"
-                    )
+                    raise ValueError(f"Mismatch of BCC, got: {self.bcc}, expected: {expected_bcc}")
 
                 # some type of read/write variable address cmd
-                if self.MRC == "\x30\x31" and (
-                    self.SRC == "\x30\x31" or self.SRC == "\x30\x32"
-                ):
+                if self.MRC == "\x30\x31" and (self.SRC == "\x30\x31" or self.SRC == "\x30\x32"):
                     self.var_type = self.cmd_txt[:2]
                     self.address = self.cmd_txt[2:6]
                     bit_pos = self.cmd_txt[6:8]
                     if bit_pos != "\x30\x30":
-                        self.log.error(
-                            f"got incorrect bitposition, expected 00, got: {bit_pos}"
-                        )
+                        self.log.error(f"got incorrect bitposition, expected 00, got: {bit_pos}")
                     self.num_of_elements = self.cmd_txt[8:12]
 
                     if self.SRC == "\x30\x32":
                         self.write_data = self.cmd_txt[12:]
-                elif (
-                    self.MRC == "\x33\x30" and self.SRC == "\x30\x35"
-                ):  # 30 05 operation reg
+                elif self.MRC == "\x33\x30" and self.SRC == "\x30\x35":  # 30 05 operation reg
                     self.command_code = self.cmd_txt[:2]
                     self.related_info = self.cmd_txt[2:4]
                 else:
-                    raise ValueError(
-                        f"Command not supported, got MRC {self.MRC} SRC {self.SRC}"
-                    )
+                    raise ValueError(f"Command not supported, got MRC {self.MRC} SRC {self.SRC}")
         except Exception as e:
             self.log.error(f"Message format not as expected. Message: {e}")
             raise Exception("Message malformed")
@@ -437,9 +417,7 @@ class MockNP5450:
 
             if split_msg.MRC == "\x30\x31":
                 if int(split_msg.num_of_elements) != 1:
-                    raise ValueError(
-                        "More than 1 number of element read/write not supported"
-                    )
+                    raise ValueError("More than 1 number of element read/write not supported")
 
                 if split_msg.SRC == "\x30\x31":
                     command_name += "get_"
@@ -512,8 +490,6 @@ class MockNP5450:
         run_stop_related_info = {
             True: "\x30\x30",  # on
             False: "\x30\x31",  # off
-            0: "\x30\x31",  # off
-            1: "\x30\x30",  # on
         }
         if data in run_stop_related_info:
             self.run_stop = bool(run_stop_related_info[data])
@@ -1040,20 +1016,12 @@ class MockNT900:
                         reply = func(parameter)
                     self.log.debug(f"reply: {reply}")
                     return reply
-                elif (
-                    command_name
-                    == "do_m_cpu800_18_continuous_%2f_burst_mode_%2f_trigger_burst"
-                ):
+                elif command_name == "do_m_cpu800_18_continuous_%2f_burst_mode_%2f_trigger_burst":
                     reply = self.do_m_cpu800_18_continuous_burst_mode_trigger_burst()
                     self.log.debug(f"reply: {reply}")
                     return reply
-                elif (
-                    command_name
-                    == "do_set_m_cpu800_18_continuous_%2f_burst_mode_%2f_trigger_burst"
-                ):
-                    reply = self.do_set_m_cpu800_18_continuous_burst_mode_trigger_burst(
-                        parameter
-                    )
+                elif command_name == "do_set_m_cpu800_18_continuous_%2f_burst_mode_%2f_trigger_burst":
+                    reply = self.do_set_m_cpu800_18_continuous_burst_mode_trigger_burst(parameter)
                     self.log.debug(f"reply: {reply}")
                     return reply
             self.log.error(f"command {command_name} not implemented")

@@ -9,5 +9,5 @@ type: "Main"
 temp_ctrl:
   host: 127.0.0.1
   port: 50000
-laser_key_turned: true
+laser_key_turned: false
   

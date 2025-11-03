@@ -31,6 +31,7 @@ Notes
 These classes are based on the REMOTECONTROL.csv file provided by the vendor.
 
 """
+
 __all__ = [
     "CPU8000",
     "MCPU800",
@@ -1007,6 +1008,4 @@ class E5DCB:
         await self.set_point_register.read_register_value()
 
     def __repr__(self):
-        return (
-            f"{self.name}:\n {self.run_stop_register}\n" f"{self.set_point_register}\n"
-        )
+        return f"{self.name}:\n {self.run_stop_register}\n{self.set_point_register}\n"
