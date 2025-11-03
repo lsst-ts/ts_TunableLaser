@@ -219,9 +219,7 @@ class CompoWayFModule(ABC):
         A TCP/IP client.
     """
 
-    def __init__(
-        self, log, terminator=b"\x03", encoding="utf-8", simulation_mode=False
-    ) -> None:
+    def __init__(self, log, terminator=b"\x03", encoding="utf-8", simulation_mode=False) -> None:
         self.encoding = encoding
         self.log = log
         self.simulation_mode = simulation_mode

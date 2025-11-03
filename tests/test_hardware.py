@@ -32,33 +32,20 @@ class TestCPU8000(unittest.IsolatedAsyncioTestCase):
     async def test_update_register(self):
         self.cpu8000.component = unittest.mock.AsyncMock()
         self.cpu8000.power_register.component.commander.encoding = "ascii"
-        self.cpu8000.power_register.component.commander.send_command = (
-            unittest.mock.AsyncMock()
-        )
-        self.cpu8000.power_register.component.commander.read_str = (
-            unittest.mock.AsyncMock(return_value="ON")
-        )
+        self.cpu8000.power_register.component.commander.send_command = unittest.mock.AsyncMock()
+        self.cpu8000.power_register.component.commander.read_str = unittest.mock.AsyncMock(return_value="ON")
         self.cpu8000.display_current_register.component.commander.encoding = "ascii"
-        self.cpu8000.display_current_register.component.commander.send_command = (
-            unittest.mock.AsyncMock()
-        )
-        self.cpu8000.display_current_register.component.commander.read_str = (
-            unittest.mock.AsyncMock(return_value="19A")
+        self.cpu8000.display_current_register.component.commander.send_command = unittest.mock.AsyncMock()
+        self.cpu8000.display_current_register.component.commander.read_str = unittest.mock.AsyncMock(
+            return_value="19A"
         )
         self.cpu8000.fault_register.component.commander.encoding = "ascii"
-        self.cpu8000.fault_register.component.commander.send_command = (
-            unittest.mock.AsyncMock()
-        )
-        self.cpu8000.fault_register.component.commander.read_str = (
-            unittest.mock.AsyncMock(return_value="0")
-        )
+        self.cpu8000.fault_register.component.commander.send_command = unittest.mock.AsyncMock()
+        self.cpu8000.fault_register.component.commander.read_str = unittest.mock.AsyncMock(return_value="0")
         await self.cpu8000.update_register()
 
     def test_repr(self):
-        assert (
-            repr(self.cpu8000)
-            == "CPU8000:\n Power: None\n Display Current: None\n Fault code: None\n"
-        )
+        assert repr(self.cpu8000) == "CPU8000:\n Power: None\n Display Current: None\n Fault code: None\n"
 
 
 class TestMaxiOPG(unittest.IsolatedAsyncioTestCase):

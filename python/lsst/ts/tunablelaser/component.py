@@ -79,9 +79,7 @@ class MainLaser(interfaces.Laser):
 
     """
 
-    def __init__(
-        self, log, simulation_mode=False, encoding="ascii", terminator=b"\x03"
-    ):
+    def __init__(self, log, simulation_mode=False, encoding="ascii", terminator=b"\x03"):
         super().__init__(
             log=log,
             terminator=terminator,
@@ -304,9 +302,7 @@ class StubbsLaser(interfaces.Laser):
         A lock for writing/reading messages.
     """
 
-    def __init__(
-        self,log , terminator=b"\x03", encoding="ascii", simulation_mode=False
-    ) -> None:
+    def __init__(self, log, terminator=b"\x03", encoding="ascii", simulation_mode=False) -> None:
         super().__init__(
             log=log,
             terminator=terminator,
@@ -485,13 +481,9 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
         # if host is not valid IP address assume its unconnected
         if str(host).lower() != "none":
             self.host = host
-            self.e5dc_b = canbus_modules.E5DCB(
-                component=self, simulation_mode=simulation_mode
-            )
+            self.e5dc_b = canbus_modules.E5DCB(component=self, simulation_mode=simulation_mode)
         else:
-            self.log.error(
-                f"Host address given to Temp Ctrl not valid, assuming unconnected: {host}"
-            )
+            self.log.error(f"Host address given to Temp Ctrl not valid, assuming unconnected: {host}")
             self.host = None
             self.e5dc_b = None
         self.port = port
@@ -509,27 +501,21 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
         if self.e5dc_b is not None:
             await self.e5dc_b.run_stop_register.set_register_value(True)
         else:
-            self.log.error(
-                "Tried to laser_thermal_turn_on but thermal ctrler is unconnected."
-            )
+            self.log.error("Tried to laser_thermal_turn_on but thermal ctrler is unconnected.")
 
     async def laser_thermal_turn_off(self):
         """Turn the heater and fans off."""
         if self.e5dc_b is not None:
             await self.e5dc_b.run_stop_register.set_register_value(False)
         else:
-            self.log.error(
-                "Tried to laser_thermal_turn_off but thermal ctrler is unconnected."
-            )
+            self.log.error("Tried to laser_thermal_turn_off but thermal ctrler is unconnected.")
 
     async def laser_thermal_change_set_point(self, value):
         """Change the temperature set point value."""
         if self.e5dc_b is not None:
             await self.e5dc_b.set_point_register.set_register_value(value)
         else:
-            self.log.error(
-                "Tried to laser_thermal_change_set_point but thermal ctrler is unconnected."
-            )
+            self.log.error("Tried to laser_thermal_change_set_point but thermal ctrler is unconnected.")
 
     async def configure(self, config):
         """Configure the thermal controller."""
@@ -542,9 +528,7 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
         if self.e5dc_b is not None:
             await self.e5dc_b.update_register()
         else:
-            self.log.warning(
-                "Tried to update_register but thermal ctrler is unconnected."
-            )
+            self.log.warning("Tried to update_register but thermal ctrler is unconnected.")
 
 
 class FanControlClient:

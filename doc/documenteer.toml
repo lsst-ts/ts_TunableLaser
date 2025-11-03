@@ -1,0 +1,6 @@
+[project]
+title = "TunableLaser"
+copyright = "2018-2025 Association of Universities for Research in Astronomy, Inc. (AURA)"
+
+[project.python]
+package = "ts_tunablelaser"
