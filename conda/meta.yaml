@@ -9,12 +9,13 @@ source:
 build:
   noarch: python
   script: {{PYTHON}} -m pip install --no-deps --ignore-installed .
+  string: "py{{ PY_VER | replace('.', '') }}{{ PKG_HASH }}_{{ PKG_BUILDNUM }}"
   entry_points:
     - run_tunablelaser = lsst.ts.tunablelaser:run_tunablelaser
 
 test:
   requires:
-    - ts-conda-build =0.4
+    - ts-conda-build =0.5
     - ts-xml {{ xml_version }}
     - ts-salobj {{ salobj_version }}
     - parameterized
@@ -29,12 +30,8 @@ test:
 requirements:
   host:
     - python {{python}}
-    - setuptools_scm
-    - setuptools
-  build:
-    - python {{python}}
-    - setuptools_scm
-    - setuptools
+    - setuptools_scm ={{setuptools_scm}}
+    - setuptools >={{setuptools}}
   run:
     - python {{python}}
     - setuptools
