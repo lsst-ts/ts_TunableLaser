@@ -6,6 +6,21 @@ Version History
 
 .. towncrier release notes start
 
+ts_tunablelaser v2.4.0 (2026-01-23)
+===================================
+
+Bugfixes
+--------
+
+- Only publish FanControl and LaserAlignment logs when not None. (`OSW-1033 <https://rubinobs.atlassian.net/OSW-1033>`_)
+
+
+Misc
+----
+
+- `OSW-1033 <https://rubinobs.atlassian.net/OSW-1033>`_, `OSW-1484 <https://rubinobs.atlassian.net/OSW-1484>`_
+
+
 ts_tunablelaser v2.3.0 (2025-05-18)
 ===================================
 
