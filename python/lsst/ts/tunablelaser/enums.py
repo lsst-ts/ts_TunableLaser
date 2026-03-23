@@ -25,9 +25,14 @@ import enum
 
 
 class SimulationMode(enum.IntEnum):
+    """The simulation mode values."""
+
     OFF = 0
+    """Connect to real hardware."""
     ON = 1
+    """Connect to simulated hardware."""
     MOCK_INSTABILITY = 2
+    """Connect to simulated hardware that is network unstable."""
 
 
 class Error(enum.IntEnum):

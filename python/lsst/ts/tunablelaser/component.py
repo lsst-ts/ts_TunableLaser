@@ -27,7 +27,8 @@ import logging
 from lsst.ts import tcpip
 
 from . import canbus_modules, interfaces
-from .enums import Mode, Power
+from .enums import Mode, OpticalConfiguration, Power
+from .fcu_client import FCUClient, Output
 
 
 class MainLaser(interfaces.Laser):
@@ -296,6 +297,8 @@ class StubbsLaser(interfaces.Laser):
         The LDCO48BP module.
     m_ldc048 : `hardware.MLDCO48`
         The MLDCO48 module.
+    fcu_client : FCUClient
+    `   The client to control the optical configuration.
     laser_warmup_delay : `int`
         A delay for publishing propagation for warmup.
     lock : `asyncio.Lock`
@@ -318,6 +321,7 @@ class StubbsLaser(interfaces.Laser):
         self.delay_lin = canbus_modules.DelayLin(component=self, laser_id=self.laser_id)
         self.ldco48bp = canbus_modules.LDCO48BP(component=self, laser_id=self.laser_id)
         self.m_ldcO48 = canbus_modules.MLDCO48(component=self)
+        self.fcu_client = FCUClient(simulation_mode=simulation_mode)
         self.laser_warmup_delay = 10
         self.lock = asyncio.Lock()
 
@@ -345,10 +349,48 @@ class StubbsLaser(interfaces.Laser):
             self.m_ldcO48.display_temperature_register_2.register_value,
         )
 
+    async def set_optical_configuration(self, optical_configuration):
+        """Set optical configuration.
+
+        Parameters
+        ----------
+        optical_configuration : str
+            The value to be set.
+        """
+        match optical_configuration:
+            case OpticalConfiguration.NO_SCU:
+                await self.fcu_client.set_output(Output.out1)
+            case OpticalConfiguration.F1_NO_SCU:
+                await self.fcu_client.set_output(Output.out2)
+            case OpticalConfiguration.F2_NO_SCU:
+                await self.fcu_client.set_output(Output.out3)
+            case OpticalConfiguration.SCU:
+                await self.fcu_client.set_output(Output.out1)
+            case OpticalConfiguration.F1_SCU:
+                await self.fcu_client.set_output(Output.out2)
+            case OpticalConfiguration.F2_SCU:
+                await self.fcu_client.set_output(Output.out3)
+            case _:
+                raise RuntimeError("Not one of the acceptable configurations.")
+
     async def change_wavelength(self, wavelength):
+        """Change the wavelength.
+
+        Parameters
+        ----------
+        wavelength : float
+            The wavelength to be set.
+        """
         await self.midiopg.change_wavelength(wavelength)
 
     async def set_output_energy_level(self, output_energy_level):
+        """Set output energy level.
+
+        Parameters
+        ----------
+        output_energy_level : `str`
+            The output to be set.
+        """
         await self.m_cpu800.set_output_energy_level(output_energy_level)
 
     async def trigger_burst(self):

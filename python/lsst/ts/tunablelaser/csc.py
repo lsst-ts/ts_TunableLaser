@@ -31,6 +31,7 @@ from lsst.ts.xml.enums import TunableLaser
 from . import __version__, component, mock_server
 from .config_schema import CONFIG_SCHEMA
 from .enums import SimulationMode
+from .fcu_server import RestHttpCmdServer
 
 
 def run_tunablelaser():
@@ -102,6 +103,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.la_client: component.LaserAlignmentClient = component.LaserAlignmentClient()
         self.fc_task: asyncio.Future = utils.make_done_future()
         self.la_task: asyncio.Future = utils.make_done_future()
+        self.fcu_server = None
 
     @property
     def laser_connected(self) -> bool:
@@ -217,6 +219,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                     await self.la_simulator.start_task
                     self.la_client.host = self.la_simulator.host
                     self.la_client.port = self.la_simulator.port
+                    if self.laser_type == "Stubbs" and self.fcu_server is None:
+                        self.fcu_server = RestHttpCmdServer(port=17000)
+                        await self.fcu_server.start()
             if not self.laser_connected and self.laser_key_turned:
                 await self.evt_detailedState.set_write(
                     detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
@@ -231,9 +236,8 @@ class LaserCSC(salobj.ConfigurableCsc):
                     await self.fault(code=2, report="Connection failed.")
                     return
                 await self.model.clear_fault()
-                if self.laser_type == "Main":
-                    await self.model.set_optical_configuration(self.optical_alignment)
-                    await self.evt_opticalConfiguration.set_write(configuration=self.optical_alignment)
+                await self.model.set_optical_configuration(self.optical_alignment)
+                await self.evt_opticalConfiguration.set_write(configuration=self.optical_alignment)
             if not self.omron_connected:
                 await self.thermal_ctrl.connect()
             await self.fc_client.connect()
@@ -262,6 +266,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                 self.simulator = None
                 await self.thermal_ctrl_simulator.close()
                 self.thermal_ctrl_simulator = None
+                if self.laser_type == "Stubbs" and self.fcu_server is not None:
+                    await self.fcu_server.stop()
+                    self.fcu_server = None
             self.telemetry_task.cancel()
             self.fc_task.cancel()
             self.la_task.cancel()
@@ -447,11 +454,15 @@ class LaserCSC(salobj.ConfigurableCsc):
         """
         self.assert_enabled()
         if self.laser_connected:
-            if self.laser_type == "Main":  # only main laser can do this
-                await self.model.set_optical_configuration(data.configuration)
-                await self.evt_opticalConfiguration.set_write(configuration=data.configuration)
-            else:
-                raise salobj.ExpectedError("Only main laser can do this.")
+            match self.laser_type:
+                case "Main":
+                    await self.model.set_optical_configuration(data.configuration)
+                    await self.evt_opticalConfiguration.set_write(configuration=data.configuration)
+                case "Stubbs":
+                    await self.model.set_optical_configuration(data.configuration)
+                    await self.evt_opticalConfiguration.set_write(configuration=data.configuration)
+                case _:
+                    raise salobj.ExpectedError("Unrecognized type of laser.")
         else:
             raise salobj.ExpectedError("Not connected")
 
@@ -513,3 +524,6 @@ class LaserCSC(salobj.ConfigurableCsc):
         if self.thermal_ctrl_simulator is not None:
             await self.thermal_ctrl_simulator.close()
             self.thermal_ctrl_simulator = None
+        if self.laser_type == "Stubbs" and self.fcu_server is not None:
+            await self.fcu_server.stop()
+            self.fcu_server = None

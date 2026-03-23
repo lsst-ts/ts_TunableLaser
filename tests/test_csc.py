@@ -24,9 +24,10 @@ import pathlib
 import unittest
 
 import pytest
+from parameterized import parameterized
+
 from lsst.ts import salobj, tunablelaser
 from lsst.ts.xml.enums import TunableLaser
-from parameterized import parameterized
 
 STD_TIMEOUT = 5
 TEST_CONFIG_DIR = pathlib.Path(__file__).parents[1].joinpath("tests", "data", "config")
@@ -118,27 +119,19 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
     @parameterized.expand([(""), ("stubbs.yaml")])
     async def test_change_alignment(self, config):
         async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1, override=config):
-            if config == "stubbs.yaml":
-                with pytest.raises(salobj.AckError):
-                    await self.remote.cmd_setOpticalConfiguration.set_start(
-                        configuration="SCU", timeout=STD_TIMEOUT
-                    )
-            if config == "":
+            await self.remote.cmd_setOpticalConfiguration.set_start(configuration="SCU", timeout=STD_TIMEOUT)
+            await self.assert_next_sample(
+                topic=self.remote.evt_opticalConfiguration,
+                configuration="F1 No SCU",
+            )
+            await self.assert_next_sample(
+                topic=self.remote.evt_opticalConfiguration,
+                configuration="SCU",
+            )
+            with pytest.raises(salobj.AckError):
                 await self.remote.cmd_setOpticalConfiguration.set_start(
-                    configuration="SCU", timeout=STD_TIMEOUT
+                    configuration="Wumbo", timeout=STD_TIMEOUT
                 )
-                await self.assert_next_sample(
-                    topic=self.remote.evt_opticalConfiguration,
-                    configuration="F1 No SCU",
-                )
-                await self.assert_next_sample(
-                    topic=self.remote.evt_opticalConfiguration,
-                    configuration="SCU",
-                )
-                with pytest.raises(salobj.AckError):
-                    await self.remote.cmd_setOpticalConfiguration.set_start(
-                        configuration="Wumbo", timeout=STD_TIMEOUT
-                    )
 
     @parameterized.expand([(""), ("stubbs.yaml")])
     async def test_start_propagate_laser(self, config):

@@ -23,6 +23,7 @@ import unittest
 import unittest.mock
 
 import pytest
+
 from lsst.ts.tunablelaser.compoway_register import (
     CompoWayFDataRegister,
     CompoWayFGeneralRegister,

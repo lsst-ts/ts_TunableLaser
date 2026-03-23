@@ -126,6 +126,7 @@ class CPU8000(interfaces.CanbusModule):
         await self.fault_register.send_command()
 
     def __repr__(self):
+        """Represent the register in prettier format."""
         return f"CPU8000:\n {self.power_register}\n {self.display_current_register}\n {self.fault_register}\n"
 
 
@@ -369,6 +370,7 @@ class MCPU800(interfaces.CanbusModule):
         await self.burst_length_register.send_command()
 
     def __repr__(self):
+        """Represent the register in prettier format."""
         return (
             f"M_CPU800:\n {self.power_register}\n {self.display_current_register}\n"
             f"{self.fault_register}\n {self.power_register_2}\n {self.display_current_register_2}\n"
@@ -425,6 +427,7 @@ class LLPMKU(interfaces.CanbusModule):
         await self.power_register.send_command()
 
     def __repr__(self):
+        """Represent the register in prettier format."""
         return f"11PMKu:\n {self.power_register}"
 
 
@@ -476,6 +479,7 @@ class MidiOPG(interfaces.CanbusModule):
         await self.wavelength_register.send_command()
 
     def __repr__(self):
+        """Represent the register in prettier format."""
         return f"{self.name}:\n {self.wavelength_register}\n"
 
 
@@ -578,6 +582,7 @@ class MaxiOPG(interfaces.CanbusModule):
         await self.configuration_register.send_command()
 
     def __repr__(self):
+        """Represent the register in prettier format."""
         return f"{self.name}:\n {self.wavelength_register}\n {self.configuration_register}\n"
 
 
@@ -625,6 +630,7 @@ class MiniOPG(interfaces.CanbusModule):
         await self.error_code_register.send_command()
 
     def __repr__(self):
+        """Represent the register in prettier format."""
         return f"{self.name}:\n {self.error_code_register}\n"
 
 
@@ -704,6 +710,7 @@ class TK6(interfaces.CanbusModule):
         await self.set_temperature_register_2.send_command()
 
     def __repr__(self):
+        """Represent the register in prettier format."""
         return (
             f"{self.name}:\n {self.display_temperature_register}\n {self.set_temperature_register}\n"
             f"{self.display_temperature_register_2}\n {self.set_temperature_register_2}\n"
@@ -756,6 +763,7 @@ class HV40W(interfaces.CanbusModule):
         await self.hv_voltage_register.send_command()
 
     def __repr__(self):
+        """Represent the register in prettier format."""
         return f"{self.name}:\n {self.hv_voltage_register}\n"
 
 
@@ -804,6 +812,7 @@ class DelayLin(interfaces.CanbusModule):
         await self.error_code_register.send_command()
 
     def __repr__(self):
+        """Represent the register in prettier format."""
         return f"{self.name}:\n {self.error_code_register}\n"
 
 
@@ -885,6 +894,7 @@ class LDCO48BP(interfaces.CanbusModule):
         await self.display_temperature_register_4.send_command()
 
     def __repr__(self):
+        """Represent the register in prettier format."""
         return (
             f"{self.name}:\n {self.display_temperature_register}\n"
             f"{self.display_temperature_register_2}\n {self.display_temperature_register_3}\n"
@@ -948,6 +958,7 @@ class MLDCO48(interfaces.CanbusModule):
         await self.display_temperature_register_2.send_command()
 
     def __repr__(self):
+        """Represent the register in prettier format."""
         return f"{self.name}:\n {self.display_temperature_register}\n {self.display_temperature_register_2}\n"
 
 
@@ -1008,4 +1019,5 @@ class E5DCB:
         await self.set_point_register.read_register_value()
 
     def __repr__(self):
+        """Represent the register in prettier format."""
         return f"{self.name}:\n {self.run_stop_register}\n{self.set_point_register}\n"
