@@ -30,6 +30,8 @@ from . import canbus_modules, interfaces
 from .enums import Mode, OpticalConfiguration, Power
 from .fcu_client import FCUClient, Output
 
+DOESNT_EXIST = 0
+
 
 class MainLaser(interfaces.Laser):
     """The class that implements the TunableLaser component.
@@ -340,13 +342,13 @@ class StubbsLaser(interfaces.Laser):
     def temperature(self):
         return (
             self.tk6.display_temperature_register.register_value,
-            self.tk6.display_temperature_register_2.register_value,
+            DOESNT_EXIST,
             self.ldco48bp.display_temperature_register.register_value,
             self.ldco48bp.display_temperature_register_2.register_value,
-            self.ldco48bp.display_temperature_register_3.register_value,
-            self.ldco48bp.display_temperature_register_4.register_value,
-            self.m_ldcO48.display_temperature_register.register_value,
-            self.m_ldcO48.display_temperature_register_2.register_value,
+            DOESNT_EXIST,
+            DOESNT_EXIST,
+            DOESNT_EXIST,
+            DOESNT_EXIST,
         )
 
     async def set_optical_configuration(self, optical_configuration):

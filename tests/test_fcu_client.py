@@ -1,24 +1,17 @@
-import socket
 import unittest
 
 from lsst.ts.tunablelaser.fcu_client import FCUClient, Output
 from lsst.ts.tunablelaser.fcu_server import RestHttpCmdServer, State
 
 
-def get_unused_port() -> int:
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
-
-
 class TestFCUClient(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        self.port = get_unused_port()
-        self.server = RestHttpCmdServer(host="127.0.0.1", port=self.port)
+        self.server = RestHttpCmdServer(host="127.0.0.1", port=0)
         await self.server.start()
 
         self.client = FCUClient(simulation_mode=1)
-        self.client.base_url = f"http://127.0.0.1:{self.port}/REST/HTTP_CMD/"
+        self.client.host = self.server.host
+        self.client.port = self.server.port
 
     async def asyncTearDown(self) -> None:
         await self.server.stop()

@@ -112,6 +112,7 @@ class RestHttpCmdServer:
         # wait for startup
         for _ in range(100):
             if getattr(self._server, "started", False):
+                self.port = self._server.servers[0].sockets[0].getsockname()[1]
                 break
             await asyncio.sleep(0.01)
 

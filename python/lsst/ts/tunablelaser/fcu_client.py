@@ -25,9 +25,15 @@ class FCUClient:
         self.simulation_mode = simulation_mode
         match self.simulation_mode:
             case 0:
-                self.base_url = "http://laser-fcu.cp.lsst.org:8081/REST/HTTP_CMD/"
+                self.host = "laser-fcu.cp.lsst.org"
+                self.port = 8081
             case _:
-                self.base_url = "http://localhost:17000/REST/HTTP_CMD/"
+                self.host = "localhost"
+                self.port = 17000
+
+    @property
+    def base_url(self):
+        return f"http://{self.host}:{self.port}/REST/HTTP_CMD/"
 
     @staticmethod
     def make_soup(text):

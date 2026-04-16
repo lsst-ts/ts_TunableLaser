@@ -220,7 +220,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                     self.la_client.host = self.la_simulator.host
                     self.la_client.port = self.la_simulator.port
                     if self.laser_type == "Stubbs" and self.fcu_server is None:
-                        self.fcu_server = RestHttpCmdServer(port=17000)
+                        self.fcu_server = RestHttpCmdServer(port=0)
                         await self.fcu_server.start()
             if not self.laser_connected and self.laser_key_turned:
                 await self.evt_detailedState.set_write(
@@ -230,6 +230,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                     if self.simulation_mode:
                         self.model.host = self.simulator.host
                         self.model.port = self.simulator.port
+                        if self.laser_type == "Stubbs":
+                            self.model.fcu_client.host = self.fcu_server.host
+                            self.model.fcu_client.port = self.fcu_server.port
                     await self.model.connect()
                 except Exception:
                     self.log.exception("Failed to connect.")
