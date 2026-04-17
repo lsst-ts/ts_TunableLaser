@@ -36,7 +36,7 @@ class FCUClient:
         return f"http://{self.host}:{self.port}/REST/HTTP_CMD/"
 
     @staticmethod
-    def make_soup(text):
+    def make_soup(text) -> BeautifulSoup:
         """Make the BeautifulSoup parser.
 
         Returns
@@ -53,7 +53,8 @@ class FCUClient:
             async with session.get(f"?EXE/SetOutput/{out}") as resp:
                 text = await resp.text()
         soup = self.make_soup(text)
-        return soup.body.p.contents[2].contents[0]
+        parts = list(soup.stripped_strings)
+        return parts[1]
 
     async def get_state(self):
         """Get the state."""
@@ -61,7 +62,8 @@ class FCUClient:
             async with session.get("?RDVAR/State") as resp:
                 text = await resp.text()
         soup = self.make_soup(text)
-        return soup.body.p.contents[2].strip('" ')
+        parts = list(soup.stripped_strings)
+        return parts[1].strip('" ')
 
     async def get_output(self):
         """Get the output."""
@@ -69,4 +71,5 @@ class FCUClient:
             async with session.get("?RDVAR/Output") as resp:
                 text = await resp.text()
         soup = self.make_soup(text)
-        return soup.body.p.contents[2].strip(" '")
+        parts = list(soup.stripped_strings)
+        return parts[1].strip("' ")

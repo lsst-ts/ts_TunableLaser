@@ -21,21 +21,21 @@ class CommandHandler:
     async def get_state(self, request: Request) -> HTMLResponse:
         """Return the state."""
         return HTMLResponse(
-            content=f"""<p>0<br>"{request.app.state.state}" <br> string</p>""",
+            content=f"""0<br>"{request.app.state.state}" <br> string""",
             media_type="text/html",
         )
 
     async def get_output(self, request: Request) -> HTMLResponse:
         """Return the output."""
         return HTMLResponse(
-            content=f"<p>0<br>'{request.app.state.output.value}' <br> string</p>",
+            content=f"0<br>'{request.app.state.output.value}' <br> string",
             media_type="text/html",
         )
 
     async def set_output(self, request: Request, output: str) -> HTMLResponse:
         """Set the output."""
         response = HTMLResponse(
-            content="<p>0<br><a href=''>Check status</a></p>",
+            content="0<br><a href=''>Check status</a>",
             media_type="text/html",
         )
 
