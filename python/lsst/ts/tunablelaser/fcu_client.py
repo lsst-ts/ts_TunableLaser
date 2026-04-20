@@ -23,6 +23,7 @@ class FCUClient:
 
     def __init__(self, simulation_mode=0):
         self.simulation_mode = simulation_mode
+        self.output = None
         match self.simulation_mode:
             case 0:
                 self.host = "laser-fcu.cp.lsst.org"
@@ -52,6 +53,7 @@ class FCUClient:
         async with ClientSession(base_url=self.base_url) as session:
             async with session.get(f"?EXE/SetOutput/{out}") as resp:
                 text = await resp.text()
+        self.output = out
         soup = self.make_soup(text)
         parts = list(soup.stripped_strings)
         return parts[1]
@@ -72,4 +74,6 @@ class FCUClient:
                 text = await resp.text()
         soup = self.make_soup(text)
         parts = list(soup.stripped_strings)
-        return parts[1].strip("' ")
+        output = parts[1].strip("' ")
+        self.output = Output(output)
+        return output

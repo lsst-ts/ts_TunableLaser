@@ -19,7 +19,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-__all__ = ["Power", "Mode", "Output", "OpticalConfiguration", "SimulationMode"]
+__all__ = ["Power", "Mode", "Output", "OpticalConfiguration", "SimulationMode", "ErrorCode"]
 
 import enum
 
@@ -35,8 +35,22 @@ class SimulationMode(enum.IntEnum):
     """Connect to simulated hardware that is network unstable."""
 
 
-class Error(enum.IntEnum):
-    pass
+class ErrorCode(enum.IntEnum):
+    """CSC fault codes.
+
+    These mirror the error-code space exposed by the TunableLaser XML enum,
+    but are kept local to this package so call sites do not need to depend on
+    the XML-generated enum directly.
+    """
+
+    ASCII_ERROR = 7301
+    """ASCII protocol or parsing error."""
+    GENERAL_ERROR = 7302
+    """General controller or runtime error."""
+    TIMEOUT_ERROR = 7303
+    """Timeout while waiting for hardware response."""
+    HW_CPU_ERROR = 7304
+    """Hardware fault reported by a laser CPU module."""
 
 
 class Power(enum.StrEnum):

@@ -221,7 +221,7 @@ class TempCtrlServer(tcpip.OneClientReadLoopServer):
             reply = await self.readuntil(b"\r")
             reply = reply.strip(self.terminator)
             reply = self.device.parse_message(reply)
-            await self.write_str(reply)
+            await self.write(reply.encode(self.encoding))
         else:
             await self.write_str("TempCtrler Unconnected")
 
@@ -488,11 +488,11 @@ class MockNP5450:
 
     def do_set_op_01_runstop(self, data):
         run_stop_related_info = {
-            True: "\x30\x30",  # on
-            False: "\x30\x31",  # off
+            "\x30\x30": True,  # on
+            "\x30\x31": False,  # off
         }
         if data in run_stop_related_info:
-            self.run_stop = bool(run_stop_related_info[data])
+            self.run_stop = run_stop_related_info[data]
         else:
             self.log.error(f"received bad data in related info: {data}")
 

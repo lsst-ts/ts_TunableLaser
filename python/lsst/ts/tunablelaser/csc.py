@@ -30,7 +30,7 @@ from lsst.ts.xml.enums import TunableLaser
 
 from . import __version__, component, mock_server
 from .config_schema import CONFIG_SCHEMA
-from .enums import SimulationMode
+from .enums import ErrorCode, Mode, SimulationMode
 from .fcu_server import RestHttpCmdServer
 
 
@@ -104,6 +104,8 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.fc_task: asyncio.Future = utils.make_done_future()
         self.la_task: asyncio.Future = utils.make_done_future()
         self.fcu_server = None
+        self.fc_simulator = None
+        self.la_simulator = None
 
     @property
     def laser_connected(self) -> bool:
@@ -118,21 +120,21 @@ class LaserCSC(salobj.ConfigurableCsc):
     @property
     def detailed_state(self) -> TunableLaser.LaserDetailedState:
         """Return the detailed state."""
-        if self.evt_detailedState.has_data:
-            return self.evt_detailedState.data.detailedState
-        else:
-            # Assume not propagating in continuous mode.
-            return TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
+        return self.evt_detailedState.data.detailedState
 
     async def telemetry(self):
         """Send out the TunableLaser's telemetry."""
         while True:
+            assert self.model is not None
+            assert self.thermal_ctrl is not None
             try:
                 if not self.laser_connected and self.model.should_be_connected:
-                    await self.fault(code=4, report="Device lost connection.")
+                    await self.fault(code=ErrorCode.GENERAL_ERROR, report="Device lost connection.")
                     return
                 if self.laser_key_turned:
                     await self.model.read_all_registers()
+                    detailed_state = self.calculate_detailed_state()
+                    await self.publish_new_detailed_state(detailed_state)
                 await self.thermal_ctrl.read_all_registers()
                 if self.fc_client.response is not None:
                     self.log.info(self.fc_client.response)
@@ -144,7 +146,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                     or self.model.m_cpu800.power_register_2.register_value == "FAULT"
                 ):
                     await self.fault(
-                        code=TunableLaser.LaserErrorCode.HW_CPU_ERROR,
+                        code=ErrorCode.HW_CPU_ERROR,
                         report=(
                             f"cpu8000 fault:{self.model.cpu8000.fault_register.register_value}"
                             f"m_cpu800 fault:{self.model.m_cpu800.fault_register.register_value}"
@@ -168,7 +170,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                 )
             except Exception:
                 self.log.exception("Telemetry loop failed.")
-                await self.fault(code=4, report="Telemetry loop failed.")
+                await self.fault(code=ErrorCode.GENERAL_ERROR, report="Telemetry loop failed.")
                 return
             await asyncio.sleep(self.telemetry_rate)
 
@@ -193,9 +195,27 @@ class LaserCSC(salobj.ConfigurableCsc):
                 f"command not allowed in state {TunableLaser.LaserDetailedState(self.detailed_state)!r}"
             )
 
+    def calculate_detailed_state(self):
+        detailed_state = None
+        assert self.model is not None
+        match self.model.propagation_mode, self.model.is_propagating:
+            case Mode.BURST, False:
+                detailed_state = TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE
+            case Mode.BURST, True:
+                detailed_state = TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE
+            case Mode.CONTINUOUS, False:
+                detailed_state = TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
+            case Mode.CONTINUOUS, True:
+                detailed_state = TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE
+            case _:
+                raise RuntimeWarning("Not a valid detailed_state.")
+        return detailed_state
+
     async def handle_summary_state(self):
-        """Handle the summary state transitons."""
+        """Handle the summary state transitions."""
         if self.disabled_or_enabled:
+            assert self.model is not None
+            assert self.thermal_ctrl is not None
             if self.simulation_mode:
                 if self.simulator is None:
                     self.log.info("Starting simulator.")
@@ -206,26 +226,25 @@ class LaserCSC(salobj.ConfigurableCsc):
                         await self.simulator.start_task
                         if self.simulation_mode == SimulationMode.MOCK_INSTABILITY:
                             self.simulator.simulate_connection_instability = True
-
+                if self.thermal_ctrl_simulator is None:
                     self.thermal_ctrl_simulator = mock_server.TempCtrlServer(host=self.thermal_ctrl.host)
                     await self.thermal_ctrl_simulator.start_task
                     self.thermal_ctrl.host = self.thermal_ctrl_simulator.host
                     self.thermal_ctrl.port = self.thermal_ctrl_simulator.port
+                if self.fc_simulator is None:
                     self.fc_simulator = mock_server.MockFanControlServer()
                     await self.fc_simulator.start_task
                     self.fc_client.host = self.fc_simulator.host
                     self.fc_client.port = self.fc_simulator.port
+                if self.la_simulator is None:
                     self.la_simulator = mock_server.MockLaserAlignmentServer()
                     await self.la_simulator.start_task
                     self.la_client.host = self.la_simulator.host
                     self.la_client.port = self.la_simulator.port
-                    if self.laser_type == "Stubbs" and self.fcu_server is None:
-                        self.fcu_server = RestHttpCmdServer(port=0)
-                        await self.fcu_server.start()
+                if self.laser_type == "Stubbs" and self.fcu_server is None:
+                    self.fcu_server = RestHttpCmdServer(port=0)
+                    await self.fcu_server.start()
             if not self.laser_connected and self.laser_key_turned:
-                await self.evt_detailedState.set_write(
-                    detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
-                )
                 try:
                     if self.simulation_mode:
                         self.model.host = self.simulator.host
@@ -236,7 +255,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                     await self.model.connect()
                 except Exception:
                     self.log.exception("Failed to connect.")
-                    await self.fault(code=2, report="Connection failed.")
+                    await self.fault(code=ErrorCode.GENERAL_ERROR, report="Connection failed.")
                     return
                 await self.model.clear_fault()
                 await self.model.set_optical_configuration(self.optical_alignment)
@@ -257,21 +276,31 @@ class LaserCSC(salobj.ConfigurableCsc):
             if self.la_task.done():
                 self.la_task = asyncio.create_task(self.la_client.get_messages())
         else:
-            if self.laser_connected:
+            if self.model is not None:
                 await self.model.disconnect()
                 self.model = None
+            if self.thermal_ctrl is not None:
                 await self.thermal_ctrl.disconnect()
                 self.thermal_ctrl = None
+            if self.fc_client is not None:
                 await self.fc_client.disconnect()
+            if self.la_client is not None:
                 await self.la_client.disconnect()
             if self.simulator is not None:
                 await self.simulator.close()
                 self.simulator = None
+            if self.thermal_ctrl_simulator is not None:
                 await self.thermal_ctrl_simulator.close()
                 self.thermal_ctrl_simulator = None
-                if self.laser_type == "Stubbs" and self.fcu_server is not None:
-                    await self.fcu_server.stop()
-                    self.fcu_server = None
+            if self.fc_simulator is not None:
+                await self.fc_simulator.close()
+                self.fc_simulator = None
+            if self.la_simulator is not None:
+                await self.la_simulator.close()
+                self.la_simulator = None
+            if self.laser_type == "Stubbs" and self.fcu_server is not None:
+                await self.fcu_server.stop()
+                self.fcu_server = None
             self.telemetry_task.cancel()
             self.fc_task.cancel()
             self.la_task.cancel()
@@ -291,18 +320,6 @@ class LaserCSC(salobj.ConfigurableCsc):
         if self.laser_connected:
             await self.model.set_burst_mode(data.count)
             await self.evt_burstModeSet.set_write()
-            if self.detailed_state in [
-                TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE,
-                TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE,
-            ]:
-                await self.publish_new_detailed_state(TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE)
-            if self.detailed_state in [
-                TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE,
-                TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE,
-            ]:
-                await self.publish_new_detailed_state(
-                    TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE
-                )
         else:
             raise salobj.ExpectedError("Not connected.")
 
@@ -334,7 +351,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         self.assert_enabled()
         if self.laser_connected:
             await self.model.change_wavelength(data.wavelength)
-            await self.evt_wavelengthChanged.set_write(wavelength=data.wavelength)
+            await self.evt_wavelengthChanged.set_write(wavelength=float(self.model.wavelength))
         else:
             raise salobj.ExpectedError("Not connected")
 
@@ -355,20 +372,10 @@ class LaserCSC(salobj.ConfigurableCsc):
         if self.laser_connected:
             if not self.laser_key_turned:
                 raise salobj.ExpectedError("laser_key_turned is set to false.")
+            assert self.model is not None
             await self.cmd_startPropagateLaser.ack_in_progress(data, self.model.laser_warmup_delay)
             await self.model.set_output_energy_level("MAX")
             await self.model.start_propagating(data)
-            match self.detailed_state:
-                case TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE:
-                    await self.publish_new_detailed_state(
-                        TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE
-                    )
-                case TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE:
-                    await self.publish_new_detailed_state(
-                        TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE
-                    )
-                case _:
-                    pass
         else:
             raise salobj.ExpectedError("Not connected.")
 
@@ -388,17 +395,6 @@ class LaserCSC(salobj.ConfigurableCsc):
         )
         if self.laser_connected:
             await self.model.stop_propagating()
-            match self.detailed_state:
-                case TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE:
-                    await self.publish_new_detailed_state(
-                        TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE
-                    )
-                case TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE:
-                    await self.publish_new_detailed_state(
-                        TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
-                    )
-                case _:
-                    pass
         else:
             raise salobj.ExpectedError("Not connected.")
 
@@ -457,15 +453,8 @@ class LaserCSC(salobj.ConfigurableCsc):
         """
         self.assert_enabled()
         if self.laser_connected:
-            match self.laser_type:
-                case "Main":
-                    await self.model.set_optical_configuration(data.configuration)
-                    await self.evt_opticalConfiguration.set_write(configuration=data.configuration)
-                case "Stubbs":
-                    await self.model.set_optical_configuration(data.configuration)
-                    await self.evt_opticalConfiguration.set_write(configuration=data.configuration)
-                case _:
-                    raise salobj.ExpectedError("Unrecognized type of laser.")
+            await self.model.set_optical_configuration(data.configuration)
+            await self.evt_opticalConfiguration.set_write(configuration=self.model.optical_configuration)
         else:
             raise salobj.ExpectedError("Not connected")
 

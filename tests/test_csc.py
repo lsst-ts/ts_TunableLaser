@@ -22,6 +22,7 @@
 import os
 import pathlib
 import unittest
+import unittest.mock
 
 import pytest
 from parameterized import parameterized
@@ -117,17 +118,67 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                     )
 
     @parameterized.expand([(""), ("stubbs.yaml")])
+    async def test_change_wavelength_fails_on_triple_quote_write_error(self, config):
+        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1, override=config):
+            if config == "":
+                method_name = "do_set_maxiopg_31_wavelength"
+
+                def fail_write(self, wavelength):
+                    return "'''Error: (11) Violating top value limit"
+
+            else:
+                method_name = "do_wavelength"
+
+                def fail_write(self, parameter=None):
+                    return "'''Error: (11) Violating top value limit"
+
+            with unittest.mock.patch.object(type(self.csc.simulator.device), method_name, fail_write):
+                with pytest.raises(salobj.AckError):
+                    await self.remote.cmd_changeWavelength.set_start(wavelength=700, timeout=STD_TIMEOUT)
+
+    @parameterized.expand([(""), ("stubbs.yaml")])
+    async def test_change_wavelength_fails_on_triple_quote_read_error(self, config):
+        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1, override=config):
+            if config == "":
+                method_name = "do_maxiopg_31_wavelength"
+
+                def fail_read(self):
+                    return "'''Error: (8) Timeout waiting for device answer"
+
+            else:
+                method_name = "do_wavelength"
+
+                def fail_read(self, parameter=None):
+                    return "'''Error: (8) Timeout waiting for device answer"
+
+            with unittest.mock.patch.object(type(self.csc.simulator.device), method_name, fail_read):
+                with pytest.raises(salobj.AckError):
+                    await self.remote.cmd_changeWavelength.set_start(wavelength=700, timeout=STD_TIMEOUT)
+
+    @parameterized.expand([(""), ("stubbs.yaml")])
     async def test_change_alignment(self, config):
         async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1, override=config):
-            await self.remote.cmd_setOpticalConfiguration.set_start(configuration="SCU", timeout=STD_TIMEOUT)
+            match config:
+                case "":
+                    configurations = list(tunablelaser.OpticalConfiguration)
+                case "stubbs.yaml":
+                    configurations = [
+                        tunablelaser.OpticalConfiguration.NO_SCU,
+                        tunablelaser.OpticalConfiguration.F1_NO_SCU,
+                        tunablelaser.OpticalConfiguration.F2_NO_SCU,
+                    ]
             await self.assert_next_sample(
                 topic=self.remote.evt_opticalConfiguration,
                 configuration="F1 No SCU",
             )
-            await self.assert_next_sample(
-                topic=self.remote.evt_opticalConfiguration,
-                configuration="SCU",
-            )
+            for configuration in configurations:
+                await self.remote.cmd_setOpticalConfiguration.set_start(
+                    configuration=configuration, timeout=STD_TIMEOUT
+                )
+                await self.assert_next_sample(
+                    topic=self.remote.evt_opticalConfiguration,
+                    configuration=configuration,
+                )
             with pytest.raises(salobj.AckError):
                 await self.remote.cmd_setOpticalConfiguration.set_start(
                     configuration="Wumbo", timeout=STD_TIMEOUT

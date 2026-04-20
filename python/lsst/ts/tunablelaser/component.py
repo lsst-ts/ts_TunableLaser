@@ -90,18 +90,26 @@ class MainLaser(interfaces.Laser):
             simulation_mode=simulation_mode,
         )
         self.laser_id = 1
-        self.cpu8000 = canbus_modules.CPU8000(component=self)
-        self.m_cpu800 = canbus_modules.MCPU800(component=self)
-        self.llpmku = canbus_modules.LLPMKU(component=self)
-        self.maxi_opg = canbus_modules.MaxiOPG(component=self)
-        self.tk6 = canbus_modules.TK6(component=self)
-        self.hv40w = canbus_modules.HV40W(component=self, laser_id=self.laser_id)
-        self.delay_lin = canbus_modules.DelayLin(component=self, laser_id=self.laser_id)
-        self.mini_opg = canbus_modules.MiniOPG(component=self)
-        self.ldco48bp = canbus_modules.LDCO48BP(component=self, laser_id=self.laser_id)
-        self.m_ldcO48 = canbus_modules.MLDCO48(component=self)
+        self.cpu8000 = canbus_modules.CPU8000()
+        self.m_cpu800 = canbus_modules.MCPU800()
+        self.llpmku = canbus_modules.LLPMKU()
+        self.maxi_opg = canbus_modules.MaxiOPG()
+        self.tk6 = canbus_modules.TK6()
+        self.hv40w = canbus_modules.HV40W(laser_id=self.laser_id)
+        self.delay_lin = canbus_modules.DelayLin(laser_id=self.laser_id)
+        self.mini_opg = canbus_modules.MiniOPG()
+        self.ldco48bp = canbus_modules.LDCO48BP(laser_id=self.laser_id)
+        self.m_ldcO48 = canbus_modules.MLDCO48()
         self.laser_warmup_delay = 10
         self.lock = asyncio.Lock()
+
+    @property
+    def optical_configuration(self):
+        return self.maxi_opg.configuration_register.register_value
+
+    @property
+    def propagation_mode(self):
+        return self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value
 
     @property
     def is_propagating(self):
@@ -140,7 +148,7 @@ class MainLaser(interfaces.Laser):
         """
         self.log.debug("Changing wavelength")
         wave = int(wavelength)
-        await self.maxi_opg.change_wavelength(wave)
+        await self.write_register(*self.maxi_opg.change_wavelength(wave))
 
     async def set_optical_configuration(self, optical_configuration):
         """Change the optical alignment of the laser.
@@ -155,7 +163,7 @@ class MainLaser(interfaces.Laser):
             f"Set optical alignment to {optical_configuration}"
             f"Optical alignment is {self.maxi_opg.optical_alignment}"
         )
-        await self.maxi_opg.set_configuration()
+        await self.write_register(*self.maxi_opg.set_configuration())
 
     async def set_output_energy_level(self, output_energy_level):
         """Set the output energy level of the laser.
@@ -170,7 +178,7 @@ class MainLaser(interfaces.Laser):
             * MAX: The maximum energy output of the laser.
         """
         self.log.debug(f"Changing output energy level={output_energy_level}")
-        await self.m_cpu800.set_output_energy_level(output_energy_level)
+        await self.write_register(*self.m_cpu800.set_output_energy_level(output_energy_level))
 
     async def trigger_burst(self):
         """Trigger a burst.
@@ -180,7 +188,7 @@ class MainLaser(interfaces.Laser):
         ValueError
             Raised when mode parameter is not in list of accepted values.
         """
-        await self.m_cpu800.set_propagation_mode(Mode.TRIGGER)
+        await self.write_register(*self.m_cpu800.set_propagation_mode(Mode.TRIGGER))
 
     async def set_burst_mode(self, count):
         """Set the propagation mode to pulse the laser at regular intervals.
@@ -197,12 +205,12 @@ class MainLaser(interfaces.Laser):
             Raised when the count parameter falls outside of the
             accepted range.
         """
-        await self.m_cpu800.set_propagation_mode(Mode.BURST)
-        await self.m_cpu800.set_burst_count(count)
+        await self.write_register(*self.m_cpu800.set_propagation_mode(Mode.BURST))
+        await self.write_register(*self.m_cpu800.set_burst_count(count))
 
     async def set_continuous_mode(self):
         """Set the propagation mode to continuously pulse the laser."""
-        await self.m_cpu800.set_propagation_mode(Mode.CONTINUOUS)
+        await self.write_register(*self.m_cpu800.set_propagation_mode(Mode.CONTINUOUS))
 
     async def set_burst_count(self, count):
         """Set the burst count of the laser.
@@ -212,34 +220,25 @@ class MainLaser(interfaces.Laser):
         count : `int`
             The amount to pulse the laser.
         """
-        await self.m_cpu800.set_burst_count(count)
+        await self.write_register(*self.m_cpu800.set_burst_count(count))
 
     async def start_propagating(self, data):
         """Start propagating the beam of the laser."""
-        await self.m_cpu800.start_propagating()
+        await self.write_register(*self.m_cpu800.start_propagating())
         await asyncio.sleep(self.laser_warmup_delay)  # laser warmup delay
 
     async def stop_propagating(self):
         """Stop propagating the beam of the laser"""
-        await self.m_cpu800.stop_propagating()
+        await self.write_register(*self.m_cpu800.stop_propagating())
 
     async def clear_fault(self):
         """Clear the fault state of the laser."""
         if self.m_cpu800.power_register_2.register_value == "FAULT":
-            await self.m_cpu800.power_register_2.set_register_value()
+            await self.read_register(self.m_cpu800.power_register_2)
 
     async def read_all_registers(self):
         """Publish the module's registers' values."""
-        await self.cpu8000.update_register()
-        await self.m_cpu800.update_register()
-        await self.llpmku.update_register()
-        await self.maxi_opg.update_register()
-        await self.mini_opg.update_register()
-        await self.tk6.update_register()
-        await self.hv40w.update_register()
-        await self.delay_lin.update_register()
-        await self.ldco48bp.update_register()
-        await self.m_ldcO48.update_register()
+        await self.refresh_all_ascii_registers()
 
     async def configure(self, config):
         """Set the configuration for the TunableLaser."""
@@ -315,17 +314,31 @@ class StubbsLaser(interfaces.Laser):
             simulation_mode=simulation_mode,
         )
         self.laser_id = 2
-        self.midiopg = canbus_modules.MidiOPG(component=self)
-        self.m_cpu800 = canbus_modules.MCPU800(component=self)
-        self.cpu8000 = canbus_modules.CPU8000(component=self)
-        self.tk6 = canbus_modules.TK6(component=self)
-        self.hv40w = canbus_modules.HV40W(component=self, laser_id=self.laser_id)
-        self.delay_lin = canbus_modules.DelayLin(component=self, laser_id=self.laser_id)
-        self.ldco48bp = canbus_modules.LDCO48BP(component=self, laser_id=self.laser_id)
-        self.m_ldcO48 = canbus_modules.MLDCO48(component=self)
+        self.midiopg = canbus_modules.MidiOPG()
+        self.m_cpu800 = canbus_modules.MCPU800()
+        self.cpu8000 = canbus_modules.CPU8000()
+        self.tk6 = canbus_modules.TK6()
+        self.hv40w = canbus_modules.HV40W(laser_id=self.laser_id)
+        self.delay_lin = canbus_modules.DelayLin(laser_id=self.laser_id)
+        self.ldco48bp = canbus_modules.LDCO48BP(laser_id=self.laser_id)
+        self.m_ldcO48 = canbus_modules.MLDCO48()
         self.fcu_client = FCUClient(simulation_mode=simulation_mode)
         self.laser_warmup_delay = 10
         self.lock = asyncio.Lock()
+        self.output_lut = {
+            Output.out1: OpticalConfiguration.NO_SCU,
+            Output.out2: OpticalConfiguration.F1_NO_SCU,
+            Output.out3: OpticalConfiguration.F2_NO_SCU,
+            None: None,
+        }
+
+    @property
+    def optical_configuration(self):
+        return self.output_lut[self.fcu_client.output]
+
+    @property
+    def propagation_mode(self):
+        return self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value
 
     @property
     def is_propagating(self):
@@ -383,7 +396,7 @@ class StubbsLaser(interfaces.Laser):
         wavelength : float
             The wavelength to be set.
         """
-        await self.midiopg.change_wavelength(wavelength)
+        await self.write_register(*self.midiopg.change_wavelength(wavelength))
 
     async def set_output_energy_level(self, output_energy_level):
         """Set output energy level.
@@ -393,7 +406,7 @@ class StubbsLaser(interfaces.Laser):
         output_energy_level : `str`
             The output to be set.
         """
-        await self.m_cpu800.set_output_energy_level(output_energy_level)
+        await self.write_register(*self.m_cpu800.set_output_energy_level(output_energy_level))
 
     async def trigger_burst(self):
         """Trigger a burst.
@@ -403,7 +416,7 @@ class StubbsLaser(interfaces.Laser):
         ValueError
             Raised when mode parameter is not in list of accepted values.
         """
-        await self.m_cpu800.set_propagation_mode(Mode.TRIGGER)
+        await self.write_register(*self.m_cpu800.set_propagation_mode(Mode.TRIGGER))
 
     async def set_burst_mode(self, count):
         """Set the propagation mode to pulse the laser at regular intervals.
@@ -420,12 +433,12 @@ class StubbsLaser(interfaces.Laser):
             Raised when the count parameter falls outside of the
             accepted range.
         """
-        await self.m_cpu800.set_propagation_mode(Mode.BURST)
-        await self.m_cpu800.set_burst_count(count)
+        await self.write_register(*self.m_cpu800.set_propagation_mode(Mode.BURST))
+        await self.write_register(*self.m_cpu800.set_burst_count(count))
 
     async def set_continuous_mode(self):
         """Set the propagation mode to continuously pulse the laser."""
-        await self.m_cpu800.set_propagation_mode(Mode.CONTINUOUS)
+        await self.write_register(*self.m_cpu800.set_propagation_mode(Mode.CONTINUOUS))
 
     async def set_burst_count(self, count):
         """Set the burst count of the laser.
@@ -435,21 +448,21 @@ class StubbsLaser(interfaces.Laser):
         count : `int`
             The amount to pulse the laser.
         """
-        await self.m_cpu800.set_burst_count(count)
+        await self.write_register(*self.m_cpu800.set_burst_count(count))
 
     async def start_propagating(self, data):
         """Start propagating the beam of the laser."""
-        await self.m_cpu800.start_propagating()
+        await self.write_register(*self.m_cpu800.start_propagating())
         await asyncio.sleep(self.laser_warmup_delay)  # laser warmup delay
 
     async def stop_propagating(self):
         """Stop propagating the beam of the laser"""
-        await self.m_cpu800.stop_propagating()
+        await self.write_register(*self.m_cpu800.stop_propagating())
 
     async def clear_fault(self):
         """Clear the fault state of the laser."""
         if self.m_cpu800.power_register_2.register_value == "FAULT":
-            await self.m_cpu800.power_register_2.set_register_value()
+            await self.read_register(self.m_cpu800.power_register_2)
 
     async def configure(self, config):
         self.log.debug("Setting config.")
@@ -469,14 +482,8 @@ class StubbsLaser(interfaces.Laser):
         # ) PF: Not sure about this either
 
     async def read_all_registers(self):
-        await self.midiopg.update_register()
-        await self.cpu8000.update_register()
-        await self.m_cpu800.update_register()
-        await self.tk6.update_register()
-        await self.hv40w.update_register()
-        await self.delay_lin.update_register()
-        await self.ldco48bp.update_register()
-        await self.m_ldcO48.update_register()
+        await self.refresh_all_ascii_registers()
+        await self.fcu_client.get_output()
 
 
 class TemperatureCtrl(interfaces.CompoWayFModule):
@@ -520,12 +527,11 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
             encoding=encoding,
             simulation_mode=simulation_mode,
         )
-        self.lock = asyncio.Lock()
 
         # if host is not valid IP address assume its unconnected
         if str(host).lower() != "none":
             self.host = host
-            self.e5dc_b = canbus_modules.E5DCB(component=self, simulation_mode=simulation_mode)
+            self.e5dc_b = canbus_modules.E5DCB(simulation_mode=simulation_mode)
         else:
             self.log.error(f"Host address given to Temp Ctrl not valid, assuming unconnected: {host}")
             self.host = None
@@ -543,21 +549,21 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
     async def laser_thermal_turn_on(self):
         """Turn the heater and fans on."""
         if self.e5dc_b is not None:
-            await self.e5dc_b.run_stop_register.set_register_value(True)
+            await self.write_register(self.e5dc_b.run_stop_register, True)
         else:
             self.log.error("Tried to laser_thermal_turn_on but thermal ctrler is unconnected.")
 
     async def laser_thermal_turn_off(self):
         """Turn the heater and fans off."""
         if self.e5dc_b is not None:
-            await self.e5dc_b.run_stop_register.set_register_value(False)
+            await self.write_register(self.e5dc_b.run_stop_register, False)
         else:
             self.log.error("Tried to laser_thermal_turn_off but thermal ctrler is unconnected.")
 
     async def laser_thermal_change_set_point(self, value):
         """Change the temperature set point value."""
         if self.e5dc_b is not None:
-            await self.e5dc_b.set_point_register.set_register_value(value)
+            await self.write_register(self.e5dc_b.set_point_register, value)
         else:
             self.log.error("Tried to laser_thermal_change_set_point but thermal ctrler is unconnected.")
 
@@ -570,7 +576,7 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
     async def read_all_registers(self):
         """Read all of the registers."""
         if self.e5dc_b is not None:
-            await self.e5dc_b.update_register()
+            await self.refresh_all_registers()
         else:
             self.log.warning("Tried to update_register but thermal ctrler is unconnected.")
 

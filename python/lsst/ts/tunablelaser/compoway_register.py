@@ -37,8 +37,6 @@ class CompoWayFGeneralRegister(AsciiRegister):
 
     Parameters
     ----------
-    component : `Laser`
-        Reference to the component.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -56,8 +54,6 @@ class CompoWayFGeneralRegister(AsciiRegister):
     ----------
     log : `logging.Logger`
         The log for this class.
-    commander : `TCPIPClient`
-        A TCP/IP client for communicating with the TunableLaser.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -77,7 +73,6 @@ class CompoWayFGeneralRegister(AsciiRegister):
 
     def __init__(
         self,
-        component=None,
         module_name="",
         module_id=0,
         register_name="",
@@ -85,7 +80,6 @@ class CompoWayFGeneralRegister(AsciiRegister):
         accepted_values=None,
     ) -> None:
         super().__init__(
-            component=component,
             module_name=module_name,
             module_id=module_id,
             register_name=register_name,
@@ -213,16 +207,6 @@ class CompoWayFGeneralRegister(AsciiRegister):
         # need to override the ascii register
         raise Exception("Function not implemented, you shouldn't be using the generic class")
 
-    async def read_register_value(self):
-        """Read register value."""
-        # need to override the ascii register
-        raise Exception("Function not implemented, you shouldn't be using the generic class")
-
-    async def set_register_value(self, set_value):
-        """Set register value."""
-        # need to override the ascii register
-        raise Exception("Function not implemented, you shouldn't be using the generic class")
-
     def get_response(self):
         """Get response."""
         translated_response = self.response_code
@@ -253,8 +237,6 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
 
     Parameters
     ----------
-    component : `Laser`
-        Reference to the component.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -274,8 +256,6 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
     ----------
     log : `logging.Logger`
         The log for this class.
-    commander : `TCPIPClient`
-        A TCP/IP client for communicating with the TunableLaser.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -305,7 +285,6 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
 
     def __init__(
         self,
-        component,
         module_name,
         module_id,
         register_name,
@@ -317,7 +296,6 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
             raise TypeError("accepted_values must be type range")
 
         super().__init__(
-            component=component,
             module_name=module_name,
             module_id=module_id,
             register_name=register_name,
@@ -430,179 +408,12 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
         else:
             raise PermissionError("This register is read only.")
 
-    async def read_register_value(self):
-        """Read the value of the register.
-
-        Returns
-        -------
-        None
-        """
-        async with self.component.lock:
-            message = self.create_get_message()
-
-            if self.simulation_mode:
-                message += "\r"
-
-            await self.component.commander.write(message.encode(self.component.commander.encoding))
-
-            try:
-                stx_node_subadd = await self.component.commander.readexactly(5)
-                stx_node_subadd = stx_node_subadd.decode()
-                expected_stx_node_subadd = "\x02"
-                if int(self.node) < 10:
-                    expected_stx_node_subadd += "\x30"
-                expected_stx_node_subadd += self.node + "\x30\x30"
-                if stx_node_subadd is not expected_stx_node_subadd:
-                    self.log.error(
-                        f"Received incorrect start of packet: {stx_node_subadd}, "
-                        f"expected: {expected_stx_node_subadd}"
-                    )
-                    self.register_value = -1
-                self.end_code = await self.component.commander.readexactly(2)
-                self.end_code = self.end_code.decode()
-                mrc_src = await self.component.commander.readexactly(4)
-                mrc_src = mrc_src.decode()
-                # read variable area request MRC is 01, SRC is 01
-                expected_mrc_src = "\x30\x31\x30\x31"
-                if mrc_src is not expected_mrc_src:
-                    self.log.error(
-                        f"Received incorrect Request Codes: {mrc_src}, expected: {expected_mrc_src}"
-                    )
-                    self.register_value = -1
-                self.response_code = await self.component.commander.readexactly(4)
-                self.response_code = self.response_code.decode()
-
-                self.cmd_txt = await self.component.commander.readuntil(b"\x03")
-                self.cmd_txt = self.cmd_txt.decode()
-                # trim off ETX byte
-                self.cmd_txt = self.cmd_txt[:-1]
-                try:
-                    self.register_value = int(self.cmd_txt, 16)
-                except Exception as e:
-                    self.log.error(f"Received no valid register value! {self.cmd_txt} {str(e)}")
-                    self.register_value = -1
-
-                self.bcc = await self.component.commander.readexactly(1)
-                self.bcc = self.bcc.decode()
-
-                # bcc should be calculated without STX, but with ETX byte
-                bcc_frame = (
-                    stx_node_subadd.split("\x02")[1]
-                    + self.end_code
-                    + mrc_src
-                    + self.response_code
-                    + self.cmd_txt
-                    + "\x03"
-                )
-                expected_bcc = self.generate_bcc(bcc_frame)
-                if expected_bcc is not self.bcc:
-                    self.log.error(f"Incorrect BCC, got: {self.bcc}, expected: {expected_bcc}")
-                    self.register_value = -1
-            except Exception as e:
-                self.log.error(f"Message format not as expected. Message: {e}")
-
-    async def handle_set_response(self):
-        """Handle setting the response."""
-        async with self.component.lock:
-            try:
-                stx_node_subadd = await self.component.commander.readexactly(5)
-                stx_node_subadd = stx_node_subadd.decode()
-                expected_stx_node_subadd = "\x02"
-                if int(self.node) < 10:
-                    expected_stx_node_subadd += "\x30"
-                expected_stx_node_subadd += self.node + "\x30\x30"
-                if stx_node_subadd is not expected_stx_node_subadd:
-                    self.log.error(
-                        f"Received incorrect start of packet: {stx_node_subadd}, "
-                        f"expected: {expected_stx_node_subadd}"
-                    )
-                    self.register_value = ""
-                self.end_code = await self.component.commander.readexactly(2)
-                self.end_code = self.end_code.decode()
-                if self.end_code != "\x30\x30":
-                    self.log.error(
-                        f"Received bad end code: {self.end_code}: {self.end_code_dict[self.end_code]}"
-                    )
-
-                mrc_src = await self.component.commander.readexactly(4)
-                mrc_src = mrc_src.decode()
-                # write variable area request MRC is 01, SRC is 02
-                expected_mrc_src = "\x30\x31\x30\x32"
-                if mrc_src is not expected_mrc_src:
-                    self.log.error(
-                        f"Received incorrect Request Codes: {mrc_src}, expected: {expected_mrc_src}"
-                    )
-                self.response_code = await self.component.commander.readexactly(4)
-                self.response_code = self.response_code.decode()
-
-                if self.response_code != "\x30\x30\x30\x30":
-                    self.log.error(
-                        "Received bad response code: "
-                        f"{self.response_code}: {self.response_dict[self.response_code]}"
-                    )
-
-                etx = await self.component.commander.readuntil(b"\x03")
-                etx = etx.decode()
-
-                if etx != "\x03":
-                    self.log.error(f"Received bad ETX: {etx} expected: \x03")
-
-                self.bcc = await self.component.commander.readexactly(1)
-                self.bcc = self.bcc.decode()
-
-                # bcc should be calculated without STX, but with ETX byte
-                bcc_frame = (
-                    stx_node_subadd.split("\x02")[1] + self.end_code + mrc_src + self.response_code + "\x03"
-                )
-                expected_bcc = self.generate_bcc(bcc_frame)
-                if expected_bcc is not self.bcc:
-                    self.log.error(f"Incorrect BCC, got: {self.bcc}, expected: {expected_bcc}")
-            except Exception as e:
-                print(f"handle_set_response excepted: {e}")
-
-    async def set_register_value(self, set_value):
-        """Set the value of the register and read the new value.
-
-        Parameters
-        ----------
-        set_value : Any
-
-        Raises
-        ------
-        ReadOnlyException
-            This indicates that the register is read only and cannot be set.
-        ValueError
-            If set value is too long (4 max)
-
-        Returns
-        -------
-        None
-
-        """
-        if self.read_only:
-            raise PermissionError("This register is read only.")
-        if not self.simulation_mode:
-            try:
-                async with self.component.lock:
-                    message = self.create_set_message(set_value)
-                    self.log.debug(f"sending message {message}.")
-                    await self.component.commander.write(message.encode(self.component.commander.encoding))
-                await self.handle_set_response()
-                await self.read_register_value()
-            except TimeoutError:
-                self.log.exception("Response timed out.")
-                raise
-        else:
-            self.register_value = set_value
-
 
 class CompoWayFOperationRegister(CompoWayFGeneralRegister):
     """Specific operation register implementation using the CompoWayF standard.
 
     Parameters
     ----------
-    component : `Laser`
-        Reference to the component.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -622,8 +433,6 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
     ----------
     log : `logging.Logger`
         The log for this class.
-    commander : `TCPIPClient`
-        A TCP/IP client for communicating with the TunableLaser.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -651,7 +460,6 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
 
     def __init__(
         self,
-        component,
         module_name,
         module_id,
         register_name,
@@ -664,7 +472,6 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
         read_only = False
 
         super().__init__(
-            component=component,
             module_name=module_name,
             module_id=module_id,
             register_name=register_name,
@@ -734,70 +541,6 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
         self.log.debug(f"set_message={set_message}")
         return set_message
 
-    async def read_register_value(self):
-        """Read register value."""
-        # can't read operational registers
-        raise Exception("Can't read operational registers")
-
-    async def handle_set_response(self):
-        """Handle setting the response."""
-        async with self.component.lock:
-            try:
-                stx_node_subadd = await self.component.commander.readexactly(5)
-                stx_node_subadd = stx_node_subadd.decode()
-                expected_stx_node_subadd = "\x02"
-                if int(self.node) < 10:
-                    expected_stx_node_subadd += "\x30"
-                expected_stx_node_subadd += self.node + "\x30\x30"
-                if stx_node_subadd is not expected_stx_node_subadd:
-                    self.log.error(
-                        f"Received incorrect start of packet: {stx_node_subadd}, "
-                        f"expected: {expected_stx_node_subadd}"
-                    )
-                    self.register_value = ""
-                self.end_code = await self.component.commander.readexactly(2)
-                self.end_code = self.end_code.decode()
-                if self.end_code != "\x30\x30":
-                    self.log.error(
-                        f"Received bad end code: {self.end_code}: {self.end_code_dict[self.end_code]}"
-                    )
-
-                mrc_src = await self.component.commander.readexactly(4)
-                mrc_src = mrc_src.decode()
-                # write variable area request MRC is 30, SRC is 05
-                expected_mrc_src = "\x33\x30\x30\x35"
-                if mrc_src is not expected_mrc_src:
-                    self.log.error(
-                        f"Received incorrect Request Codes: {mrc_src}, expected: {expected_mrc_src}"
-                    )
-                self.response_code = await self.component.commander.readexactly(4)
-                self.response_code = self.response_code.decode()
-
-                if self.response_code != "\x30\x30\x30\x30":
-                    self.log.error(
-                        "Received bad response code: "
-                        f"{self.response_code}: {self.response_dict[self.response_code]}"
-                    )
-
-                etx = await self.component.commander.readuntil(b"\x03")
-                etx = etx.decode()
-
-                if etx != "\x03":
-                    self.log.error(f"Received bad ETX: {etx} expected: \x03")
-
-                self.bcc = await self.component.commander.readexactly(1)
-                self.bcc = self.bcc.decode()
-
-                # bcc should be calculated without STX, but with ETX byte
-                bcc_frame = (
-                    stx_node_subadd.split("\x02")[1] + self.end_code + mrc_src + self.response_code + "\x03"
-                )
-                expected_bcc = self.generate_bcc(bcc_frame)
-                if expected_bcc is not self.bcc:
-                    self.log.error(f"Incorrect BCC, got: {self.bcc}, expected: {expected_bcc}")
-            except Exception as e:
-                print(f"handle_set_response excepted: {e}")
-
     def get_related_info(self, set_value):
         """Get related info."""
         chosen_dict = None
@@ -811,39 +554,3 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
         else:
             self.log.error(f"No set value ({set_value}) in chosen dict ({chosen_dict})")
             return None
-
-    async def set_register_value(self, set_value):
-        """Set the value of the register.
-
-        Parameters
-        ----------
-        set_value : Any
-
-        Raises
-        ------
-        PermissionError
-            This indicates that the register is read only and cannot be set.
-        TimeoutError
-            Response timed out.
-        ValueError
-            selected value not found in related info dictionary
-
-        Returns
-        -------
-        None
-
-        """
-        if self.read_only:
-            raise PermissionError("This register is read only.")
-        try:
-            async with self.component.lock:
-                message = self.create_set_message(set_value)
-                self.log.debug(f"sending message {message}.")
-                if self.simulation_mode:
-                    message += "\r"
-                await self.component.commander.write(message.encode(self.component.commander.encoding))
-            await self.handle_set_response()
-        except TimeoutError:
-            self.log.exception("Response timed out.")
-            raise TimeoutError
-        self.register_value = set_value
