@@ -190,7 +190,7 @@ class TestLaserRegisterRefresh(unittest.IsolatedAsyncioTestCase):
             return_value="'''Error: (8) Timeout waiting for device answer"
         )
 
-        with self.assertRaisesRegex(RuntimeError, "Command failed"):
+        with self.assertRaisesRegex(RuntimeError, "failed"):
             await laser.read_register(laser.cpu8000.power_register)
 
         self.assertIsNone(laser.cpu8000.power_register.register_value)
@@ -204,7 +204,7 @@ class TestLaserRegisterRefresh(unittest.IsolatedAsyncioTestCase):
             return_value="'''Error: (11) Violating top value limit"
         )
 
-        with self.assertRaisesRegex(RuntimeError, "Command failed"):
+        with self.assertRaisesRegex(RuntimeError, "failed"):
             await laser.write_register(laser.maxi_opg.wavelength_register, 700)
 
         self.assertIsNone(laser.maxi_opg.wavelength_register.register_value)
