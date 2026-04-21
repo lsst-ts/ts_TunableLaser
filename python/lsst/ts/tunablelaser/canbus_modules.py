@@ -79,7 +79,7 @@ class CPU8000(interfaces.CanbusModule):
 
     """
 
-    def __init__(self, simulation_mode=False):
+    def __init__(self, simulation_mode=False, laser_id=1):
         super().__init__()
         self.log = logging.getLogger("CPU8000")
         self.name = "CPU8000"
@@ -100,6 +100,8 @@ class CPU8000(interfaces.CanbusModule):
             register_name="Fault code",
         )
         self.log.debug(f"{self.name} Module initialized")
+        if laser_id == 2:
+            del self.fault_register
 
     async def update_register(self, read_register):
         """Publish the registers located inside of this module.
@@ -161,7 +163,7 @@ class MCPU800(interfaces.CanbusModule):
 
     """
 
-    def __init__(self, simulation_mode=False):
+    def __init__(self, simulation_mode=False, laser_id=1):
         super().__init__()
         self.name = "M_CPU800"
         self.id = 17
@@ -247,6 +249,11 @@ class MCPU800(interfaces.CanbusModule):
             read_only=False,
             accepted_values=range(1, 50001),
         )
+        if laser_id == 2:
+            del self.fault_register
+            del self.fault_register_2
+            del self.display_current_register_2
+            del self.burst_pulse_left_register
 
     def start_propagating(self):
         """Start the propagation of the laser.
@@ -572,7 +579,7 @@ class TK6(interfaces.CanbusModule):
 
     """
 
-    def __init__(self, simulation_mode=False):
+    def __init__(self, simulation_mode=False, laser_id=1):
         super().__init__()
         self.name = "TK6"
         self.id = 44
@@ -597,6 +604,9 @@ class TK6(interfaces.CanbusModule):
             module_id=self.id_2,
             register_name="Set temperature",
         )
+        if laser_id == 2:
+            del self.display_temperature_register_2
+            del self.set_temperature_register_2
 
     async def update_register(self, read_register):
         """Publish the register values of the module.
@@ -640,6 +650,8 @@ class HV40W(interfaces.CanbusModule):
             module_id=self.id,
             register_name="HV voltage",
         )
+        if laser_id == 2:
+            del self.hv_voltage_register
 
     async def update_register(self, read_register):
         """Publishes the register values of the module.
@@ -747,6 +759,9 @@ class LDCO48BP(interfaces.CanbusModule):
             module_id=self.id_4,
             register_name="Display temperature",
         )
+        if laser_id == 2:
+            del self.display_temperature_register_3
+            del self.display_temperature_register_4
 
     async def update_register(self, read_register):
         """Publish the register values of the module.
@@ -783,7 +798,7 @@ class MLDCO48(interfaces.CanbusModule):
         Handles the "Display temperature" register.
     """
 
-    def __init__(self, simulation_mode=False):
+    def __init__(self, simulation_mode=False, laser_id=1):
         super().__init__()
         self.name = "M_LDCO48"
         self.id = 33
@@ -798,6 +813,9 @@ class MLDCO48(interfaces.CanbusModule):
             module_id=self.id_2,
             register_name="Display temperature",
         )
+        if laser_id == 2:
+            del self.display_temperature_register
+            del self.display_temperature_register_2
 
     async def update_register(self, read_register):
         """Publish the register values of the module.

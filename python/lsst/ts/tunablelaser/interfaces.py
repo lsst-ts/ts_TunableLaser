@@ -175,8 +175,8 @@ class Laser(ABC):
                     await asyncio.sleep(DEFAULT_SLEEP)
                 if resp:
                     if resp.startswith("'''"):
-                        self.log.exception(f"Command failed. Received {resp}.")
-                        raise RuntimeError("Command failed.")
+                        self.log.error(f"{message} failed. Received {resp}.")
+                        raise RuntimeError(f"{message} failed.")
                     else:
                         return resp.rstrip("nmC\r\n")
             if not resp:

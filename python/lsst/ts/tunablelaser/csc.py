@@ -21,7 +21,7 @@
 
 """Implements CSC for the TunableLaser."""
 
-__all__ = ["run_tunablelaser", "LaserCSC"]
+__all__ = ["run_tunablelaser", "command_tunablelaser", "LaserCSC"]
 
 import asyncio
 
@@ -40,7 +40,7 @@ def run_tunablelaser():
 
 
 def command_tunablelaser():
-    asyncio.run(salobj.CscCommander.amain(name="TunableLaser"))
+    asyncio.run(salobj.CscCommander.amain(name="TunableLaser", index=None))
 
 
 class LaserCSC(salobj.ConfigurableCsc):

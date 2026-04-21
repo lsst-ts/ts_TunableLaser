@@ -315,13 +315,12 @@ class StubbsLaser(interfaces.Laser):
         )
         self.laser_id = 2
         self.midiopg = canbus_modules.MidiOPG()
-        self.m_cpu800 = canbus_modules.MCPU800()
-        self.cpu8000 = canbus_modules.CPU8000()
-        self.tk6 = canbus_modules.TK6()
+        self.m_cpu800 = canbus_modules.MCPU800(laser_id=self.laser_id)
+        self.cpu8000 = canbus_modules.CPU8000(laser_id=self.laser_id)
+        self.tk6 = canbus_modules.TK6(laser_id=self.laser_id)
         self.hv40w = canbus_modules.HV40W(laser_id=self.laser_id)
-        self.delay_lin = canbus_modules.DelayLin(laser_id=self.laser_id)
         self.ldco48bp = canbus_modules.LDCO48BP(laser_id=self.laser_id)
-        self.m_ldcO48 = canbus_modules.MLDCO48()
+        self.m_ldcO48 = canbus_modules.MLDCO48(laser_id=self.laser_id)
         self.fcu_client = FCUClient(simulation_mode=simulation_mode)
         self.laser_warmup_delay = 10
         self.lock = asyncio.Lock()
