@@ -27,10 +27,35 @@ import logging
 from lsst.ts import tcpip
 
 from . import canbus_modules, interfaces
+from .canbus import pgd217_nt252
 from .enums import Mode, OpticalConfiguration, Power
 from .fcu_client import FCUClient, Output
 
 DOESNT_EXIST = 0
+
+
+def _coerce_int_enum(value, enum_type):
+    """Best-effort conversion of cached ASCII values to an IntEnum."""
+    if isinstance(value, enum_type):
+        return value
+    if value is None:
+        return None
+    try:
+        return enum_type(value)
+    except Exception:
+        try:
+            return enum_type(int(value))
+        except Exception:
+            if isinstance(value, str):
+                try:
+                    return enum_type[value.strip().upper()]
+                except Exception:
+                    return value
+            return value
+
+
+def _matches_enum(value, enum_value):
+    return _coerce_int_enum(value, type(enum_value)) == enum_value
 
 
 class MainLaser(interfaces.Laser):
@@ -104,19 +129,26 @@ class MainLaser(interfaces.Laser):
         self.lock = asyncio.Lock()
 
     @property
+    def is_faulting(self):
+        return (
+            _matches_enum(self.cpu8000.power_register.register_value, Power.FAULT)
+            or _matches_enum(self.m_cpu800.power_register.register_value, Power.FAULT)
+            or _matches_enum(self.m_cpu800.power_register_2.register_value, Power.FAULT)
+        )
+
+    @property
     def optical_configuration(self):
         return self.maxi_opg.configuration_register.register_value
 
     @property
     def propagation_mode(self):
-        return self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value
+        return _coerce_int_enum(
+            self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value, Mode
+        )
 
     @property
     def is_propagating(self):
-        if self.m_cpu800.power_register_2.register_value == Power.ON:
-            return True
-        else:
-            return False
+        return _matches_enum(self.m_cpu800.power_register_2.register_value, Power.ON)
 
     @property
     def wavelength(self):
@@ -222,7 +254,7 @@ class MainLaser(interfaces.Laser):
         """
         await self.write_register(*self.m_cpu800.set_burst_count(count))
 
-    async def start_propagating(self, data):
+    async def start_propagating(self):
         """Start propagating the beam of the laser."""
         await self.write_register(*self.m_cpu800.start_propagating())
         await asyncio.sleep(self.laser_warmup_delay)  # laser warmup delay
@@ -233,7 +265,7 @@ class MainLaser(interfaces.Laser):
 
     async def clear_fault(self):
         """Clear the fault state of the laser."""
-        if self.m_cpu800.power_register_2.register_value == "FAULT":
+        if _matches_enum(self.m_cpu800.power_register_2.register_value, Power.FAULT):
             await self.read_register(self.m_cpu800.power_register_2)
 
     async def read_all_registers(self):
@@ -314,13 +346,18 @@ class StubbsLaser(interfaces.Laser):
             simulation_mode=simulation_mode,
         )
         self.laser_id = 2
-        self.midiopg = canbus_modules.MidiOPG()
-        self.m_cpu800 = canbus_modules.MCPU800(laser_id=self.laser_id)
-        self.cpu8000 = canbus_modules.CPU8000(laser_id=self.laser_id)
-        self.tk6 = canbus_modules.TK6(laser_id=self.laser_id)
-        self.hv40w = canbus_modules.HV40W(laser_id=self.laser_id)
-        self.ldco48bp = canbus_modules.LDCO48BP(laser_id=self.laser_id)
-        self.m_ldcO48 = canbus_modules.MLDCO48(laser_id=self.laser_id)
+        self.midiopg = pgd217_nt252.MidiOPG()
+        self.ph532 = pgd217_nt252.PH532()
+        self.fopo = pgd217_nt252.FOPO()
+        self.sopo = pgd217_nt252.SOPO()
+        self.sh1 = pgd217_nt252.SH1()
+        self.c1 = pgd217_nt252.C1()
+        self.m_cpu800 = pgd217_nt252.MCPU800()
+        self.cpu8000 = pgd217_nt252.CPU8000()
+        self.tk6 = pgd217_nt252.TK6()
+        self.hv40w = pgd217_nt252.HV40W()
+        self.ldco48bp = pgd217_nt252.LDCO48BP()
+        self.m_ldcO48 = pgd217_nt252.MLDCO48()
         self.fcu_client = FCUClient(simulation_mode=simulation_mode)
         self.laser_warmup_delay = 10
         self.lock = asyncio.Lock()
@@ -332,31 +369,39 @@ class StubbsLaser(interfaces.Laser):
         }
 
     @property
+    def is_faulting(self):
+        return (
+            _matches_enum(self.m_cpu800.power_id_0x11_register.register_value, Power.FAULT)
+            or _matches_enum(self.m_cpu800.power_id_0x12_register.register_value, Power.FAULT)
+            or _matches_enum(self.cpu8000.power_id_0x10_register.register_value, Power.FAULT)
+        )
+
+    @property
     def optical_configuration(self):
         return self.output_lut[self.fcu_client.output]
 
     @property
     def propagation_mode(self):
-        return self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value
+        return _coerce_int_enum(
+            self.m_cpu800.continuous_burst_mode_trigger_burst_id_0x12_register.register_value,
+            Mode,
+        )
 
     @property
     def is_propagating(self):
-        if self.m_cpu800.power_register_2.register_value == "ON":
-            return True
-        else:
-            return False
+        return _matches_enum(self.m_cpu800.power_id_0x12_register.register_value, Power.ON)
 
     @property
     def wavelength(self):
-        return self.midiopg.wavelength_register.register_value
+        return self.midiopg.wavelength_id_0x1f_register.register_value
 
     @property
     def temperature(self):
         return (
-            self.tk6.display_temperature_register.register_value,
+            self.tk6.display_temperature_id_0x2c_register.register_value,
             DOESNT_EXIST,
-            self.ldco48bp.display_temperature_register.register_value,
-            self.ldco48bp.display_temperature_register_2.register_value,
+            self.ldco48bp.display_temperature_id_0x30_register.register_value,
+            self.ldco48bp.display_temperature_id_0x32_register.register_value,
             DOESNT_EXIST,
             DOESNT_EXIST,
             DOESNT_EXIST,
@@ -395,7 +440,7 @@ class StubbsLaser(interfaces.Laser):
         wavelength : float
             The wavelength to be set.
         """
-        await self.write_register(*self.midiopg.change_wavelength(wavelength))
+        await self.write_register(self.midiopg.wavelength_id_0x1f_register, wavelength)
 
     async def set_output_energy_level(self, output_energy_level):
         """Set output energy level.
@@ -405,7 +450,10 @@ class StubbsLaser(interfaces.Laser):
         output_energy_level : `str`
             The output to be set.
         """
-        await self.write_register(*self.m_cpu800.set_output_energy_level(output_energy_level))
+        await self.write_register(
+            self.m_cpu800.output_energy_level_id_0x12_register,
+            output_energy_level,
+        )
 
     async def trigger_burst(self):
         """Trigger a burst.
@@ -415,7 +463,9 @@ class StubbsLaser(interfaces.Laser):
         ValueError
             Raised when mode parameter is not in list of accepted values.
         """
-        await self.write_register(*self.m_cpu800.set_propagation_mode(Mode.TRIGGER))
+        await self.write_register(
+            self.m_cpu800.continuous_burst_mode_trigger_burst_id_0x12_register, Mode.TRIGGER
+        )
 
     async def set_burst_mode(self, count):
         """Set the propagation mode to pulse the laser at regular intervals.
@@ -432,12 +482,16 @@ class StubbsLaser(interfaces.Laser):
             Raised when the count parameter falls outside of the
             accepted range.
         """
-        await self.write_register(*self.m_cpu800.set_propagation_mode(Mode.BURST))
-        await self.write_register(*self.m_cpu800.set_burst_count(count))
+        await self.write_register(
+            self.m_cpu800.continuous_burst_mode_trigger_burst_id_0x12_register, Mode.BURST
+        )
+        await self.write_register(self.m_cpu800.burst_length_id_0x12_register, count)
 
     async def set_continuous_mode(self):
         """Set the propagation mode to continuously pulse the laser."""
-        await self.write_register(*self.m_cpu800.set_propagation_mode(Mode.CONTINUOUS))
+        await self.write_register(
+            self.m_cpu800.continuous_burst_mode_trigger_burst_id_0x12_register, Mode.CONTINUOUS
+        )
 
     async def set_burst_count(self, count):
         """Set the burst count of the laser.
@@ -447,28 +501,28 @@ class StubbsLaser(interfaces.Laser):
         count : `int`
             The amount to pulse the laser.
         """
-        await self.write_register(*self.m_cpu800.set_burst_count(count))
+        await self.write_register(self.m_cpu800.burst_length_id_0x12_register, count)
 
-    async def start_propagating(self, data):
+    async def start_propagating(self):
         """Start propagating the beam of the laser."""
-        await self.write_register(*self.m_cpu800.start_propagating())
+        await self.write_register(self.m_cpu800.power_id_0x12_register, Power.ON)
         await asyncio.sleep(self.laser_warmup_delay)  # laser warmup delay
 
     async def stop_propagating(self):
         """Stop propagating the beam of the laser"""
-        await self.write_register(*self.m_cpu800.stop_propagating())
+        await self.write_register(self.m_cpu800.power_id_0x12_register, Power.OFF)
 
     async def clear_fault(self):
         """Clear the fault state of the laser."""
-        if self.m_cpu800.power_register_2.register_value == "FAULT":
-            await self.read_register(self.m_cpu800.power_register_2)
+        if _matches_enum(self.m_cpu800.power_id_0x12_register.register_value, Power.FAULT):
+            await self.write_register(self.m_cpu800.power_id_0x12_register, Power.OFF)
 
     async def configure(self, config):
         self.log.debug("Setting config.")
         self.host = config.host
         self.port = config.port
 
-        self.midiopg.wavelength_register.accepted_values = range(
+        self.midiopg.wavelength_id_0x1f_register.accepted_values = range(
             config.wavelength["min"], config.wavelength["max"]
         )
         self.log.debug(

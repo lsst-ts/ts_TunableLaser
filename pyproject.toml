@@ -32,4 +32,4 @@ command_tunablelaser = "lsst.ts.tunablelaser:command_tunablelaser"
 asyncio_mode = "auto"
 
 [project.optional-dependencies]
-dev = ["pytest", "flake8", "pytest-coverage", "black"]
+dev = ["pytest", "flake8", "pytest-coverage", "black", "libcst"]

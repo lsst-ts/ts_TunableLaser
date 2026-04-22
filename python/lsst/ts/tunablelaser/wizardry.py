@@ -23,3 +23,4 @@ NUMBER_OF_RETRIES = 10
 """Number of retries to attempt in case of communication loss."""
 DEFAULT_SLEEP = 1
 """Amount of time to sleep by default."""
+NUMBER_OF_CONNECTION_RETRIES = 3

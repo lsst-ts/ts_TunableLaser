@@ -26,6 +26,7 @@ import unittest.mock
 
 from lsst.ts.tunablelaser.canbus_modules import CPU8000, MaxiOPG
 from lsst.ts.tunablelaser.interfaces import Laser
+from lsst.ts.tunablelaser.wizardry import NUMBER_OF_RETRIES
 
 
 class FakeLaser(Laser):
@@ -33,6 +34,10 @@ class FakeLaser(Laser):
         super().__init__(log=logging.getLogger(__name__), terminator=b"\r", encoding="ascii")
         self.cpu8000 = CPU8000()
         self.maxi_opg = MaxiOPG()
+
+    @property
+    def is_faulting(self):
+        return False
 
     @property
     def is_propagating(self):
@@ -208,3 +213,17 @@ class TestLaserRegisterRefresh(unittest.IsolatedAsyncioTestCase):
             await laser.write_register(laser.maxi_opg.wavelength_register, 700)
 
         self.assertIsNone(laser.maxi_opg.wavelength_register.register_value)
+
+    async def test_send_command_retries_timeout_until_exhaustion(self):
+        laser = FakeLaser()
+        laser.commander = unittest.mock.AsyncMock()
+        laser.commander.encoding = "ascii"
+        laser.commander.write = unittest.mock.AsyncMock(side_effect=asyncio.TimeoutError())
+        laser.commander.read_str = unittest.mock.AsyncMock()
+
+        with self.assertRaisesRegex(ConnectionError, "retry exhaustion"):
+            await laser.read_register(laser.cpu8000.power_register)
+
+        self.assertEqual(laser.commander.write.await_count, NUMBER_OF_RETRIES)
+        laser.commander.read_str.assert_not_awaited()
+        self.assertIsNone(laser.cpu8000.power_register.register_value)

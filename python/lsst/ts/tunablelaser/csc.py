@@ -30,7 +30,7 @@ from lsst.ts.xml.enums import TunableLaser
 
 from . import __version__, component, mock_server
 from .config_schema import CONFIG_SCHEMA
-from .enums import ErrorCode, Mode, SimulationMode
+from .enums import ErrorCode, Mode, Output, SimulationMode
 from .fcu_server import RestHttpCmdServer
 
 
@@ -140,18 +140,10 @@ class LaserCSC(salobj.ConfigurableCsc):
                     self.log.info(self.fc_client.response)
                 if self.la_client.response is not None:
                     self.log.info(self.la_client.response)
-                if (
-                    self.model.cpu8000.power_register.register_value == "FAULT"
-                    or self.model.m_cpu800.power_register.register_value == "FAULT"
-                    or self.model.m_cpu800.power_register_2.register_value == "FAULT"
-                ):
+                if self.model.is_faulting:
                     await self.fault(
                         code=ErrorCode.HW_CPU_ERROR,
-                        report=(
-                            f"cpu8000 fault:{self.model.cpu8000.fault_register.register_value}"
-                            f"m_cpu800 fault:{self.model.m_cpu800.fault_register.register_value}"
-                            f"m_cpu800 fault2:{self.model.m_cpu800.fault_register_2.register_value}"
-                        ),
+                        report="Power registers have faulted. Most likely interlock triggered.",
                     )
                     return
                 if self.laser_key_turned:
@@ -196,20 +188,30 @@ class LaserCSC(salobj.ConfigurableCsc):
             )
 
     def calculate_detailed_state(self):
-        detailed_state = None
         assert self.model is not None
-        match self.model.propagation_mode, self.model.is_propagating:
+        propagation_mode = self.model.propagation_mode
+        try:
+            if not isinstance(propagation_mode, Mode):
+                propagation_mode = Mode(propagation_mode)
+        except Exception:
+            self.log.warning(
+                "Unknown propagation_mode=%r from model; defaulting to %s.",
+                propagation_mode,
+                Mode.CONTINUOUS,
+            )
+            propagation_mode = Mode.CONTINUOUS
+
+        match propagation_mode, self.model.is_propagating:
             case Mode.BURST, False:
-                detailed_state = TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE
+                return TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE
             case Mode.BURST, True:
-                detailed_state = TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE
+                return TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE
             case Mode.CONTINUOUS, False:
-                detailed_state = TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
+                return TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
             case Mode.CONTINUOUS, True:
-                detailed_state = TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE
+                return TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE
             case _:
                 raise RuntimeWarning("Not a valid detailed_state.")
-        return detailed_state
 
     async def handle_summary_state(self):
         """Handle the summary state transitions."""
@@ -276,6 +278,9 @@ class LaserCSC(salobj.ConfigurableCsc):
             if self.la_task.done():
                 self.la_task = asyncio.create_task(self.la_client.get_messages())
         else:
+            self.telemetry_task.cancel()
+            self.fc_task.cancel()
+            self.la_task.cancel()
             if self.model is not None:
                 await self.model.disconnect()
                 self.model = None
@@ -301,9 +306,6 @@ class LaserCSC(salobj.ConfigurableCsc):
             if self.laser_type == "Stubbs" and self.fcu_server is not None:
                 await self.fcu_server.stop()
                 self.fcu_server = None
-            self.telemetry_task.cancel()
-            self.fc_task.cancel()
-            self.la_task.cancel()
 
     async def do_setBurstMode(self, data):
         """Set burst mode for the laser.
@@ -374,8 +376,8 @@ class LaserCSC(salobj.ConfigurableCsc):
                 raise salobj.ExpectedError("laser_key_turned is set to false.")
             assert self.model is not None
             await self.cmd_startPropagateLaser.ack_in_progress(data, self.model.laser_warmup_delay)
-            await self.model.set_output_energy_level("MAX")
-            await self.model.start_propagating(data)
+            await self.model.set_output_energy_level(Output.MAX)
+            await self.model.start_propagating()
         else:
             raise salobj.ExpectedError("Not connected.")
 

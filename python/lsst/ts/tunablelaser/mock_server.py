@@ -34,6 +34,7 @@ import inspect
 import io
 import logging
 import random
+import re
 from ipaddress import ip_address
 
 from lsst.ts import tcpip, utils
@@ -67,7 +68,7 @@ class StubbsLaserServer(tcpip.OneClientReadLoopServer):
     async def read_and_dispatch(self):
         reply = await self.readuntil(b"\r")
         reply = reply.strip(self.terminator).decode(self.encoding)
-        reply = self.device.parse_command(reply)
+        reply = self.device.parse_message(reply)
         await self.write_str(reply)
 
 
@@ -516,417 +517,11 @@ class MockNP5450:
         return f"{self.temperature}C"
 
 
-class MockNT252:
-    """Implement the mock NT252 device.
-
-    Attributes
-    ----------
-    log : `logging.Logger`
-        The log.
-    wavelength : `int`
-        The wavelength.
-    temperature : `int`
-        The temperature.
-    propagating : `Power`
-        The propagation state of the laser.
-    propagation_mode : `Mode`
-        The propagation mode.
-    output : `Output`
-        The output energy level.
-    display_current : `int`
-        The display current.
-    burst_length : `int`
-        The burst length.
-    """
-
-    def __init__(self) -> None:
-        self.log = logging.getLogger(__name__)
-        self.wavelength = random.randrange(1, 1100)
-        self.temperature = random.randrange(19, 21)
-        self.propagating = Power.OFF
-        self.propagation_mode = Mode.CONTINUOUS
-        self.output = Output.OFF
-        self.display_current = random.randrange(19, 21)
-        self.burst_length = 0
-        self.log.debug("MockNT252 initialized")
-
-    def parse_command(self, msg):
-        """Parse the message received and return response.
-
-        Parameters
-        ----------
-        msg : `str`
-            The message.
-        """
-        split_msg = MockMessage(msg)
-        command_name = "do_" + split_msg.register_field
-        self.log.debug(f"{command_name=}")
-        try:
-            command = getattr(self, command_name)
-        except Exception:
-            if command_name == "do_continuous_%2f_burst_mode_%2f_trigger_burst":
-                command = getattr(self, "do_continuous_burst_mode_trigger_burst")
-            else:
-                raise NotImplementedError(f"{command_name} is not implemented")
-        try:
-            parameter = split_msg.register_parameter
-        except Exception:
-            parameter = None
-        if parameter:
-            try:
-                response = command(parameter)
-            except Exception:
-                raise NotImplementedError(f"{command} needs to implement parameter.")
-        else:
-            response = command()
-        return response
-
-    def do_power(self, parameter=None):
-        """Return or set the power status."""
-        if parameter is not None:
-            self.propagating = Power(parameter)
-            return ""
-        return self.propagating
-
-    def do_display_temperature(self):
-        """Return display temperature."""
-        return f"{self.temperature} C"
-
-    def do_set_temperature(self):
-        """Return set temperature."""
-        return f"{self.temperature} C"
-
-    def do_wavelength(self, parameter=None):
-        """Return or set wavelength."""
-        if parameter is not None:
-            self.wavelength = parameter
-            return ""
-        return f"{self.wavelength} nm"
-
-    def do_display_current(self):
-        """Return the display current."""
-        return f"{self.display_current} A"
-
-    def do_fault_code(self):
-        """Return the fault code."""
-        return "0"
-
-    def do_continuous_burst_mode_trigger_burst(self, parameter=None):
-        """Return or set the propagation mode."""
-        if parameter is not None:
-            self.propagation_mode = Mode(parameter)
-            return ""
-        return f"{self.propagation_mode}"
-
-    def do_output_energy_level(self, parameter=None):
-        """Return or set the output energy level."""
-        if parameter is not None:
-            self.output = Output(parameter)
-            return ""
-        else:
-            return self.output
-
-    def do_frequency_divider(self):
-        """Return frequency divider."""
-        return "0"
-
-    def do_burst_pulses_to_go(self):
-        """Return burst pulses to go."""
-        return "0"
-
-    def do_qsw_adjustment_output_delay(self):
-        """Return qsw adjustment output delay."""
-        return "0"
-
-    def do_repetition_rate(self):
-        """Return the repetition rate."""
-        return "0"
-
-    def do_synchronization_mode(self):
-        """Return synchronization mode."""
-        return "0"
-
-    def do_burst_length(self, parameter=None):
-        """Return or set the burst length."""
-        if parameter is not None:
-            self.burst_length = parameter
-            return ""
-        return f"{self.burst_length}"
-
-    def do_hv_voltage(self):
-        """Return hv voltage."""
-        return "0"
-
-    def do_error_code(self):
-        """Return the error code."""
-        return "0"
-
-    def do_midiopg_31_wavelength(self):
-        """Return current wavelength as formatted string.
-
-        Returns
-        -------
-        `str`
-            The current wavelength.
-        """
-        return f"{self.wavelength}nm"
-
-    def do_set_midiopg_31_wavelength(self, wavelength):
-        """Set wavelength.
-
-        Parameters
-        ----------
-        wavelength : `str`
-            The wavelength to set, must be between 300 and 1100 nanometers.
-
-        Returns
-        -------
-        reply : `str`
-            Successful reply: empty message
-            Error: starts with ''' plus error message
-        """
-        reply = self.check_limits(wavelength, 300, 1100)
-        if not reply.startswith("'''"):
-            self.wavelength = wavelength
-        return reply
-
-    def do_cpu8000_16_power(self):
-        """Return the power state of the module
-
-        Returns
-        -------
-        `str`
-            The current power state of the module.
-        """
-        return f"{self.cpu8000_power}"
-
-    def do_m_cpu800_17_power(self):
-        """Return the power state of the module
-
-        Returns
-        -------
-        `str`
-            The current power state of the module
-        """
-        return f"{self.m_cpu800_power}"
-
-    def do_m_cpu800_17_fault_code(self):
-        """Return the fault code of the module
-
-        Returns
-        -------
-        `str`
-            The current fault code.
-            Always returns 0.
-        """
-        return "0"
-
-    def do_m_cpu800_17_display_current(self):
-        """Return the power current of the module
-
-        Returns
-        -------
-        `str`
-            The displayed current.
-        """
-        return f"{self.m_cpu800_current}"
-
-    def do_set_m_cpu800_18_power(self, state):
-        """Set the propagation state of the laser.
-
-        Parameters
-        ----------
-        state : `str`, {OFF, ON, FAULT}
-            The propagation state
-
-            * OFF: Laser is not propagating
-            * ON: Laser is propagating
-            * FAULT: Laser is in fault, usually interlock is engaged
-
-        Returns
-        -------
-        `str`
-            An empty message
-        """
-        try:
-            self.propagating = Power(state)
-            return ""
-        except ValueError:
-            self.log.error(f"{state} not in {list(Power)}")
-            return "'''Error: (13) Wrong value, not included in allowed values list"
-
-    def do_m_cpu800_18_power(self):
-        """Return propagation state.
-
-        Returns
-        -------
-        `str`
-        """
-        return f"{self.propagating}"
-
-    def do_m_cpu800_18_fault_code(self):
-        """Return the fault code of the module."""
-        return "0"
-
-    def do_m_cpu800_18_display_current(self):
-        """Return the power current of the module."""
-        return f"{self.m_cpu800_current}"
-
-    def do_cpu8000_16_display_current(self):
-        """Return current as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
-        return f"{self.cpu8000_current}"
-
-    def do_cpu8000_16_fault_code(self):
-        """Return fault code of the module.
-
-        Returns
-        -------
-        `str`
-        """
-        return "0"
-
-    def do_m_cpu800_18_continuous_burst_mode_trigger_burst(self):
-        """Return laser propagation mode.
-
-        Returns
-        -------
-        `str`
-        """
-        return f"{self.propagation_mode}"
-
-    def do_set_m_cpu800_18_continuous_burst_mode_trigger_burst(self, mode):
-        """Set the propagation mode of the laser.
-
-        Parameters
-        ----------
-        mode : `str`, {Continuous, Burst, Trigger}
-            The mode to be set.
-
-        Returns
-        -------
-        `str`
-            An empty message if successful or an error message
-            if mode not in accepted values.
-        """
-        try:
-            self.propagation_mode = Mode(mode)
-            return ""
-        except ValueError:
-            self.log.error(f"{mode} not in {list(Mode)}")
-            return "'''Error: (13) Wrong value, not included in allowed values list"
-
-    def do_m_cpu800_18_output_energy_level(self):
-        """Return current output energy level as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
-        return f"{self.output_energy_level}"
-
-    def do_set_m_cpu800_18_output_energy_level(self, energy_level):
-        """Change output energy level as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
-        self.output_energy_level = energy_level
-        return ""
-
-    def do_m_cpu800_18_frequency_divider(self):
-        """Return current frequency divider as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
-        return "0"
-
-    def do_m_cpu800_18_burst_pulses_to_go(self):
-        """Return current burst pulses left as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
-        return "0"
-
-    def do_m_cpu800_18_qsw_adjustment_output_delay(self):
-        """Return current qsw adjustment output delay as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
-        return "0"
-
-    def do_m_cpu800_18_repetition_rate(self):
-        """Return current repetition rate as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
-        return "1"
-
-    def do_m_cpu800_18_synchronization_mode(self):
-        """Return current synchronization mode as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
-        return "0"
-
-    def do_m_cpu800_18_burst_length(self):
-        """Return current burst length as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
-        return f"{self.burst_length}"
-
-    def do_set_m_cpu800_18_burst_length(self, count):
-        self.burst_length = count
-        return ""
-
-    def do_tk6_44_display_temperature(self):
-        return f"{self.temperature}"
-
-    def do_tk6_45_display_temperature(self):
-        return f"{self.temperature}"
-
-
-class MockNT900:
-    """Implements a mock NT900 laser.
-
-    Attributes
-    ----------
-    wavelength : `float`
-        The wavelength of the laser.
-    temperature : `float`
-        The temperature of the laser.
-    current : `str`
-        The electrical current of the laser.
-    propagating : `str`
-        Whether the laser is propagating.
-    output_energy_level : `str`
-        The energy level of the laser's output
-    configuration : `str`
-        Which output the laser is propagating from.
-    log : `logging.Logger`
-        The log for this class.
-    """
+class BaseMockEksplaLaser:
+    """Shared ASCII command handling for Ekspla laser mocks."""
 
     def __init__(self):
-        self.scu = False
+        self.log = logging.getLogger(__name__)
         self.wavelength = random.randrange(1, 1100)
         self.temperature = random.randrange(19, 21)
         self.cpu8000_current = "19A"
@@ -935,415 +530,350 @@ class MockNT900:
         self.m_cpu800_power = Power.ON
         self.propagating = Power.OFF
         self.output_energy_level = Output.OFF
-        if not self.scu:
-            self.configuration = OpticalConfiguration.NO_SCU
-        else:
-            self.configuration = OpticalConfiguration.SCU
         self.propagation_mode = Mode.CONTINUOUS
         self.burst_length = 1
-        self.log = logging.getLogger(__name__)
-        self.log.debug("MockNT900 initialized")
+        self.frequency_divider = 1
+        self.qsw_adjustment_output_delay = 308
+        self.repetition_rate = 1
+        self.synchronization_mode = 0
+        self.diode_current_on = "ON"
+        self.external_interlock_state = "Defeated"
+        self.ph532_power = "0.002"
+        self.ldco48bp_48_temperature = "31.00"
+        self.ldco48bp_50_temperature = "28.00"
+        self.tk6_44_temperature = "50.00"
+        self.tk6_45_temperature = "50.12"
 
-    def check_limits(self, value, min, max):
-        """Check the limits of a value.
+    def _normalize_token(self, token):
+        token = token.strip().lower()
+        token = token.replace("%2f", "_").replace("/", "_").replace(" ", "_")
+        token = re.sub(r"[^0-9a-z_]+", "_", token)
+        token = re.sub(r"_+", "_", token).strip("_")
+        return token
 
-        Parameters
-        ----------
-        value : `int`
-            The value to check.
-        min : `int`
-            The minimum value.
-        max : `int`
-            The max value
-
-        Returns
-        -------
-        reply : `str`
-            if too low: return error
-            if too high: return error
-            if successful: return empty message
-        """
-        if int(value) < min:
-            reply = "'''Error: (12) Violating bottom value limit"
-            return reply
-        if int(value) > max:
-            reply = "'''Error: (11) Violating top value limit"
-            return reply
-        else:
-            reply = ""
-            return reply
+    def _make_command_name(self, register_name, register_id, register_field, has_parameter):
+        prefix = "do_set_" if has_parameter else "do_"
+        return (
+            f"{prefix}{self._normalize_token(register_name)}_"
+            f"{int(register_id)}_{self._normalize_token(register_field)}"
+        )
 
     def parse_message(self, msg):
-        """Parse and return the result of the message.
-
-        Parameters
-        ----------
-        msg : `bytes`
-            The message to parse.
-
-        Returns
-        -------
-        reply : `bytes`
-            The reply of the command parsed.
-        """
+        """Parse a laser ASCII message and dispatch to a mock handler."""
         try:
             self.log.info(msg)
-            split_msg = MockMessage(msg)
-            self.log.debug(split_msg)
-            command_name = "_".join(
-                (
-                    split_msg.register_name.lower(),
-                    split_msg.register_id,
-                    split_msg.register_field,
+            parts = msg.strip().split("/")
+            if parts and parts[0] == "":
+                parts = parts[1:]
+            if len(parts) < 3:
+                raise ValueError("Message malformed")
+
+            register_name = parts[0]
+            register_id = parts[1]
+            remaining = parts[2:]
+            candidates = [("/".join(remaining), None)]
+            if len(remaining) > 1:
+                candidates.append(("/".join(remaining[:-1]), remaining[-1]))
+
+            for register_field, parameter in candidates:
+                command_name = self._make_command_name(
+                    register_name=register_name,
+                    register_id=register_id,
+                    register_field=register_field,
+                    has_parameter=parameter is not None,
                 )
-            )
-            self.log.debug(f"{command_name=}")
-            if not hasattr(split_msg, "register_parameter"):
-                parameter = None
-            else:
-                parameter = split_msg.register_parameter
-                command_name = "set_" + command_name
-            self.log.debug(f"{parameter=}")
-            command_name = "do_" + command_name
-            self.log.debug(f"{command_name=}")
-            methods = inspect.getmembers(self, inspect.ismethod)
-            for name, func in methods:
-                if name == command_name:
-                    self.log.debug(command_name)
-                    if parameter is None:
-                        reply = func()
-                    else:
-                        reply = func(parameter)
-                    self.log.debug(f"reply: {reply}")
-                    return reply
-                elif command_name == "do_m_cpu800_18_continuous_%2f_burst_mode_%2f_trigger_burst":
-                    reply = self.do_m_cpu800_18_continuous_burst_mode_trigger_burst()
-                    self.log.debug(f"reply: {reply}")
-                    return reply
-                elif command_name == "do_set_m_cpu800_18_continuous_%2f_burst_mode_%2f_trigger_burst":
-                    reply = self.do_set_m_cpu800_18_continuous_burst_mode_trigger_burst(parameter)
-                    self.log.debug(f"reply: {reply}")
-                    return reply
-            self.log.error(f"command {command_name} not implemented")
+                self.log.debug(f"{command_name=}")
+                handler = getattr(self, command_name, None)
+                if handler is None:
+                    continue
+                reply = handler() if parameter is None else handler(parameter)
+                self.log.debug(f"reply: {reply}")
+                return reply
+
+            self.log.error(f"command not implemented for message {msg}")
             return "NA"
         except Exception:
             self.log.exception("Unexpected exception occurred.")
             raise
-        finally:
-            pass
 
-    def do_maxiopg_31_wavelength(self):
-        """Return current wavelength as formatted string.
+    def check_limits(self, value, min, max):
+        if int(float(value)) < min:
+            return "'''Error: (12) Violating bottom value limit"
+        if int(float(value)) > max:
+            return "'''Error: (11) Violating top value limit"
+        return ""
 
-        Returns
-        -------
-        `str`
-            The current wavelength.
-        """
-        return f"{self.wavelength}nm"
+    def _wrong_value_error(self):
+        return "'''Error: (13) Wrong value, not included in allowed values list"
 
-    def do_set_maxiopg_31_wavelength(self, wavelength):
-        """Set wavelength.
+    def _set_enum(self, attribute_name, enum_type, raw_value):
+        try:
+            if isinstance(raw_value, enum_type):
+                value = raw_value
+            elif isinstance(raw_value, str):
+                try:
+                    value = enum_type(raw_value)
+                except ValueError:
+                    try:
+                        value = enum_type(int(raw_value))
+                    except ValueError:
+                        value = enum_type[raw_value.strip().upper()]
+            else:
+                value = enum_type(raw_value)
+            setattr(self, attribute_name, value)
+            return ""
+        except (KeyError, TypeError, ValueError):
+            self.log.error(f"{raw_value} not in {list(enum_type)}")
+            return self._wrong_value_error()
 
-        Parameters
-        ----------
-        wavelength : `str`
-            The wavelength to set, must be between 300 and 1100 nanometers.
-
-        Returns
-        -------
-        reply : `str`
-            Successful reply: empty message
-            Error: starts with ''' plus error message
-        """
-        reply = self.check_limits(wavelength, 300, 1100)
+    def _set_int_range(self, attribute_name, raw_value, min_value, max_value):
+        reply = self.check_limits(raw_value, min_value, max_value)
         if not reply.startswith("'''"):
-            self.wavelength = wavelength
+            setattr(self, attribute_name, int(float(raw_value)))
         return reply
 
     def do_cpu8000_16_power(self):
-        """Return the power state of the module
-
-        Returns
-        -------
-        `str`
-            The current power state of the module.
-        """
         return f"{self.cpu8000_power}"
 
-    def do_m_cpu800_17_power(self):
-        """Return the power state of the module
+    def do_set_cpu8000_16_power(self, state):
+        return self._set_enum("cpu8000_power", Power, state)
 
-        Returns
-        -------
-        `str`
-            The current power state of the module
-        """
+    def do_m_cpu800_17_power(self):
         return f"{self.m_cpu800_power}"
 
-    def do_m_cpu800_17_fault_code(self):
-        """Return the fault code of the module
+    def do_set_m_cpu800_17_power(self, state):
+        return self._set_enum("m_cpu800_power", Power, state)
 
-        Returns
-        -------
-        `str`
-            The current fault code.
-            Always returns 0.
-        """
+    def do_m_cpu800_17_fault_code(self):
         return "0"
 
     def do_m_cpu800_17_display_current(self):
-        """Return the power current of the module
-
-        Returns
-        -------
-        `str`
-            The displayed current.
-        """
         return f"{self.m_cpu800_current}"
 
-    def do_set_m_cpu800_18_power(self, state):
-        """Set the propagation state of the laser.
-
-        Parameters
-        ----------
-        state : `str`, {OFF, ON, FAULT}
-            The propagation state
-
-            * OFF: Laser is not propagating
-            * ON: Laser is propagating
-            * FAULT: Laser is in fault, usually interlock is engaged
-
-        Returns
-        -------
-        `str`
-            An empty message
-        """
-        try:
-            self.propagating = Power(state)
-            return ""
-        except ValueError:
-            self.log.error(f"{state} not in {list(Power)}")
-            return "'''Error: (13) Wrong value, not included in allowed values list"
-
     def do_m_cpu800_18_power(self):
-        """Return propagation state.
-
-        Returns
-        -------
-        `str`
-        """
         return f"{self.propagating}"
 
+    def do_set_m_cpu800_18_power(self, state):
+        return self._set_enum("propagating", Power, state)
+
     def do_m_cpu800_18_fault_code(self):
-        """Return the fault code of the module."""
         return "0"
 
     def do_m_cpu800_18_display_current(self):
-        """Return the power current of the module."""
         return f"{self.m_cpu800_current}"
 
     def do_cpu8000_16_display_current(self):
-        """Return current as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
         return f"{self.cpu8000_current}"
 
     def do_cpu8000_16_fault_code(self):
-        """Return fault code of the module.
-
-        Returns
-        -------
-        `str`
-        """
         return "0"
 
-    def do_m_cpu800_18_continuous_burst_mode_trigger_burst(self):
-        """Return laser propagation mode.
+    def do_m_cpu800_18_diode_current_on(self):
+        return f"{self.diode_current_on}"
 
-        Returns
-        -------
-        `str`
-        """
+    def do_set_m_cpu800_18_diode_current_on(self, state):
+        self.diode_current_on = state
+        return ""
+
+    def do_m_cpu800_18_continuous_burst_mode_trigger_burst(self):
         return f"{self.propagation_mode}"
 
     def do_set_m_cpu800_18_continuous_burst_mode_trigger_burst(self, mode):
-        """Set the propagation mode of the laser.
-
-        Parameters
-        ----------
-        mode : `str`, {Continuous, Burst, Trigger}
-            The mode to be set.
-
-        Returns
-        -------
-        `str`
-            An empty message if successful or an error message
-            if mode not in accepted values.
-        """
-        try:
-            self.propagation_mode = Mode(mode)
-            return ""
-        except ValueError:
-            self.log.error(f"{mode} not in {list(Mode)}")
-            return "'''Error: (13) Wrong value, not included in allowed values list"
+        return self._set_enum("propagation_mode", Mode, mode)
 
     def do_m_cpu800_18_output_energy_level(self):
-        """Return current output energy level as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
         return f"{self.output_energy_level}"
 
     def do_set_m_cpu800_18_output_energy_level(self, energy_level):
-        """Change output energy level as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
-        self.output_energy_level = energy_level
-        return ""
+        return self._set_enum("output_energy_level", Output, energy_level)
 
     def do_m_cpu800_18_frequency_divider(self):
-        """Return current frequency divider as formatted string.
+        return f"{self.frequency_divider}"
 
-        Returns
-        -------
-        `str`
-        """
-        return "0"
+    def do_set_m_cpu800_18_frequency_divider(self, value):
+        return self._set_int_range("frequency_divider", value, 1, 5000)
 
     def do_m_cpu800_18_burst_pulses_to_go(self):
-        """Return current burst pulses left as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
         return "0"
 
     def do_m_cpu800_18_qsw_adjustment_output_delay(self):
-        """Return current qsw adjustment output delay as formatted string.
+        return f"{self.qsw_adjustment_output_delay}"
 
-        Returns
-        -------
-        `str`
-        """
-        return "0"
+    def do_set_m_cpu800_18_qsw_adjustment_output_delay(self, value):
+        return self._set_int_range("qsw_adjustment_output_delay", value, 50, 1000)
 
     def do_m_cpu800_18_repetition_rate(self):
-        """Return current repetition rate as formatted string.
+        return f"{self.repetition_rate}"
 
-        Returns
-        -------
-        `str`
-        """
-        return "1"
+    def do_set_m_cpu800_18_repetition_rate(self, value):
+        return self._set_int_range("repetition_rate", value, 1, 11000)
 
     def do_m_cpu800_18_synchronization_mode(self):
-        """Return current synchronization mode as formatted string.
+        return f"{self.synchronization_mode}"
 
-        Returns
-        -------
-        `str`
-        """
-        return "0"
+    def do_set_m_cpu800_18_synchronization_mode(self, value):
+        return self._set_int_range("synchronization_mode", value, 0, 1)
 
     def do_m_cpu800_18_burst_length(self):
-        """Return current burst length as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
         return f"{self.burst_length}"
 
     def do_set_m_cpu800_18_burst_length(self, count):
-        self.burst_length = count
-        return ""
+        return self._set_int_range("burst_length", count, 1, 50000)
+
+    def do_m_cpu800_18_external_interlock_state(self):
+        return f"{self.external_interlock_state}"
+
+    def do_tk6_44_display_temperature(self):
+        return f"{self.tk6_44_temperature}"
+
+    def do_tk6_44_set_temperature(self):
+        return f"{self.tk6_44_temperature}"
+
+    def do_set_tk6_44_set_temperature(self, value):
+        reply = self.check_limits(value, -2300, 26600)
+        if not reply.startswith("'''"):
+            self.tk6_44_temperature = value
+        return reply
+
+    def do_tk6_45_display_temperature(self):
+        return f"{self.tk6_45_temperature}"
+
+    def do_tk6_45_set_temperature(self):
+        return f"{self.tk6_45_temperature}"
+
+    def do_set_tk6_45_set_temperature(self, value):
+        reply = self.check_limits(value, -2300, 26600)
+        if not reply.startswith("'''"):
+            self.tk6_45_temperature = value
+        return reply
+
+
+class MockNT252(BaseMockEksplaLaser):
+    """Implement the mock NT252 device."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.log.debug("MockNT252 initialized")
+
+    def do_ph_532_55_power(self):
+        return f"{self.ph532_power}"
+
+    def do_midiopg_31_wavelength(self):
+        return f"{self.wavelength}nm"
+
+    def do_set_midiopg_31_wavelength(self, wavelength):
+        return self._set_int_range("wavelength", wavelength, 1, 2600)
+
+    def do_midiopg_31_status(self):
+        return "Ok."
+
+    def do_ldco48bp_48_set_temperature(self):
+        return f"{self.ldco48bp_48_temperature}"
+
+    def do_set_ldco48bp_48_set_temperature(self, value):
+        reply = self.check_limits(value, -200, 4600)
+        if not reply.startswith("'''"):
+            self.ldco48bp_48_temperature = value
+        return reply
+
+    def do_ldco48bp_50_set_temperature(self):
+        return f"{self.ldco48bp_50_temperature}"
+
+    def do_set_ldco48bp_50_set_temperature(self, value):
+        reply = self.check_limits(value, -200, 4600)
+        if not reply.startswith("'''"):
+            self.ldco48bp_50_temperature = value
+        return reply
+
+    def do_ldco48bp_48_display_temperature(self):
+        return f"{self.ldco48bp_48_temperature}"
+
+    def do_ldco48bp_50_display_temperature(self):
+        return f"{self.ldco48bp_50_temperature}"
+
+    def do_ldco48bp_28_error_code(self):
+        return "0"
+
+    def do_ldco48bp_29_error_code(self):
+        return "0"
+
+    def do_m_ldco48_33_error_code(self):
+        return "0"
+
+    def do_m_ldco48_34_error_code(self):
+        return "0"
+
+    def do_hv40w_40_error_code(self):
+        return "0"
+
+    def do_fopo_51_error_code(self):
+        return "0"
+
+    def do_sopo_52_error_code(self):
+        return "0"
+
+    def do_sh1_53_error_code(self):
+        return "0"
+
+    def do_c1_54_error_code(self):
+        return "0"
+
+
+class MockNT900(BaseMockEksplaLaser):
+    """Implements a mock NT900 laser."""
+
+    def __init__(self):
+        super().__init__()
+        self.scu = False
+        if not self.scu:
+            self.configuration = OpticalConfiguration.NO_SCU
+        else:
+            self.configuration = OpticalConfiguration.SCU
+        self.log.debug("MockNT900 initialized")
+
+    def do_maxiopg_31_wavelength(self):
+        return f"{self.wavelength}nm"
+
+    def do_set_maxiopg_31_wavelength(self, wavelength):
+        return self._set_int_range("wavelength", wavelength, 300, 1100)
 
     def do_11pmku_54_power(self):
         return "19A"
 
     def do_maxiopg_31_configuration(self):
-        """Return current configuration as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
         return f"{self.configuration}"
 
     def do_set_maxiopg_31_configuration(self, configuration):
-        """Change the configuration as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
-
-        self.configuration = OpticalConfiguration(configuration)
-        return ""
+        try:
+            self.configuration = OpticalConfiguration(configuration)
+            return ""
+        except ValueError:
+            self.log.error(f"{configuration} not in {list(OpticalConfiguration)}")
+            return self._wrong_value_error()
 
     def do_miniopg_56_error_code(self):
-        """Return current error code as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
         return "0"
 
-    def do_tk6_44_display_temperature(self):
-        return f"{self.temperature}"
-
-    def do_tk6_45_display_temperature(self):
-        return f"{self.temperature}"
-
     def do_set_temperature(self):
-        """Change setpoint temperature as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
         return f"{self.temperature}C"
 
     def do_hv40w_41_hv_voltage(self):
-        """Return current hv voltage as formatted string.
-
-        Returns
-        -------
-        `str`
-        """
         return "10"
 
     def do_delaylin_40_error_code(self):
-        """Return error code from module"""
         return "0"
 
     def do_ldco48bp_30_display_temperature(self):
-        """Return temperature from module"""
         return f"{self.temperature}"
 
     def do_ldco48bp_29_display_temperature(self):
-        """Return temperature from module"""
         return f"{self.temperature}"
 
     def do_ldco48bp_24_display_temperature(self):
-        """Return temperature from module"""
         return f"{self.temperature}"
 
     def do_m_ldco48_33_display_temperature(self):
-        """Return temperature from module"""
         return f"{self.temperature}"
 
     def do_m_ldco48_34_display_temperature(self):
-        """Return temperature from module"""
         return f"{self.temperature}"

@@ -53,33 +53,33 @@ class ErrorCode(enum.IntEnum):
     """Hardware fault reported by a laser CPU module."""
 
 
-class Power(enum.StrEnum):
+class Power(enum.IntEnum):
     """The power states for the laser's propagation module."""
 
-    ON = "ON"
-    OFF = "OFF"
-    FAULT = "FAULT"
+    ON = 1
+    OFF = 0
+    FAULT = 2
 
 
-class Mode(enum.StrEnum):
+class Mode(enum.IntEnum):
     """The different propagation modes of the laser."""
 
-    CONTINUOUS = "Continuous"
+    CONTINUOUS = 0
     """The laser pulses continuously."""
-    BURST = "Burst"
+    BURST = 1
     """The laser pulses with a burst of energy at regular interval."""
-    TRIGGER = "Trigger"
+    TRIGGER = 2
     """The laser pulses when using an external trigger."""
 
 
-class Output(enum.StrEnum):
+class Output(enum.IntEnum):
     """The output energy level."""
 
-    OFF = "OFF"
+    OFF = 0
     """The laser outputs no energy"""
-    ADJUST = "Adjust"
+    ADJUST = 1
     """A calibration energy level where the energy level adjusts."""
-    MAX = "MAX"
+    MAX = 2
     """Maximum energy level for the laser."""
 
 

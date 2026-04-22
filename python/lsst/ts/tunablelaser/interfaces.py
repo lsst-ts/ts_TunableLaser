@@ -25,7 +25,7 @@ import asyncio
 from abc import ABC, abstractmethod
 
 from lsst.ts import tcpip
-from lsst.ts.tunablelaser.wizardry import DEFAULT_SLEEP, NUMBER_OF_RETRIES
+from lsst.ts.tunablelaser.wizardry import DEFAULT_SLEEP, NUMBER_OF_CONNECTION_RETRIES, NUMBER_OF_RETRIES
 
 from .compoway_register import CompoWayFDataRegister, CompoWayFGeneralRegister, CompoWayFOperationRegister
 from .register import AsciiRegister
@@ -68,6 +68,13 @@ class Laser(ABC):
         self.simulation_mode = simulation_mode
         self.commander = tcpip.Client(host="", port=0, log=self.log)
         self.lock = asyncio.Lock()
+        self.connect_lock = asyncio.Lock()
+        self.connect_timeout = 5
+
+    @property
+    @abstractmethod
+    def is_faulting(self):
+        raise NotImplementedError
 
     @property
     @abstractmethod
@@ -164,23 +171,27 @@ class Laser(ABC):
         self.commander = tcpip.Client(host="", port=0, log=self.log)
 
     async def send_command(self, message):
-        resp = None
-        async with self.lock:
-            await self.commander.write(message.encode(self.commander.encoding))
-            for _ in range(NUMBER_OF_RETRIES):
-                try:
-                    resp = await self.commander.read_str()
-                except TimeoutError:
-                    self.log.warning("Response timed out... Waiting to try again.")
-                    await asyncio.sleep(DEFAULT_SLEEP)
-                if resp:
-                    if resp.startswith("'''"):
-                        self.log.error(f"{message} failed. Received {resp}.")
-                        raise RuntimeError(f"{message} failed.")
-                    else:
+        last_error = None
+        for attempt in range(NUMBER_OF_RETRIES):
+            try:
+                async with self.lock:
+                    async with asyncio.timeout(5):
+                        await self.commander.write(message.encode(self.commander.encoding))
+                        resp = await self.commander.read_str()
+                    if resp:
+                        if resp.startswith("'''"):
+                            self.log.error(f"{message} failed. Received {resp}.")
+                            raise RuntimeError(f"{message} failed.")
                         return resp.rstrip("nmC\r\n")
-            if not resp:
-                raise RuntimeError("Response not received.")
+            except asyncio.TimeoutError as err:
+                last_error = err
+                self.log.warning(
+                    f"Command failed on attempt {attempt + 1}/{NUMBER_OF_RETRIES} for {message!r}: {err!r}"
+                )
+                if attempt == NUMBER_OF_RETRIES - 1:
+                    break
+                await asyncio.sleep(DEFAULT_SLEEP)
+        raise ConnectionError("Response not received after retry exhaustion.") from last_error
 
     def _iter_canbus_modules(self):
         for value in vars(self).values():
@@ -203,7 +214,7 @@ class Laser(ABC):
 
     async def connect(self):
         """Connect to the laser."""
-        for _ in range(NUMBER_OF_RETRIES):
+        for _ in range(NUMBER_OF_CONNECTION_RETRIES):
             try:
                 self.commander = tcpip.Client(
                     host=self.host,
@@ -212,7 +223,8 @@ class Laser(ABC):
                     terminator=bytes(self.terminator),
                     encoding=self.encoding,
                 )
-                await self.commander.start_task
+                async with asyncio.timeout(self.connect_timeout):
+                    await self.commander.start_task
             except Exception:
                 self.log.exception("Connection failed.")
             if self.commander.connected:

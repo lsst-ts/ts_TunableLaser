@@ -100,7 +100,7 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                         wavelength=wavelength, timeout=STD_TIMEOUT
                     )
                 else:
-                    wavelength = max(self.csc.model.midiopg.wavelength_register.accepted_values) + 1
+                    wavelength = max(self.csc.model.midiopg.wavelength_id_0x1f_register.accepted_values) + 1
                     await self.remote.cmd_changeWavelength.set_start(
                         wavelength=wavelength, timeout=STD_TIMEOUT
                     )
@@ -112,7 +112,7 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                         wavelength=wavelength, timeout=STD_TIMEOUT
                     )
                 else:
-                    wavelength = min(self.csc.model.midiopg.wavelength_register.accepted_values) - 1
+                    wavelength = min(self.csc.model.midiopg.wavelength_id_0x1f_register.accepted_values) - 1
                     await self.remote.cmd_changeWavelength.set_start(
                         wavelength=wavelength, timeout=STD_TIMEOUT
                     )
@@ -127,9 +127,9 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                     return "'''Error: (11) Violating top value limit"
 
             else:
-                method_name = "do_wavelength"
+                method_name = "do_set_midiopg_31_wavelength"
 
-                def fail_write(self, parameter=None):
+                def fail_write(self, wavelength):
                     return "'''Error: (11) Violating top value limit"
 
             with unittest.mock.patch.object(type(self.csc.simulator.device), method_name, fail_write):
@@ -146,9 +146,9 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                     return "'''Error: (8) Timeout waiting for device answer"
 
             else:
-                method_name = "do_wavelength"
+                method_name = "do_midiopg_31_wavelength"
 
-                def fail_read(self, parameter=None):
+                def fail_read(self):
                     return "'''Error: (8) Timeout waiting for device answer"
 
             with unittest.mock.patch.object(type(self.csc.simulator.device), method_name, fail_read):
