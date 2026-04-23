@@ -25,6 +25,7 @@ import unittest
 import unittest.mock
 
 from lsst.ts.tunablelaser.canbus_modules import CPU8000, MaxiOPG
+from lsst.ts.tunablelaser.component import FanControlClient, LaserAlignmentClient, TemperatureCtrl
 from lsst.ts.tunablelaser.interfaces import Laser
 from lsst.ts.tunablelaser.wizardry import NUMBER_OF_RETRIES
 
@@ -227,3 +228,96 @@ class TestLaserRegisterRefresh(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(laser.commander.write.await_count, NUMBER_OF_RETRIES)
         laser.commander.read_str.assert_not_awaited()
         self.assertIsNone(laser.cpu8000.power_register.register_value)
+
+    async def test_simulated_tempctrl_write_register_updates_authoritative_mock(self):
+        controller = TemperatureCtrl(log=logging.getLogger(__name__), simulation_mode=True)
+        register = controller.e5dc_b.set_point_register
+
+        controller._write_frame = unittest.mock.AsyncMock()
+        controller._handle_write_response = unittest.mock.AsyncMock()
+        controller.read_register = unittest.mock.AsyncMock(return_value=100)
+
+        value = await controller.write_register(register, 100)
+
+        self.assertEqual(value, 100)
+        controller._write_frame.assert_awaited_once_with(
+            register.create_set_message(100),
+            simulation_mode=True,
+        )
+        controller._handle_write_response.assert_awaited_once_with(register, "\x30\x31\x30\x32")
+        controller.read_register.assert_awaited_once_with(register)
+
+
+class _OneShotJsonClient:
+    def __init__(self, payload):
+        self.connected = True
+        self.payload = payload
+
+    async def read_json(self):
+        self.connected = False
+        return self.payload
+
+
+class _EofJsonClient:
+    def __init__(self):
+        self.connected = True
+
+    async def read_json(self):
+        self.connected = False
+        raise asyncio.IncompleteReadError(b"", None)
+
+
+class TestAuxClientMessages(unittest.IsolatedAsyncioTestCase):
+    async def test_fan_control_client_queues_messages(self):
+        client = FanControlClient()
+        payload = {"status": True}
+        client.client = _OneShotJsonClient(payload)
+
+        with unittest.mock.patch(
+            "lsst.ts.tunablelaser.component.asyncio.sleep",
+            new=unittest.mock.AsyncMock(),
+        ):
+            await client.get_messages()
+
+        self.assertEqual(client.response, payload)
+        self.assertEqual(client.response_queue.get_nowait(), payload)
+
+    async def test_laser_alignment_client_queues_messages(self):
+        client = LaserAlignmentClient()
+        payload = {"status": False}
+        client.client = _OneShotJsonClient(payload)
+
+        with unittest.mock.patch(
+            "lsst.ts.tunablelaser.component.asyncio.sleep",
+            new=unittest.mock.AsyncMock(),
+        ):
+            await client.get_messages()
+
+        self.assertEqual(client.response, payload)
+        self.assertEqual(client.response_queue.get_nowait(), payload)
+
+    async def test_fan_control_client_exits_cleanly_on_eof(self):
+        client = FanControlClient()
+        client.client = _EofJsonClient()
+
+        with unittest.mock.patch(
+            "lsst.ts.tunablelaser.component.asyncio.sleep",
+            new=unittest.mock.AsyncMock(),
+        ):
+            await client.get_messages()
+
+        self.assertIsNone(client.response)
+        self.assertTrue(client.response_queue.empty())
+
+    async def test_laser_alignment_client_exits_cleanly_on_eof(self):
+        client = LaserAlignmentClient()
+        client.client = _EofJsonClient()
+
+        with unittest.mock.patch(
+            "lsst.ts.tunablelaser.component.asyncio.sleep",
+            new=unittest.mock.AsyncMock(),
+        ):
+            await client.get_messages()
+
+        self.assertIsNone(client.response)
+        self.assertTrue(client.response_queue.empty())

@@ -75,6 +75,7 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
         async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1, override=config):
             await self.assert_next_sample(topic=self.remote.tel_wavelength)
             await self.assert_next_sample(topic=self.remote.tel_temperature)
+            await self.assert_next_sample(topic=self.remote.tel_scannerTemperature)
             await self.assert_next_sample(
                 topic=self.remote.evt_summaryState,
                 summaryState=salobj.State.ENABLED,

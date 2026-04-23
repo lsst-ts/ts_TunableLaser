@@ -358,7 +358,8 @@ class CompoWayFModule(ABC):
         register.cmd_txt = await self.commander.readuntil(b"\x03")
         register.cmd_txt = register.cmd_txt.decode()[:-1]
         try:
-            register.register_value = int(register.cmd_txt, 16)
+            raw_value = int(register.cmd_txt, 16)
+            register.register_value = register.decode_register_value(raw_value)
         except Exception as e:
             self.log.error(f"Received no valid register value! {register.cmd_txt} {str(e)}")
             register.register_value = -1
@@ -426,10 +427,6 @@ class CompoWayFModule(ABC):
             return register.register_value
 
         if isinstance(register, CompoWayFDataRegister):
-            if register.simulation_mode:
-                register.register_value = value
-                return register.register_value
-
             async with self.lock:
                 await self._write_frame(
                     register.create_set_message(value), simulation_mode=register.simulation_mode

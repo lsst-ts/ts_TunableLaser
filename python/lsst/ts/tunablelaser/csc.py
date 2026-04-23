@@ -24,6 +24,7 @@
 __all__ = ["run_tunablelaser", "command_tunablelaser", "LaserCSC"]
 
 import asyncio
+import contextlib
 
 from lsst.ts import salobj, utils
 from lsst.ts.xml.enums import TunableLaser
@@ -122,6 +123,13 @@ class LaserCSC(salobj.ConfigurableCsc):
         """Return the detailed state."""
         return self.evt_detailedState.data.detailedState
 
+    async def _cancel_task(self, task):
+        """Cancel a background task and wait for it to stop."""
+        if task is not None and not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
     async def telemetry(self):
         """Send out the TunableLaser's telemetry."""
         while True:
@@ -136,10 +144,10 @@ class LaserCSC(salobj.ConfigurableCsc):
                     detailed_state = self.calculate_detailed_state()
                     await self.publish_new_detailed_state(detailed_state)
                 await self.thermal_ctrl.read_all_registers()
-                if self.fc_client.response is not None:
-                    self.log.info(self.fc_client.response)
-                if self.la_client.response is not None:
-                    self.log.info(self.la_client.response)
+                while not self.fc_client.response_queue.empty():
+                    self.log.info(self.fc_client.response_queue.get_nowait())
+                while not self.la_client.response_queue.empty():
+                    self.log.info(self.la_client.response_queue.get_nowait())
                 if self.model.is_faulting:
                     await self.fault(
                         code=ErrorCode.HW_CPU_ERROR,
@@ -210,6 +218,8 @@ class LaserCSC(salobj.ConfigurableCsc):
                 return TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
             case Mode.CONTINUOUS, True:
                 return TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE
+            case Mode.TRIGGER, True:
+                return TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE
             case _:
                 raise RuntimeWarning("Not a valid detailed_state.")
 
@@ -229,7 +239,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                         if self.simulation_mode == SimulationMode.MOCK_INSTABILITY:
                             self.simulator.simulate_connection_instability = True
                 if self.thermal_ctrl_simulator is None:
-                    self.thermal_ctrl_simulator = mock_server.TempCtrlServer(host=self.thermal_ctrl.host)
+                    self.thermal_ctrl_simulator = mock_server.TempCtrlServer()
                     await self.thermal_ctrl_simulator.start_task
                     self.thermal_ctrl.host = self.thermal_ctrl_simulator.host
                     self.thermal_ctrl.port = self.thermal_ctrl_simulator.port
@@ -264,8 +274,10 @@ class LaserCSC(salobj.ConfigurableCsc):
                 await self.evt_opticalConfiguration.set_write(configuration=self.optical_alignment)
             if not self.omron_connected:
                 await self.thermal_ctrl.connect()
-            await self.fc_client.connect()
-            await self.la_client.connect()
+            if not self.fc_client.connected:
+                await self.fc_client.connect()
+            if not self.la_client.connected:
+                await self.la_client.connect()
             if self.summary_state == salobj.State.DISABLED and self.model.is_propagating:
                 await self.model.stop_propagating()
                 await self.publish_new_detailed_state(
@@ -278,9 +290,9 @@ class LaserCSC(salobj.ConfigurableCsc):
             if self.la_task.done():
                 self.la_task = asyncio.create_task(self.la_client.get_messages())
         else:
-            self.telemetry_task.cancel()
-            self.fc_task.cancel()
-            self.la_task.cancel()
+            await self._cancel_task(self.telemetry_task)
+            await self._cancel_task(self.fc_task)
+            await self._cancel_task(self.la_task)
             if self.model is not None:
                 await self.model.disconnect()
                 self.model = None
@@ -503,7 +515,9 @@ class LaserCSC(salobj.ConfigurableCsc):
         * If simulator is running, shut it off
         """
         await super().close_tasks()
-        self.telemetry_task.cancel()
+        await self._cancel_task(self.telemetry_task)
+        await self._cancel_task(self.fc_task)
+        await self._cancel_task(self.la_task)
         if self.model is not None:
             if self.model.is_propagating:
                 await self.model.stop_propagating()
@@ -512,6 +526,10 @@ class LaserCSC(salobj.ConfigurableCsc):
         if self.thermal_ctrl is not None:
             await self.thermal_ctrl.disconnect()
             self.thermal_ctrl = None
+        if self.fc_client is not None:
+            await self.fc_client.disconnect()
+        if self.la_client is not None:
+            await self.la_client.disconnect()
         if self.simulator is not None:
             await self.simulator.close()
             self.simulator = None

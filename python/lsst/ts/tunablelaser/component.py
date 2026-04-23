@@ -466,6 +466,7 @@ class StubbsLaser(interfaces.Laser):
         await self.write_register(
             self.m_cpu800.continuous_burst_mode_trigger_burst_id_0x12_register, Mode.TRIGGER
         )
+        await self.set_burst_mode(count=self.m_cpu800.burst_length_id_0x12_register.register_value)
 
     async def set_burst_mode(self, count):
         """Set the propagation mode to pulse the laser at regular intervals.
@@ -485,7 +486,7 @@ class StubbsLaser(interfaces.Laser):
         await self.write_register(
             self.m_cpu800.continuous_burst_mode_trigger_burst_id_0x12_register, Mode.BURST
         )
-        await self.write_register(self.m_cpu800.burst_length_id_0x12_register, count)
+        await self.write_register(self.m_cpu800.burst_length_id_0x12_register, int(count))
 
     async def set_continuous_mode(self):
         """Set the propagation mode to continuously pulse the laser."""
@@ -654,6 +655,8 @@ class FanControlClient:
         The client.
     response : `None`
         The latest response.
+    response_queue : `asyncio.Queue`
+        Pending responses waiting to be consumed.
     """
 
     def __init__(self, simulation_mode=False):
@@ -662,6 +665,7 @@ class FanControlClient:
         self.log = logging.getLogger(__name__)
         self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
         self.response = None
+        self.response_queue = asyncio.Queue()
 
     @property
     def connected(self):
@@ -684,15 +688,15 @@ class FanControlClient:
         """Get messages recieved from the service."""
         while self.connected:
             try:
-                response = None
                 async with asyncio.timeout(10):
                     response = await self.client.read_json()
+                self.response = response
+                self.response_queue.put_nowait(response)
             except asyncio.TimeoutError:
                 self.log.exception("Response timed out")
-                response = "Response timed out"
+            except (asyncio.IncompleteReadError, ConnectionError):
+                break
             finally:
-                self.response = response
-                self.client.log.info(response)
                 await asyncio.sleep(1)
 
 
@@ -711,6 +715,8 @@ class LaserAlignmentClient:
         The client.
     response : `None`
         The latest response.
+    response_queue : `asyncio.Queue`
+        Pending responses waiting to be consumed.
     """
 
     def __init__(self):
@@ -718,6 +724,7 @@ class LaserAlignmentClient:
         self.port = None
         self.log = logging.getLogger(__name__)
         self.response = None
+        self.response_queue = asyncio.Queue()
         self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
 
     @property
@@ -741,13 +748,13 @@ class LaserAlignmentClient:
         """Get messages recieved from the service."""
         while self.connected:
             try:
-                response = None
                 async with asyncio.timeout(10):
                     response = await self.client.read_json()
-            except asyncio.TimeoutError:
-                self.log.exception("Response timed out.")
-                response = "Response timed out"
-            finally:
                 self.response = response
-                self.client.log.info(response)
+                self.response_queue.put_nowait(response)
+            except asyncio.TimeoutError:
+                pass
+            except (asyncio.IncompleteReadError, ConnectionError):
+                break
+            finally:
                 await asyncio.sleep(1)

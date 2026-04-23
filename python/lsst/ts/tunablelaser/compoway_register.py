@@ -348,6 +348,16 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
         self.log.debug(f"get_message={get_message}")
         return get_message
 
+    def encode_register_value(self, value):
+        """Convert engineering units to the raw 16-bit controller value."""
+        return int(value * 10)
+
+    def decode_register_value(self, raw_value):
+        """Convert the raw 16-bit controller value to engineering units."""
+        if raw_value & 0x8000:
+            raw_value -= 0x10000
+        return raw_value / 10
+
     def create_set_message(self, set_value):
         """Create the message that sets the value of the register provided
         that it is not read only.
@@ -373,7 +383,7 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
             if set_value < min(self.accepted_values) or set_value > max(self.accepted_values):
                 raise ValueError(f"{set_value} not in {self.accepted_values}")
 
-            set_value = int(set_value * 10)
+            set_value = self.encode_register_value(set_value)
 
             # This read_elements setting only reads 1 word of data (4 digits)
             # If this needs to change/be configurable in the future one way

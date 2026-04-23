@@ -149,3 +149,7 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
     def test_repr(self):
         assert repr(self.data_register) == "Set Point: None"
         assert repr(self.operation_register) == "Run Stop: None"
+
+    def test_decode_register_value(self):
+        assert self.data_register.decode_register_value(0x015E) == 35.0
+        assert self.data_register.decode_register_value(0xFF9C) == -10.0
