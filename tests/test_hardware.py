@@ -26,7 +26,7 @@ import unittest.mock
 
 from lsst.ts.tunablelaser.canbus_modules import CPU8000, MaxiOPG
 from lsst.ts.tunablelaser.component import FanControlClient, LaserAlignmentClient, TemperatureCtrl
-from lsst.ts.tunablelaser.interfaces import Laser
+from lsst.ts.tunablelaser.interfaces import DeviceTimeoutError, Laser
 from lsst.ts.tunablelaser.wizardry import NUMBER_OF_RETRIES
 
 
@@ -196,7 +196,7 @@ class TestLaserRegisterRefresh(unittest.IsolatedAsyncioTestCase):
             return_value="'''Error: (8) Timeout waiting for device answer"
         )
 
-        with self.assertRaisesRegex(RuntimeError, "failed"):
+        with self.assertRaisesRegex(DeviceTimeoutError, "Timeout waiting for device answer"):
             await laser.read_register(laser.cpu8000.power_register)
 
         self.assertIsNone(laser.cpu8000.power_register.register_value)

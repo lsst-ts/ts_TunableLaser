@@ -35,6 +35,13 @@ from lsst.ts.tunablelaser.wizardry import (
 from .compoway_register import CompoWayFDataRegister, CompoWayFGeneralRegister, CompoWayFOperationRegister
 from .register import AsciiRegister
 
+DEVICE_TIMEOUT_READ_RETRIES = 1
+DEVICE_TIMEOUT_READ_DELAY = 0.1
+
+
+class DeviceTimeoutError(Exception):
+    """The controller replied that a downstream device timed out."""
+
 
 class Laser(ABC):
     """Implement common Laser interface.
@@ -75,6 +82,8 @@ class Laser(ABC):
         self.lock = asyncio.Lock()
         self.connect_lock = asyncio.Lock()
         self.connect_timeout = 5
+        self.skipped_modules = set()
+        self.skipped_registers = set()
 
     @property
     @abstractmethod
@@ -186,6 +195,8 @@ class Laser(ABC):
                     if resp:
                         if resp.startswith("'''"):
                             self.log.error(f"{message} failed. Received {resp}.")
+                            if "(8) Timeout waiting for device answer" in resp:
+                                raise DeviceTimeoutError(resp)
                             raise RuntimeError(f"{message} failed.")
                         return resp.rstrip("nmC\r\n")
             except asyncio.TimeoutError as err:
@@ -203,9 +214,34 @@ class Laser(ABC):
             if isinstance(value, CanbusModule):
                 yield value
 
+    def should_poll_module(self, module):
+        return module.name not in self.skipped_modules
+
+    def register_poll_key(self, module, register):
+        return f"{module.name}.{register.register_name}"
+
+    def should_poll_register(self, module, register):
+        return (
+            self.should_poll_module(module)
+            and self.register_poll_key(module, register) not in self.skipped_registers
+        )
+
     async def read_register(self, register):
-        register.register_value = await self.send_command(register.create_get_message())
-        return register.register_value
+        last_error = None
+        for attempt in range(DEVICE_TIMEOUT_READ_RETRIES + 1):
+            try:
+                register.register_value = await self.send_command(register.create_get_message())
+                return register.register_value
+            except DeviceTimeoutError as err:
+                last_error = err
+                self.log.warning(
+                    f"Device timeout reading {register.module_name}.{register.register_name} "
+                    f"attempt {attempt + 1}/{DEVICE_TIMEOUT_READ_RETRIES + 1}: {err}"
+                )
+                if attempt == DEVICE_TIMEOUT_READ_RETRIES:
+                    break
+                await asyncio.sleep(DEVICE_TIMEOUT_READ_DELAY)
+        raise last_error
 
     async def write_register(self, register, value):
         await self.send_command(register.create_set_message(value))
@@ -216,7 +252,11 @@ class Laser(ABC):
         loop = asyncio.get_running_loop()
         refresh_time_start = loop.time()
         for module in self._iter_canbus_modules():
+            if not self.should_poll_module(module):
+                continue
             for register in module.iter_ascii_registers():
+                if not self.should_poll_register(module, register):
+                    continue
                 await self.read_register(register)
                 await asyncio.sleep(SLEEP_BETWEEN_REGISTERS)
         refresh_time_dt = loop.time() - refresh_time_start

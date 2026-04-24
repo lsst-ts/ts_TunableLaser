@@ -367,6 +367,21 @@ class StubbsLaser(interfaces.Laser):
             Output.out3: OpticalConfiguration.F2_NO_SCU,
             None: None,
         }
+        self.skipped_modules = {"PH532", "FOPO", "SOPO", "SH1", "C1", "MLDCO48", "HV40W"}
+        self.skipped_registers = {
+            "M_CPU800.Diode current ON",
+            "M_CPU800.QSW Adjustment output delay",
+            "M_CPU800.Frequency divider",
+            "M_CPU800.Synchronization mode",
+            "M_CPU800.Repetition rate",
+            "M_CPU800.External interlock state",
+            "M_CPU800.Display Current",
+            "MidiOPG.Status",
+            "LDCO48BP.Set temperature",
+            "LDCO48BP.Error Code",
+            "TK6.Set temperature",
+            "CPU8000.Display Current",
+        }
 
     @property
     def is_faulting(self):
