@@ -25,7 +25,12 @@ import asyncio
 from abc import ABC, abstractmethod
 
 from lsst.ts import tcpip
-from lsst.ts.tunablelaser.wizardry import DEFAULT_SLEEP, NUMBER_OF_CONNECTION_RETRIES, NUMBER_OF_RETRIES
+from lsst.ts.tunablelaser.wizardry import (
+    DEFAULT_SLEEP,
+    NUMBER_OF_CONNECTION_RETRIES,
+    NUMBER_OF_RETRIES,
+    SLEEP_BETWEEN_REGISTERS,
+)
 
 from .compoway_register import CompoWayFDataRegister, CompoWayFGeneralRegister, CompoWayFOperationRegister
 from .register import AsciiRegister
@@ -208,9 +213,14 @@ class Laser(ABC):
 
     async def refresh_all_ascii_registers(self):
         """Refresh all ascii registers attached to this laser."""
+        loop = asyncio.get_running_loop()
+        refresh_time_start = loop.time()
         for module in self._iter_canbus_modules():
             for register in module.iter_ascii_registers():
                 await self.read_register(register)
+                await asyncio.sleep(SLEEP_BETWEEN_REGISTERS)
+        refresh_time_dt = loop.time() - refresh_time_start
+        self.log.debug(f"Refresh all registers took {refresh_time_dt:.3f}s")
 
     async def connect(self):
         """Connect to the laser."""

@@ -135,15 +135,23 @@ class LaserCSC(salobj.ConfigurableCsc):
         while True:
             assert self.model is not None
             assert self.thermal_ctrl is not None
+            loop = asyncio.get_running_loop()
+            loop_start = loop.time()
             try:
                 if not self.laser_connected and self.model.should_be_connected:
                     await self.fault(code=ErrorCode.GENERAL_ERROR, report="Device lost connection.")
                     return
                 if self.laser_key_turned:
+                    laser_read_start = loop.time()
                     await self.model.read_all_registers()
+                    laser_read_dt = loop.time() - laser_read_start
+                    self.log.debug(f"telemetry laser read took {laser_read_dt:0.3f}s")
                     detailed_state = self.calculate_detailed_state()
                     await self.publish_new_detailed_state(detailed_state)
+                tempctrl_read_start = loop.time()
                 await self.thermal_ctrl.read_all_registers()
+                tempctrl_read_dt = loop.time() - tempctrl_read_start
+                self.log.debug(f"telemetry tempctrl read took {tempctrl_read_dt:.3f}s")
                 while not self.fc_client.response_queue.empty():
                     self.log.info(self.fc_client.response_queue.get_nowait())
                 while not self.la_client.response_queue.empty():
@@ -172,6 +180,9 @@ class LaserCSC(salobj.ConfigurableCsc):
                 self.log.exception("Telemetry loop failed.")
                 await self.fault(code=ErrorCode.GENERAL_ERROR, report="Telemetry loop failed.")
                 return
+            finally:
+                loop_dt = loop.time() - loop_start
+                self.log.debug(f"telemetry loop took {loop_dt:.3f}s total")
             await asyncio.sleep(self.telemetry_rate)
 
     def assert_substate(self, substates):
