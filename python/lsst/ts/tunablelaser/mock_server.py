@@ -521,7 +521,7 @@ class BaseMockEksplaLaser:
         self.frequency_divider = 1
         self.qsw_adjustment_output_delay = 308
         self.repetition_rate = 1
-        self.synchronization_mode = 0
+        self.synchronization_mode = "Internal"
         self.diode_current_on = "ON"
         self.external_interlock_state = "Defeated"
         self.ph532_power = "0.002"
@@ -600,10 +600,7 @@ class BaseMockEksplaLaser:
                 try:
                     value = enum_type(raw_value)
                 except ValueError:
-                    try:
-                        value = enum_type(int(raw_value))
-                    except ValueError:
-                        value = enum_type[raw_value.strip().upper()]
+                    value = enum_type[raw_value.strip().upper()]
             else:
                 value = enum_type(raw_value)
             setattr(self, attribute_name, value)
@@ -698,7 +695,12 @@ class BaseMockEksplaLaser:
         return f"{self.synchronization_mode}"
 
     def do_set_m_cpu800_18_synchronization_mode(self, value):
-        return self._set_int_range("synchronization_mode", value, 0, 1)
+        accepted_values = ["Internal", "External"]
+        if value not in accepted_values:
+            self.log.error(f"{value} not in {accepted_values}")
+            return self._wrong_value_error()
+        self.synchronization_mode = value
+        return ""
 
     def do_m_cpu800_18_burst_length(self):
         return f"{self.burst_length}"

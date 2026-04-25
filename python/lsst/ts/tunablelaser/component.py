@@ -34,8 +34,8 @@ from .fcu_client import FCUClient, Output
 DOESNT_EXIST = 0
 
 
-def _coerce_int_enum(value, enum_type):
-    """Best-effort conversion of cached ASCII values to an IntEnum."""
+def _coerce_enum(value, enum_type):
+    """Best-effort conversion of cached ASCII values to an enum."""
     if isinstance(value, enum_type):
         return value
     if value is None:
@@ -43,19 +43,16 @@ def _coerce_int_enum(value, enum_type):
     try:
         return enum_type(value)
     except Exception:
-        try:
-            return enum_type(int(value))
-        except Exception:
-            if isinstance(value, str):
-                try:
-                    return enum_type[value.strip().upper()]
-                except Exception:
-                    return value
-            return value
+        if isinstance(value, str):
+            try:
+                return enum_type[value.strip().upper()]
+            except Exception:
+                return value
+        return value
 
 
 def _matches_enum(value, enum_value):
-    return _coerce_int_enum(value, type(enum_value)) == enum_value
+    return _coerce_enum(value, type(enum_value)) == enum_value
 
 
 class MainLaser(interfaces.Laser):
@@ -142,9 +139,7 @@ class MainLaser(interfaces.Laser):
 
     @property
     def propagation_mode(self):
-        return _coerce_int_enum(
-            self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value, Mode
-        )
+        return _coerce_enum(self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value, Mode)
 
     @property
     def is_propagating(self):
@@ -397,7 +392,7 @@ class StubbsLaser(interfaces.Laser):
 
     @property
     def propagation_mode(self):
-        return _coerce_int_enum(
+        return _coerce_enum(
             self.m_cpu800.continuous_burst_mode_trigger_burst_id_0x12_register.register_value,
             Mode,
         )

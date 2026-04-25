@@ -33,7 +33,7 @@ class TestMockNT252(unittest.TestCase):
         self.device.qsw_adjustment_output_delay = 308
         self.device.repetition_rate = 1000
         self.device.burst_length = 1
-        self.device.synchronization_mode = 0
+        self.device.synchronization_mode = "Internal"
         self.device.diode_current_on = "ON"
         self.device.external_interlock_state = "Defeated"
         self.device.ph532_power = "0.002"
@@ -63,17 +63,17 @@ class TestMockNT252(unittest.TestCase):
 
     def test_generated_stubbs_read_commands_return_expected_values(self):
         expected = {
-            "/M_CPU800/18/Power": "0",
+            "/M_CPU800/18/Power": "OFF",
             "/M_CPU800/18/Diode current ON": "ON",
-            "/M_CPU800/18/Output Energy level": "1",
-            "/M_CPU800/18/Continuous %2f Burst mode %2f Trigger burst": "0",
+            "/M_CPU800/18/Output Energy level": "Adjust",
+            "/M_CPU800/18/Continuous %2f Burst mode %2f Trigger burst": "Continuous",
             "/M_CPU800/18/QSW Adjustment output delay": "308",
             "/M_CPU800/18/Frequency divider": "1",
             "/M_CPU800/18/Burst length": "1",
-            "/M_CPU800/18/Synchronization mode": "0",
+            "/M_CPU800/18/Synchronization mode": "Internal",
             "/M_CPU800/18/Repetition rate": "1000",
             "/M_CPU800/18/External interlock state": "Defeated",
-            "/M_CPU800/17/Power": "1",
+            "/M_CPU800/17/Power": "ON",
             "/M_CPU800/17/Display Current": "0.8",
             "/PH_532/55/Power": "0.002",
             "/MidiOPG/31/WaveLength": "532nm",
@@ -86,7 +86,7 @@ class TestMockNT252(unittest.TestCase):
             "/LDCO48BP/29/Error Code": "0",
             "/TK6/44/Set temperature": "50.00",
             "/TK6/44/Display temperature": "50.00",
-            "/CPU8000/16/Power": "1",
+            "/CPU8000/16/Power": "ON",
             "/CPU8000/16/Display Current": "0.5",
             "/M_LDCO48/33/Error Code": "0",
             "/M_LDCO48/34/Error Code": "0",
@@ -107,6 +107,29 @@ class TestMockNT252(unittest.TestCase):
         for command, expected_value in expected.items():
             with self.subTest(command=command):
                 self.assertEqual(self.device.parse_message(command), expected_value)
+
+    def test_generated_stubbs_accepted_values_match_writable_vendor_ranges(self):
+        expected = {
+            "/M_CPU800/18/Power": ["OFF", "ON"],
+            "/M_CPU800/18/Diode current ON": ["OFF", "ON"],
+            "/M_CPU800/18/Output Energy level": ["OFF", "Adjust", "MAX"],
+            "/M_CPU800/18/Continuous %2f Burst mode %2f Trigger burst": [
+                "Continuous",
+                "Burst",
+                "Trigger",
+            ],
+            "/M_CPU800/18/Synchronization mode": ["Internal", "External"],
+            "/M_CPU800/17/Power": ["OFF", "ON"],
+            "/CPU8000/16/Power": ["OFF", "ON"],
+        }
+
+        actual = {
+            self._strip_terminator(register.create_get_message()): register.accepted_values
+            for module in self.modules
+            for register in module.iter_ascii_registers()
+            if not register.read_only and not isinstance(register.accepted_values, range)
+        }
+        self.assertEqual(actual, expected)
 
     def test_generated_stubbs_writable_commands_round_trip(self):
         for module in self.modules:

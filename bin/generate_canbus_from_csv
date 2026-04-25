@@ -62,6 +62,7 @@ class RegisterRow:
     user_rights: str
     min_value: str
     max_value: str
+    print_format: str
     register_name: str
 
 
@@ -175,11 +176,33 @@ def parse_numeric_bound(value: str, data_type: str) -> int | None:
 
 
 def accepted_values_expression(row: RegisterRow) -> str | None:
+    print_values = parse_print_format_values(row.print_format)
+    if print_values is not None:
+        min_value = parse_numeric_bound(row.min_value, row.data_type)
+        max_value = parse_numeric_bound(row.max_value, row.data_type)
+        if min_value is not None and max_value is not None:
+            if min_value < 0 or max_value >= len(print_values):
+                raise CsvFormatError(
+                    f"Print format for {row.module_name}.{row.register_name} "
+                    f"has {len(print_values)} values but bounds are "
+                    f"{min_value}..{max_value}."
+                )
+            print_values = print_values[min_value : max_value + 1]
+        return repr(print_values)
     min_value = parse_numeric_bound(row.min_value, row.data_type)
     max_value = parse_numeric_bound(row.max_value, row.data_type)
     if min_value is None or max_value is None:
         return None
     return f"range({min_value}, {max_value + 1})"
+
+
+def parse_print_format_values(print_format: str) -> list[str] | None:
+    cleaned = print_format.strip()
+    if not (cleaned.startswith("[") and cleaned.endswith("]")):
+        return None
+    values = [value.strip() for value in cleaned[1:-1].split(",")]
+    values = [value for value in values if value]
+    return values or None
 
 
 def load_rows(csv_file: Path) -> tuple[str, list[RegisterRow]]:
@@ -220,6 +243,7 @@ def load_rows(csv_file: Path) -> tuple[str, list[RegisterRow]]:
                     user_rights=raw_row[5].strip(),
                     min_value=raw_row[7].strip(),
                     max_value=raw_row[8].strip(),
+                    print_format=raw_row[10].strip(),
                     register_name=register_name,
                 )
             )

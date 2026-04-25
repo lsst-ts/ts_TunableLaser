@@ -36,28 +36,28 @@ class MCPU800(interfaces.CanbusModule):
             module_id=self.id_0x12,
             register_name="Power",
             read_only=False,
-            accepted_values=range(0, 2),
+            accepted_values=["OFF", "ON"],
         )
         self.diode_current_on_id_0x12_register = AsciiRegister(
             module_name=self.name,
             module_id=self.id_0x12,
             register_name="Diode current ON",
             read_only=False,
-            accepted_values=range(0, 2),
+            accepted_values=["OFF", "ON"],
         )
         self.output_energy_level_id_0x12_register = AsciiRegister(
             module_name=self.name,
             module_id=self.id_0x12,
             register_name="Output Energy level",
             read_only=False,
-            accepted_values=range(0, 3),
+            accepted_values=["OFF", "Adjust", "MAX"],
         )
         self.continuous_burst_mode_trigger_burst_id_0x12_register = AsciiRegister(
             module_name=self.name,
             module_id=self.id_0x12,
             register_name="Continuous %2f Burst mode %2f Trigger burst",
             read_only=False,
-            accepted_values=range(0, 3),
+            accepted_values=["Continuous", "Burst", "Trigger"],
         )
         self.qsw_adjustment_output_delay_id_0x12_register = AsciiRegister(
             module_name=self.name,
@@ -85,7 +85,7 @@ class MCPU800(interfaces.CanbusModule):
             module_id=self.id_0x12,
             register_name="Synchronization mode",
             read_only=False,
-            accepted_values=range(0, 2),
+            accepted_values=["Internal", "External"],
         )
         self.repetition_rate_id_0x12_register = AsciiRegister(
             module_name=self.name,
@@ -104,7 +104,7 @@ class MCPU800(interfaces.CanbusModule):
             module_id=self.id_0x11,
             register_name="Power",
             read_only=False,
-            accepted_values=range(0, 2),
+            accepted_values=["OFF", "ON"],
         )
         self.display_current_id_0x11_register = AsciiRegister(
             module_name=self.name,
@@ -227,7 +227,7 @@ class CPU8000(interfaces.CanbusModule):
             module_id=self.id,
             register_name="Power",
             read_only=False,
-            accepted_values=range(0, 2),
+            accepted_values=["OFF", "ON"],
         )
         self.display_current_id_0x10_register = AsciiRegister(
             module_name=self.name,
