@@ -21,6 +21,8 @@
 
 """Implements CSC for the TunableLaser."""
 
+from types import SimpleNamespace
+
 __all__ = ["run_tunablelaser", "command_tunablelaser", "LaserCSC"]
 
 import asyncio
@@ -35,12 +37,12 @@ from .enums import ErrorCode, Mode, Output, SimulationMode
 from .fcu_server import RestHttpCmdServer
 
 
-def run_tunablelaser():
+def run_tunablelaser() -> None:
     """Run the TunableLaser CSC."""
     asyncio.run(LaserCSC.amain(index=None))
 
 
-def command_tunablelaser():
+def command_tunablelaser() -> None:
     asyncio.run(salobj.CscCommander.amain(name="TunableLaser", index=None))
 
 
@@ -123,14 +125,14 @@ class LaserCSC(salobj.ConfigurableCsc):
         """Return the detailed state."""
         return self.evt_detailedState.data.detailedState
 
-    async def _cancel_task(self, task):
+    async def _cancel_task(self, task: asyncio.Task) -> None:
         """Cancel a background task and wait for it to stop."""
         if task is not None and not task.done():
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
 
-    async def telemetry(self):
+    async def telemetry(self) -> None:
         """Send out the TunableLaser's telemetry."""
         while True:
             assert self.model is not None
@@ -185,7 +187,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                 self.log.debug(f"telemetry loop took {loop_dt:.3f}s total")
             await asyncio.sleep(self.telemetry_rate)
 
-    def assert_substate(self, substates):
+    def assert_substate(self, substates: list[TunableLaser.LaserDetailedState]) -> None:
         """Assert that the action is happening while in the PropagatingState.
 
         Parameters
@@ -206,7 +208,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                 f"command not allowed in state {TunableLaser.LaserDetailedState(self.detailed_state)!r}"
             )
 
-    def calculate_detailed_state(self):
+    def calculate_detailed_state(self) -> TunableLaser.LaserDetailedState:
         assert self.model is not None
         propagation_mode = self.model.propagation_mode
         try:
@@ -234,7 +236,7 @@ class LaserCSC(salobj.ConfigurableCsc):
             case _:
                 raise RuntimeWarning("Not a valid detailed_state.")
 
-    async def handle_summary_state(self):
+    async def handle_summary_state(self) -> None:
         """Handle the summary state transitions."""
         if self.disabled_or_enabled:
             assert self.model is not None
@@ -330,7 +332,7 @@ class LaserCSC(salobj.ConfigurableCsc):
                 await self.fcu_server.stop()
                 self.fcu_server = None
 
-    async def do_setBurstMode(self, data):
+    async def do_setBurstMode(self, data: salobj.BaseMsgType) -> None:
         """Set burst mode for the laser.
 
         Burst mode changes the propagation to pulse the laser with increased
@@ -348,7 +350,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         else:
             raise salobj.ExpectedError("Not connected.")
 
-    async def do_setContinuousMode(self, data):
+    async def do_setContinuousMode(self, data: salobj.BaseMsgType) -> None:
         """Set continuous mode for the laser.
 
         Continuous mode changes the propagation to pulse continuously at a
@@ -366,7 +368,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         else:
             raise salobj.ExpectedError("Not connected.")
 
-    async def do_changeWavelength(self, data):
+    async def do_changeWavelength(self, data: salobj.BaseMsgType) -> None:
         """Change the wavelength of the laser.
 
         Parameters
@@ -380,7 +382,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         else:
             raise salobj.ExpectedError("Not connected")
 
-    async def do_startPropagateLaser(self, data):
+    async def do_startPropagateLaser(self, data: salobj.BaseMsgType) -> None:
         """Change the state to the Propagating State of the laser.
 
         Parameters
@@ -404,7 +406,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         else:
             raise salobj.ExpectedError("Not connected.")
 
-    async def do_stopPropagateLaser(self, data):
+    async def do_stopPropagateLaser(self, data: salobj.BaseMsgType) -> None:
         """Stop the Propagating State of the laser.
 
         Parameters
@@ -423,7 +425,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         else:
             raise salobj.ExpectedError("Not connected.")
 
-    async def do_clearLaserFault(self, data):
+    async def do_clearLaserFault(self, data: salobj.BaseMsgType) -> None:
         """Clear the hardware fault state of the laser by turning the power
         register off.
 
@@ -437,7 +439,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         else:
             raise salobj.ExpectedError("Not connected.")
 
-    async def do_triggerBurst(self, data):
+    async def do_triggerBurst(self, data: salobj.BaseMsgType) -> None:
         """Trigger a burst."""
         self.assert_enabled()
         self.assert_substate(
@@ -445,7 +447,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         )
         await self.model.trigger_burst()
 
-    async def do_changeTempCtrlSetpoint(self, data):
+    async def do_changeTempCtrlSetpoint(self, data: salobj.BaseMsgType) -> None:
         """Change the set point of the laser thermal reader."""
         self.assert_enabled()
         if self.omron_connected:
@@ -453,7 +455,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         else:
             raise salobj.ExpectedError("Not connected.")
 
-    async def do_turnOffTempCtrl(self, data):
+    async def do_turnOffTempCtrl(self, data: salobj.BaseMsgType) -> None:
         """Turn off the run mode of the laser thermal reader."""
         self.assert_enabled()
         if self.omron_connected:
@@ -461,7 +463,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         else:
             raise salobj.ExpectedError("Not connected.")
 
-    async def do_turnOnTempCtrl(self, data):
+    async def do_turnOnTempCtrl(self, data: salobj.BaseMsgType) -> None:
         """Turn on the run mode of the laser thermal reader."""
         self.assert_enabled()
         if self.omron_connected:
@@ -469,7 +471,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         else:
             raise salobj.ExpectedError("Not connected.")
 
-    async def do_setOpticalConfiguration(self, data):
+    async def do_setOpticalConfiguration(self, data: salobj.BaseMsgType) -> None:
         """Change Optical Alignment of the laser.
         Parameters
         ----------
@@ -483,7 +485,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         else:
             raise salobj.ExpectedError("Not connected")
 
-    async def publish_new_detailed_state(self, new_sub_state):
+    async def publish_new_detailed_state(self, new_sub_state: TunableLaser.LaserDetailedState) -> None:
         """Publish the updated detailed state.
 
         Parameters
@@ -494,7 +496,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         new_sub_state = TunableLaser.LaserDetailedState(new_sub_state)
         await self.evt_detailedState.set_write(detailedState=new_sub_state)
 
-    async def configure(self, config):
+    async def configure(self, config: SimpleNamespace) -> None:
         """Configure the CSC."""
         self.log.debug(f"config={config}")
         self.log.debug(f"Connecting to laser {config.type}")
@@ -513,11 +515,11 @@ class LaserCSC(salobj.ConfigurableCsc):
         )
 
     @staticmethod
-    def get_config_pkg():
+    def get_config_pkg() -> str:
         """Return the configuration package name."""
         return "ts_config_mtcalsys"
 
-    async def close_tasks(self):
+    async def close_tasks(self) -> None:
         """Tasks to perform before closing the CSC.
 
         * Cancel telemetry

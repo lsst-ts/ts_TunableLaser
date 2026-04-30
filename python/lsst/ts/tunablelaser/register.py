@@ -33,6 +33,7 @@ ASCII messages used to read and write laser registers.
 
 __all__ = ["AsciiRegister"]
 import logging
+from typing import Any
 
 
 class AsciiRegister:
@@ -80,11 +81,11 @@ class AsciiRegister:
 
     def __init__(
         self,
-        module_name,
-        module_id,
-        register_name,
-        read_only=True,
-        accepted_values=None,
+        module_name: str,
+        module_id: int,
+        register_name: str,
+        read_only: bool = True,
+        accepted_values: None | Any = None,
     ):
         self.log = logging.getLogger(f"{register_name.replace(' ', '')}Register")
         self.module_name = module_name

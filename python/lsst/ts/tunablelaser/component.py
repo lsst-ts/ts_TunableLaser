@@ -296,44 +296,21 @@ class StubbsLaser(interfaces.Laser):
 
     Parameters
     ----------
-    csc : `LaserCSC`
-        The CSC object.
     terminator : `bytes`
         The terminating characters for sent/received messages.
     encoding : `str`
         The type of encoding to use.
     simulation_mode : `bool`
         Is the laser in simulation mode?
-
-    Attributes
-    ----------
-    laser_id : `int`
-        The ID of the laser.
-    midiopg : `hardware.MidiOPG`
-        The MidiOPG module.
-    m_cpu800 : `hardware.MCPU800`
-        The MCPU800 module.
-    cpu8000 : `hardware.CPU8000`
-        The CPU8000 module.
-    tk6 : `hardware.TK6`
-        The TK6 module.
-    hv40w : `hardware.HV40W`
-        The HV40W module.
-    delay_lin : `hardware.DelayLin`
-        The DelayLin module.
-    ldco48bp : `hardware.LDCO48BP`
-        The LDCO48BP module.
-    m_ldc048 : `hardware.MLDCO48`
-        The MLDCO48 module.
-    fcu_client : FCUClient
-    `   The client to control the optical configuration.
-    laser_warmup_delay : `int`
-        A delay for publishing propagation for warmup.
-    lock : `asyncio.Lock`
-        A lock for writing/reading messages.
     """
 
-    def __init__(self, log, terminator=b"\x03", encoding="ascii", simulation_mode=False) -> None:
+    def __init__(
+        self,
+        log: logging.Logger,
+        terminator: bytes = b"\x03",
+        encoding: str = "ascii",
+        simulation_mode: bool = False,
+    ) -> None:
         super().__init__(
             log=log,
             terminator=terminator,
@@ -362,7 +339,7 @@ class StubbsLaser(interfaces.Laser):
             Output.out3: OpticalConfiguration.F2_NO_SCU,
             None: None,
         }
-        self.skipped_modules = {"PH532", "FOPO", "SOPO", "SH1", "C1", "MLDCO48", "HV40W"}
+        self.skipped_modules = {"PH_532", "FOPO", "SOPO", "SH1", "C1", "M_LDCO48", "HV40W"}
         self.skipped_registers = {
             "M_CPU800.Diode current ON",
             "M_CPU800.QSW Adjustment output delay",
@@ -379,7 +356,7 @@ class StubbsLaser(interfaces.Laser):
         }
 
     @property
-    def is_faulting(self):
+    def is_faulting(self) -> bool:
         return (
             _matches_enum(self.m_cpu800.power_id_0x11_register.register_value, Power.FAULT)
             or _matches_enum(self.m_cpu800.power_id_0x12_register.register_value, Power.FAULT)
@@ -387,26 +364,26 @@ class StubbsLaser(interfaces.Laser):
         )
 
     @property
-    def optical_configuration(self):
+    def optical_configuration(self) -> None | OpticalConfiguration:
         return self.output_lut[self.fcu_client.output]
 
     @property
-    def propagation_mode(self):
+    def propagation_mode(self) -> Mode:
         return _coerce_enum(
             self.m_cpu800.continuous_burst_mode_trigger_burst_id_0x12_register.register_value,
             Mode,
         )
 
     @property
-    def is_propagating(self):
+    def is_propagating(self) -> Power:
         return _matches_enum(self.m_cpu800.power_id_0x12_register.register_value, Power.ON)
 
     @property
-    def wavelength(self):
+    def wavelength(self) -> float:
         return self.midiopg.wavelength_id_0x1f_register.register_value
 
     @property
-    def temperature(self):
+    def temperature(self) -> tuple[float, ...]:
         return (
             self.tk6.display_temperature_id_0x2c_register.register_value,
             DOESNT_EXIST,
@@ -418,7 +395,7 @@ class StubbsLaser(interfaces.Laser):
             DOESNT_EXIST,
         )
 
-    async def set_optical_configuration(self, optical_configuration):
+    async def set_optical_configuration(self, optical_configuration: OpticalConfiguration):
         """Set optical configuration.
 
         Parameters
@@ -442,7 +419,7 @@ class StubbsLaser(interfaces.Laser):
             case _:
                 raise RuntimeError("Not one of the acceptable configurations.")
 
-    async def change_wavelength(self, wavelength):
+    async def change_wavelength(self, wavelength: float):
         """Change the wavelength.
 
         Parameters
@@ -669,7 +646,7 @@ class FanControlClient:
         Pending responses waiting to be consumed.
     """
 
-    def __init__(self, simulation_mode=False):
+    def __init__(self, simulation_mode: bool = False) -> None:
         self.host = ""
         self.port = None
         self.log = logging.getLogger(__name__)
@@ -678,23 +655,23 @@ class FanControlClient:
         self.response_queue = asyncio.Queue()
 
     @property
-    def connected(self):
+    def connected(self) -> bool:
         """Is the client connected."""
         return self.client.connected
 
-    async def connect(self):
+    async def connect(self) -> None:
         """Connect to the service."""
         self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
         await self.client.start_task
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Disconnect from the service."""
         await self.client.close()
         self.host = ""
         self.port = None
         self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
 
-    async def get_messages(self):
+    async def get_messages(self) -> None:
         """Get messages recieved from the service."""
         while self.connected:
             try:

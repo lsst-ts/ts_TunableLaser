@@ -19,9 +19,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from typing import Iterator
+
 __all__ = ["Laser", "CompoWayFModule", "CompoWayFRegisterModule"]
 
 import asyncio
+import logging
 from abc import ABC, abstractmethod
 
 from lsst.ts import tcpip
@@ -37,6 +40,10 @@ from .register import AsciiRegister
 
 DEVICE_TIMEOUT_READ_RETRIES = 1
 DEVICE_TIMEOUT_READ_DELAY = 0.1
+ERRORS = [
+    "(8) Timeout waiting for device answer",
+    "(6) No such register name",
+]
 
 
 class DeviceTimeoutError(Exception):
@@ -73,7 +80,9 @@ class Laser(ABC):
         A TCP/IP client.
     """
 
-    def __init__(self, log, terminator, encoding, simulation_mode=False) -> None:
+    def __init__(
+        self, log: logging.Logger, terminator: bytes, encoding: str, simulation_mode: bool = False
+    ) -> None:
         self.terminator = terminator
         self.encoding = encoding
         self.log = log
@@ -87,48 +96,48 @@ class Laser(ABC):
 
     @property
     @abstractmethod
-    def is_faulting(self):
+    def is_faulting(self) -> bool:
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def is_propagating(self):
+    def is_propagating(self) -> None:
         """Is the laser propagating?"""
         raise NotImplementedError
 
     @property
-    def connected(self):
+    def connected(self) -> bool:
         """Is the laser connected?"""
         return self.commander.connected
 
     @property
-    def should_be_connected(self):
+    def should_be_connected(self) -> bool:
         return self.commander.should_be_connected
 
     @property
     @abstractmethod
-    def wavelength(self):
+    def wavelength(self) -> float:
         """The wavelength of the laser."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def temperature(self):
+    def temperature(self) -> float:
         """The temperature sensors."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def propagation_mode(self):
+    def propagation_mode(self) -> str:
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def optical_configuration(self):
+    def optical_configuration(self) -> str:
         raise NotImplementedError
 
     @abstractmethod
-    def change_wavelength(self, wavelength):
+    def change_wavelength(self, wavelength: float) -> str:
         """Change the wavelength.
 
         Parameters
@@ -139,7 +148,7 @@ class Laser(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def set_output_energy_level(self, output_energy_level):
+    def set_output_energy_level(self, output_energy_level) -> str:
         """Set the output energy level.
 
         Parameters
@@ -150,41 +159,41 @@ class Laser(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def trigger_burst(self):
+    def trigger_burst(self) -> str:
         """Trigger burst."""
         raise NotImplementedError
 
     @abstractmethod
-    def set_burst_mode(self, count):
+    def set_burst_mode(self, count: int) -> str:
         """Set the burst mode and count."""
         raise NotImplementedError
 
     @abstractmethod
-    def start_propagating(self):
+    def start_propagating(self) -> str:
         """Start propagating the laser."""
         raise NotImplementedError
 
     @abstractmethod
-    def stop_propagating(self):
+    def stop_propagating(self) -> str:
         """Stop propagating the laser."""
         raise NotImplementedError
 
     @abstractmethod
-    def clear_fault(self):
+    def clear_fault(self) -> str:
         """Clear the fault state of the laser."""
         raise NotImplementedError
 
     @abstractmethod
-    def configure(self, config):
+    def configure(self, config) -> None:
         """Configure the laser."""
         raise NotImplementedError
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Disconnect from the laser."""
         await self.commander.close()
         self.commander = tcpip.Client(host="", port=0, log=self.log)
 
-    async def send_command(self, message):
+    async def send_command(self, message) -> str:
         last_error = None
         for attempt in range(NUMBER_OF_RETRIES):
             try:
@@ -195,7 +204,7 @@ class Laser(ABC):
                     if resp:
                         if resp.startswith("'''"):
                             self.log.error(f"{message} failed. Received {resp}.")
-                            if "(8) Timeout waiting for device answer" in resp:
+                            if any(error in resp for error in ERRORS):
                                 raise DeviceTimeoutError(resp)
                             raise RuntimeError(f"{message} failed.")
                         return resp.rstrip("nmC\r\n")
@@ -209,24 +218,24 @@ class Laser(ABC):
                 await asyncio.sleep(DEFAULT_SLEEP)
         raise ConnectionError("Response not received after retry exhaustion.") from last_error
 
-    def _iter_canbus_modules(self):
+    def _iter_canbus_modules(self) -> Iterator["CanbusModule"]:
         for value in vars(self).values():
             if isinstance(value, CanbusModule):
                 yield value
 
-    def should_poll_module(self, module):
+    def should_poll_module(self, module) -> bool:
         return module.name not in self.skipped_modules
 
-    def register_poll_key(self, module, register):
+    def register_poll_key(self, module, register) -> str:
         return f"{module.name}.{register.register_name}"
 
-    def should_poll_register(self, module, register):
+    def should_poll_register(self, module, register) -> bool:
         return (
             self.should_poll_module(module)
             and self.register_poll_key(module, register) not in self.skipped_registers
         )
 
-    async def read_register(self, register):
+    async def read_register(self, register) -> str:
         last_error = None
         for attempt in range(DEVICE_TIMEOUT_READ_RETRIES + 1):
             try:
@@ -243,11 +252,11 @@ class Laser(ABC):
                 await asyncio.sleep(DEVICE_TIMEOUT_READ_DELAY)
         raise last_error
 
-    async def write_register(self, register, value):
+    async def write_register(self, register, value) -> str:
         await self.send_command(register.create_set_message(value))
         return await self.read_register(register)
 
-    async def refresh_all_ascii_registers(self):
+    async def refresh_all_ascii_registers(self) -> None:
         """Refresh all ascii registers attached to this laser."""
         loop = asyncio.get_running_loop()
         refresh_time_start = loop.time()
@@ -262,7 +271,7 @@ class Laser(ABC):
         refresh_time_dt = loop.time() - refresh_time_start
         self.log.debug(f"Refresh all registers took {refresh_time_dt:.3f}s")
 
-    async def connect(self):
+    async def connect(self) -> None:
         """Connect to the laser."""
         for _ in range(NUMBER_OF_CONNECTION_RETRIES):
             try:
@@ -286,12 +295,12 @@ class Laser(ABC):
 class CanbusModule(ABC):
     """Implement a register container for the laser."""
 
-    async def update_register(self, read_register):
+    async def update_register(self, read_register) -> None:
         """Update the registers located in the canbus module."""
         for register in self.iter_ascii_registers():
             await read_register(register)
 
-    def iter_ascii_registers(self):
+    def iter_ascii_registers(self) -> Iterator[AsciiRegister]:
         for value in vars(self).values():
             if isinstance(value, AsciiRegister):
                 yield value

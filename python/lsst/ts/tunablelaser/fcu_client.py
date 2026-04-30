@@ -21,7 +21,7 @@ class FCUClient:
         Connect to the real server?
     """
 
-    def __init__(self, simulation_mode=0):
+    def __init__(self, simulation_mode: int = 0):
         self.simulation_mode = simulation_mode
         self.output = None
         match self.simulation_mode:
@@ -33,7 +33,7 @@ class FCUClient:
                 self.port = 17000
 
     @property
-    def base_url(self):
+    def base_url(self) -> str:
         return f"http://{self.host}:{self.port}/REST/HTTP_CMD/"
 
     @staticmethod
@@ -47,7 +47,7 @@ class FCUClient:
         """
         return BeautifulSoup(text, features="lxml")
 
-    async def set_output(self, out: Output):
+    async def set_output(self, out: Output) -> str:
         """Set the output and return the result."""
         out = Output(out)
         async with ClientSession(base_url=self.base_url) as session:
@@ -58,7 +58,7 @@ class FCUClient:
         parts = list(soup.stripped_strings)
         return parts[1]
 
-    async def get_state(self):
+    async def get_state(self) -> str:
         """Get the state."""
         async with ClientSession(base_url=self.base_url) as session:
             async with session.get("?RDVAR/State") as resp:
@@ -67,7 +67,7 @@ class FCUClient:
         parts = list(soup.stripped_strings)
         return parts[1].strip('" ')
 
-    async def get_output(self):
+    async def get_output(self) -> str:
         """Get the output."""
         async with ClientSession(base_url=self.base_url) as session:
             async with session.get("?RDVAR/Output") as resp:

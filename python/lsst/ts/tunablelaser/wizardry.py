@@ -19,9 +19,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-NUMBER_OF_RETRIES = 10
+NUMBER_OF_RETRIES: int = 10
 """Number of retries to attempt in case of communication loss."""
-DEFAULT_SLEEP = 1
+DEFAULT_SLEEP: float = 1
 """Amount of time to sleep by default."""
-NUMBER_OF_CONNECTION_RETRIES = 3
-SLEEP_BETWEEN_REGISTERS = 0.055
+NUMBER_OF_CONNECTION_RETRIES: int = 3
+SLEEP_BETWEEN_REGISTERS: float = 0.055

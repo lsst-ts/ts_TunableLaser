@@ -1,8 +1,9 @@
 check-yaml: true
-check-xml: true
-black: true
-flake8: true
-isort: true
+check-xml: false
+black: false
+flake8: false
+isort: false
 mypy: false
 clang-format: false
 ruff: true
+towncrier: true
