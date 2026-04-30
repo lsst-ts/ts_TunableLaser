@@ -22,11 +22,13 @@
 import os
 import pathlib
 import unittest
+import unittest.mock
 
 import pytest
+from parameterized import parameterized
+
 from lsst.ts import salobj, tunablelaser
 from lsst.ts.xml.enums import TunableLaser
-from parameterized import parameterized
 
 STD_TIMEOUT = 5
 TEST_CONFIG_DIR = pathlib.Path(__file__).parents[1].joinpath("tests", "data", "config")
@@ -73,6 +75,7 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
         async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1, override=config):
             await self.assert_next_sample(topic=self.remote.tel_wavelength)
             await self.assert_next_sample(topic=self.remote.tel_temperature)
+            await self.assert_next_sample(topic=self.remote.tel_scannerTemperature)
             await self.assert_next_sample(
                 topic=self.remote.evt_summaryState,
                 summaryState=salobj.State.ENABLED,
@@ -98,7 +101,7 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                         wavelength=wavelength, timeout=STD_TIMEOUT
                     )
                 else:
-                    wavelength = max(self.csc.model.midiopg.wavelength_register.accepted_values) + 1
+                    wavelength = max(self.csc.model.midiopg.wavelength_id_0x1f_register.accepted_values) + 1
                     await self.remote.cmd_changeWavelength.set_start(
                         wavelength=wavelength, timeout=STD_TIMEOUT
                     )
@@ -110,35 +113,77 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                         wavelength=wavelength, timeout=STD_TIMEOUT
                     )
                 else:
-                    wavelength = min(self.csc.model.midiopg.wavelength_register.accepted_values) - 1
+                    wavelength = min(self.csc.model.midiopg.wavelength_id_0x1f_register.accepted_values) - 1
                     await self.remote.cmd_changeWavelength.set_start(
                         wavelength=wavelength, timeout=STD_TIMEOUT
                     )
 
     @parameterized.expand([(""), ("stubbs.yaml")])
+    async def test_change_wavelength_fails_on_triple_quote_write_error(self, config):
+        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1, override=config):
+            if config == "":
+                method_name = "do_set_maxiopg_31_wavelength"
+
+                def fail_write(self, wavelength):
+                    return "'''Error: (11) Violating top value limit"
+
+            else:
+                method_name = "do_set_midiopg_31_wavelength"
+
+                def fail_write(self, wavelength):
+                    return "'''Error: (11) Violating top value limit"
+
+            with unittest.mock.patch.object(type(self.csc.simulator.device), method_name, fail_write):
+                with pytest.raises(salobj.AckError):
+                    await self.remote.cmd_changeWavelength.set_start(wavelength=700, timeout=STD_TIMEOUT)
+
+    @parameterized.expand([(""), ("stubbs.yaml")])
+    async def test_change_wavelength_fails_on_triple_quote_read_error(self, config):
+        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1, override=config):
+            if config == "":
+                method_name = "do_maxiopg_31_wavelength"
+
+                def fail_read(self):
+                    return "'''Error: (8) Timeout waiting for device answer"
+
+            else:
+                method_name = "do_midiopg_31_wavelength"
+
+                def fail_read(self):
+                    return "'''Error: (8) Timeout waiting for device answer"
+
+            with unittest.mock.patch.object(type(self.csc.simulator.device), method_name, fail_read):
+                with pytest.raises(salobj.AckError):
+                    await self.remote.cmd_changeWavelength.set_start(wavelength=700, timeout=STD_TIMEOUT)
+
+    @parameterized.expand([(""), ("stubbs.yaml")])
     async def test_change_alignment(self, config):
         async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1, override=config):
-            if config == "stubbs.yaml":
-                with pytest.raises(salobj.AckError):
-                    await self.remote.cmd_setOpticalConfiguration.set_start(
-                        configuration="SCU", timeout=STD_TIMEOUT
-                    )
-            if config == "":
+            match config:
+                case "":
+                    configurations = list(tunablelaser.OpticalConfiguration)
+                case "stubbs.yaml":
+                    configurations = [
+                        tunablelaser.OpticalConfiguration.NO_SCU,
+                        tunablelaser.OpticalConfiguration.F1_NO_SCU,
+                        tunablelaser.OpticalConfiguration.F2_NO_SCU,
+                    ]
+            await self.assert_next_sample(
+                topic=self.remote.evt_opticalConfiguration,
+                configuration="F1 No SCU",
+            )
+            for configuration in configurations:
                 await self.remote.cmd_setOpticalConfiguration.set_start(
-                    configuration="SCU", timeout=STD_TIMEOUT
+                    configuration=configuration, timeout=STD_TIMEOUT
                 )
                 await self.assert_next_sample(
                     topic=self.remote.evt_opticalConfiguration,
-                    configuration="F1 No SCU",
+                    configuration=configuration,
                 )
-                await self.assert_next_sample(
-                    topic=self.remote.evt_opticalConfiguration,
-                    configuration="SCU",
+            with pytest.raises(salobj.AckError):
+                await self.remote.cmd_setOpticalConfiguration.set_start(
+                    configuration="Wumbo", timeout=STD_TIMEOUT
                 )
-                with pytest.raises(salobj.AckError):
-                    await self.remote.cmd_setOpticalConfiguration.set_start(
-                        configuration="Wumbo", timeout=STD_TIMEOUT
-                    )
 
     @parameterized.expand([(""), ("stubbs.yaml")])
     async def test_start_propagate_laser(self, config):

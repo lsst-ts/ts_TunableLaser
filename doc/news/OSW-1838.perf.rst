@@ -1,0 +1,1 @@
+Added generator for canbus modules to be created and used to communicate with laser.

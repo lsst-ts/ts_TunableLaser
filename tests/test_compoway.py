@@ -23,6 +23,7 @@ import unittest
 import unittest.mock
 
 import pytest
+
 from lsst.ts.tunablelaser.compoway_register import (
     CompoWayFDataRegister,
     CompoWayFGeneralRegister,
@@ -36,14 +37,12 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
         self.ETX = "\x03"
 
         self.general_register = CompoWayFGeneralRegister(
-            component=unittest.mock.AsyncMock(),
             module_name="GenTest",
             module_id=1,
             register_name="GenTestRegister",
         )
 
         self.data_register = CompoWayFDataRegister(
-            component=unittest.mock.AsyncMock(),
             module_name="DataTest",
             module_id=2,
             register_name="Set Point",
@@ -52,7 +51,6 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
         )
 
         self.read_only_data_reg = CompoWayFDataRegister(
-            component=unittest.mock.AsyncMock(),
             module_name="DataTest",
             module_id=2,
             register_name="Set Point",
@@ -60,7 +58,6 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
         )
 
         self.operation_register = CompoWayFOperationRegister(
-            component=unittest.mock.AsyncMock(),
             module_name="OpTest",
             module_id=3,
             register_name="Run Stop",
@@ -96,20 +93,17 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
     def test_class_creation(self):
         with pytest.raises(ValueError):
             CompoWayFDataRegister(
-                component=unittest.mock.AsyncMock(),
                 module_name="DataTest",
                 module_id=2,
                 register_name="Invalid Register",
             )
             CompoWayFOperationRegister(
-                component=unittest.mock.AsyncMock(),
                 module_name="OpTest",
                 module_id=3,
                 register_name="Invalid Register",
                 accepted_values=range(0, 2),
             )
             CompoWayFDataRegister(
-                component=unittest.mock.AsyncMock(),
                 module_name="DataTest",
                 module_id=2,
                 register_name="Invalid Register",
@@ -155,3 +149,7 @@ class TestAsciiRegister(unittest.IsolatedAsyncioTestCase):
     def test_repr(self):
         assert repr(self.data_register) == "Set Point: None"
         assert repr(self.operation_register) == "Run Stop: None"
+
+    def test_decode_register_value(self):
+        assert self.data_register.decode_register_value(0x015E) == 35.0
+        assert self.data_register.decode_register_value(0xFF9C) == -10.0

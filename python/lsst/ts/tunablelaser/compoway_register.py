@@ -37,8 +37,6 @@ class CompoWayFGeneralRegister(AsciiRegister):
 
     Parameters
     ----------
-    component : `Laser`
-        Reference to the component.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -47,17 +45,14 @@ class CompoWayFGeneralRegister(AsciiRegister):
         The name of the register.
     read_only : `bool`, optional
         Whether the register is read only or writable.
-    accepted_values : `list` [`str`] or `list` [`int`] or `None`, optional
-        If read_only is set to true then this parameter can be None. If not,
-        this parameter must contain a list of values accepted by this
-        register and can be of int or str.
+    accepted_values : iterable or `None`, optional
+        If ``read_only`` is `True` then this parameter can be `None`. If not,
+        this parameter must contain the values accepted by this register.
 
     Attributes
     ----------
     log : `logging.Logger`
         The log for this class.
-    commander : `TCPIPClient`
-        A TCP/IP client for communicating with the TunableLaser.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -66,18 +61,18 @@ class CompoWayFGeneralRegister(AsciiRegister):
         The name of the register.
     read_only : `bool`
         Whether the register is read only or writable.
-    accepted_values : `list`
-        If read_only is set to true then this parameter can be None.
-        If not, this parameter must contain a list of values accepted by this
-        register and can be of int or str.
+    accepted_values : iterable or `None`
+        If ``read_only`` is `True` then this parameter can be `None`.
+        If not, this parameter must contain the values accepted by this
+        register.
     register_value : `str`
-        The value of the register as gotten by :meth:`get_register_value`.
+        Cached value most recently read from or written through the owning
+        controller.
 
     """
 
     def __init__(
         self,
-        component=None,
         module_name="",
         module_id=0,
         register_name="",
@@ -85,7 +80,6 @@ class CompoWayFGeneralRegister(AsciiRegister):
         accepted_values=None,
     ) -> None:
         super().__init__(
-            component=component,
             module_name=module_name,
             module_id=module_id,
             register_name=register_name,
@@ -137,8 +131,13 @@ class CompoWayFGeneralRegister(AsciiRegister):
 
         Parameters
         ----------
-        frame : `bytes`
-            The frame.
+        frame : `str` or `bytes`
+            Frame text without STX and with ETX.
+
+        Returns
+        -------
+        bcc : `str`
+            Calculated block check character.
         """
         if isinstance(frame, bytes):
             self.log.error(f"bytes sent into generate_bcc, decoding... {frame}")
@@ -155,8 +154,18 @@ class CompoWayFGeneralRegister(AsciiRegister):
 
         Parameters
         ----------
-        pdu_structure
-            The structure of the pdu.
+        pdu_structure : `str`
+            PDU body to include in the CompoWay-F command frame.
+
+        Returns
+        -------
+        cmd_frame : `str`
+            Complete command frame, including STX, ETX, and BCC.
+
+        Raises
+        ------
+        ValueError
+            Raises when node length is incorrect.
         """
         if len(self.node) == 1:
             node = "0" + self.node
@@ -175,10 +184,19 @@ class CompoWayFGeneralRegister(AsciiRegister):
     def _create_get_message_generic(self, variable_code, read_address, read_elements):
         """Generate the message that will get the register value.
 
+        Parameters
+        ----------
+        variable_code : `str`
+            CompoWay-F variable area code.
+        read_address : `str`
+            Register address to read.
+        read_elements : `str`
+            Number of elements to read.
+
         Returns
         -------
-        get_message: `bytes`
-
+        get_message : `str`
+            Complete get-message frame.
         """
         MRC = "\x30\x31"
         SRC = "\x30\x31"
@@ -189,7 +207,24 @@ class CompoWayFGeneralRegister(AsciiRegister):
         return get_message
 
     def _create_set_message_generic(self, variable_code, write_address, write_elements, data):
-        """Create a set message."""
+        """Create a set message.
+
+        Parameters
+        ----------
+        variable_code : `str`
+            CompoWay-F variable area code.
+        write_address : `str`
+            Register address to write.
+        write_elements : `str`
+            Number of elements to write.
+        data : `str`
+            Encoded register payload.
+
+        Returns
+        -------
+        set_message : `str`
+            Complete set-message frame.
+        """
         MRC = "\x30\x31"
         SRC = "\x30\x32"
         bit_position = "\x30\x30"
@@ -197,34 +232,60 @@ class CompoWayFGeneralRegister(AsciiRegister):
         return self.compoway_cmd_frame(cmd_txt)
 
     def _create_operation_message_generic(self, command_code, related_info):
-        """Create operation message."""
+        """Create operation message.
+
+        Parameters
+        ----------
+        command_code : `str`
+            CompoWay-F operation command code.
+        related_info : `str`
+            Encoded operation payload.
+
+        Returns
+        -------
+        operation_message : `str`
+            Complete operation-message frame.
+        """
         MRC = "\x33\x30"
         SRC = "\x30\x35"
         cmd_txt = MRC + SRC + command_code + related_info
         return self.compoway_cmd_frame(cmd_txt)
 
     def create_get_message(self):
-        """Create get message."""
+        """Create get message.
+
+        Raises
+        ------
+        Exception
+            Always raised.
+        """
         # need to override the ascii register
         raise Exception("Function not implemented, you shouldn't be using the generic class")
 
     def create_set_message(self, set_value):
-        """Create set message."""
-        # need to override the ascii register
-        raise Exception("Function not implemented, you shouldn't be using the generic class")
+        """Create set message.
 
-    async def read_register_value(self):
-        """Read register value."""
-        # need to override the ascii register
-        raise Exception("Function not implemented, you shouldn't be using the generic class")
+        Parameters
+        ----------
+        set_value : `object`
+            Value to write.
 
-    async def set_register_value(self, set_value):
-        """Set register value."""
+        Raises
+        ------
+        Exception
+            Always raised.
+        """
         # need to override the ascii register
         raise Exception("Function not implemented, you shouldn't be using the generic class")
 
     def get_response(self):
-        """Get response."""
+        """Get response.
+
+        Returns
+        -------
+        `str`
+            The translated response.
+        """
         translated_response = self.response_code
         if isinstance(self.response_code, bytes):
             translated_response = translated_response.decode()
@@ -234,7 +295,13 @@ class CompoWayFGeneralRegister(AsciiRegister):
             return "Invalid response code"
 
     def get_end_code(self):
-        """Get end code."""
+        """Get end code.
+
+        Returns
+        -------
+        `str`
+            The translated end code.
+        """
         translated_end_code = self.end_code
         if isinstance(self.end_code, bytes):
             translated_end_code = translated_end_code.decode()
@@ -244,7 +311,13 @@ class CompoWayFGeneralRegister(AsciiRegister):
             return "Invalid end code"
 
     def get_data(self):
-        """Get data."""
+        """Get data.
+
+        Returns
+        -------
+        data : `str`
+            Last command text payload parsed from a response.
+        """
         return self.cmd_txt
 
 
@@ -253,8 +326,6 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
 
     Parameters
     ----------
-    component : `Laser`
-        Reference to the component.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -263,19 +334,17 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
         The name of the register.
     read_only : `bool`, optional
         Whether the register is read only or writable.
-    accepted_values : `list` [`str`] or `list` [`int`] or `None`, optional
-        If read_only is set to true then this parameter can be None. If not,
-        this parameter must contain a list of values accepted by this
-        register and can be of int or str.
+    accepted_values : `range` or `None`, optional
+        If ``read_only`` is `True` then this parameter can be `None`. If not,
+        this parameter must contain the numeric range accepted by this
+        register.
     simulation_mode : `bool`
-        A bool representing whether the register is in simulation mode or not.
+        Whether the register is used with the simulator transport.
 
     Attributes
     ----------
     log : `logging.Logger`
         The log for this class.
-    commander : `TCPIPClient`
-        A TCP/IP client for communicating with the TunableLaser.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -284,15 +353,15 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
         The name of the register.
     read_only : `bool`
         Whether the register is read only or writable.
-    accepted_values : `list`
-        If read_only is set to true then this parameter can be None.
-        If not, this parameter must contain a list of values accepted by this
-        register and can be of int or str.
+    accepted_values : `range` or `None`
+        If ``read_only`` is `True` then this parameter can be `None`.
+        If not, this parameter must contain the numeric range accepted by this
+        register.
     simulation_mode : `bool`
-        A bool representing whether the register is in simulation mode or not.
-        Only needed to append '\r' to string for the tcpip.client
+        Whether the register is used with the simulator transport.
     register_value : `str`
-        The value of the register as gotten by :meth:`get_register_value`.
+        Cached value most recently read from or written through the owning
+        controller.
 
     Raises
     --------
@@ -301,11 +370,12 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
         If the register is selected to be writeable,
                 but no accepted_values is given.
 
+    TypeError
+        If the accepted_values is not the expected type.
     """
 
     def __init__(
         self,
-        component,
         module_name,
         module_id,
         register_name,
@@ -317,7 +387,6 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
             raise TypeError("accepted_values must be type range")
 
         super().__init__(
-            component=component,
             module_name=module_name,
             module_id=module_id,
             register_name=register_name,
@@ -370,6 +439,38 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
         self.log.debug(f"get_message={get_message}")
         return get_message
 
+    def encode_register_value(self, value):
+        """Convert engineering units to the raw 16-bit controller value.
+
+        Parameters
+        ----------
+        value : `float`
+            Engineering-unit value.
+
+        Returns
+        -------
+        raw_value : `int`
+            Encoded raw controller value.
+        """
+        return int(value * 10)
+
+    def decode_register_value(self, raw_value):
+        """Convert the raw 16-bit controller value to engineering units.
+
+        Parameters
+        ----------
+        raw_value : `int`
+            Raw unsigned 16-bit controller value.
+
+        Returns
+        -------
+        value : `float`
+            Decoded engineering-unit value.
+        """
+        if raw_value & 0x8000:
+            raw_value -= 0x10000
+        return raw_value / 10
+
     def create_set_message(self, set_value):
         """Create the message that sets the value of the register provided
         that it is not read only.
@@ -395,7 +496,7 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
             if set_value < min(self.accepted_values) or set_value > max(self.accepted_values):
                 raise ValueError(f"{set_value} not in {self.accepted_values}")
 
-            set_value = int(set_value * 10)
+            set_value = self.encode_register_value(set_value)
 
             # This read_elements setting only reads 1 word of data (4 digits)
             # If this needs to change/be configurable in the future one way
@@ -430,179 +531,12 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
         else:
             raise PermissionError("This register is read only.")
 
-    async def read_register_value(self):
-        """Read the value of the register.
-
-        Returns
-        -------
-        None
-        """
-        async with self.component.lock:
-            message = self.create_get_message()
-
-            if self.simulation_mode:
-                message += "\r"
-
-            await self.component.commander.write(message.encode(self.component.commander.encoding))
-
-            try:
-                stx_node_subadd = await self.component.commander.readexactly(5)
-                stx_node_subadd = stx_node_subadd.decode()
-                expected_stx_node_subadd = "\x02"
-                if int(self.node) < 10:
-                    expected_stx_node_subadd += "\x30"
-                expected_stx_node_subadd += self.node + "\x30\x30"
-                if stx_node_subadd is not expected_stx_node_subadd:
-                    self.log.error(
-                        f"Received incorrect start of packet: {stx_node_subadd}, "
-                        f"expected: {expected_stx_node_subadd}"
-                    )
-                    self.register_value = -1
-                self.end_code = await self.component.commander.readexactly(2)
-                self.end_code = self.end_code.decode()
-                mrc_src = await self.component.commander.readexactly(4)
-                mrc_src = mrc_src.decode()
-                # read variable area request MRC is 01, SRC is 01
-                expected_mrc_src = "\x30\x31\x30\x31"
-                if mrc_src is not expected_mrc_src:
-                    self.log.error(
-                        f"Received incorrect Request Codes: {mrc_src}, expected: {expected_mrc_src}"
-                    )
-                    self.register_value = -1
-                self.response_code = await self.component.commander.readexactly(4)
-                self.response_code = self.response_code.decode()
-
-                self.cmd_txt = await self.component.commander.readuntil(b"\x03")
-                self.cmd_txt = self.cmd_txt.decode()
-                # trim off ETX byte
-                self.cmd_txt = self.cmd_txt[:-1]
-                try:
-                    self.register_value = int(self.cmd_txt, 16)
-                except Exception as e:
-                    self.log.error(f"Received no valid register value! {self.cmd_txt} {str(e)}")
-                    self.register_value = -1
-
-                self.bcc = await self.component.commander.readexactly(1)
-                self.bcc = self.bcc.decode()
-
-                # bcc should be calculated without STX, but with ETX byte
-                bcc_frame = (
-                    stx_node_subadd.split("\x02")[1]
-                    + self.end_code
-                    + mrc_src
-                    + self.response_code
-                    + self.cmd_txt
-                    + "\x03"
-                )
-                expected_bcc = self.generate_bcc(bcc_frame)
-                if expected_bcc is not self.bcc:
-                    self.log.error(f"Incorrect BCC, got: {self.bcc}, expected: {expected_bcc}")
-                    self.register_value = -1
-            except Exception as e:
-                self.log.error(f"Message format not as expected. Message: {e}")
-
-    async def handle_set_response(self):
-        """Handle setting the response."""
-        async with self.component.lock:
-            try:
-                stx_node_subadd = await self.component.commander.readexactly(5)
-                stx_node_subadd = stx_node_subadd.decode()
-                expected_stx_node_subadd = "\x02"
-                if int(self.node) < 10:
-                    expected_stx_node_subadd += "\x30"
-                expected_stx_node_subadd += self.node + "\x30\x30"
-                if stx_node_subadd is not expected_stx_node_subadd:
-                    self.log.error(
-                        f"Received incorrect start of packet: {stx_node_subadd}, "
-                        f"expected: {expected_stx_node_subadd}"
-                    )
-                    self.register_value = ""
-                self.end_code = await self.component.commander.readexactly(2)
-                self.end_code = self.end_code.decode()
-                if self.end_code != "\x30\x30":
-                    self.log.error(
-                        f"Received bad end code: {self.end_code}: {self.end_code_dict[self.end_code]}"
-                    )
-
-                mrc_src = await self.component.commander.readexactly(4)
-                mrc_src = mrc_src.decode()
-                # write variable area request MRC is 01, SRC is 02
-                expected_mrc_src = "\x30\x31\x30\x32"
-                if mrc_src is not expected_mrc_src:
-                    self.log.error(
-                        f"Received incorrect Request Codes: {mrc_src}, expected: {expected_mrc_src}"
-                    )
-                self.response_code = await self.component.commander.readexactly(4)
-                self.response_code = self.response_code.decode()
-
-                if self.response_code != "\x30\x30\x30\x30":
-                    self.log.error(
-                        "Received bad response code: "
-                        f"{self.response_code}: {self.response_dict[self.response_code]}"
-                    )
-
-                etx = await self.component.commander.readuntil(b"\x03")
-                etx = etx.decode()
-
-                if etx != "\x03":
-                    self.log.error(f"Received bad ETX: {etx} expected: \x03")
-
-                self.bcc = await self.component.commander.readexactly(1)
-                self.bcc = self.bcc.decode()
-
-                # bcc should be calculated without STX, but with ETX byte
-                bcc_frame = (
-                    stx_node_subadd.split("\x02")[1] + self.end_code + mrc_src + self.response_code + "\x03"
-                )
-                expected_bcc = self.generate_bcc(bcc_frame)
-                if expected_bcc is not self.bcc:
-                    self.log.error(f"Incorrect BCC, got: {self.bcc}, expected: {expected_bcc}")
-            except Exception as e:
-                print(f"handle_set_response excepted: {e}")
-
-    async def set_register_value(self, set_value):
-        """Set the value of the register and read the new value.
-
-        Parameters
-        ----------
-        set_value : Any
-
-        Raises
-        ------
-        ReadOnlyException
-            This indicates that the register is read only and cannot be set.
-        ValueError
-            If set value is too long (4 max)
-
-        Returns
-        -------
-        None
-
-        """
-        if self.read_only:
-            raise PermissionError("This register is read only.")
-        if not self.simulation_mode:
-            try:
-                async with self.component.lock:
-                    message = self.create_set_message(set_value)
-                    self.log.debug(f"sending message {message}.")
-                    await self.component.commander.write(message.encode(self.component.commander.encoding))
-                await self.handle_set_response()
-                await self.read_register_value()
-            except TimeoutError:
-                self.log.exception("Response timed out.")
-                raise
-        else:
-            self.register_value = set_value
-
 
 class CompoWayFOperationRegister(CompoWayFGeneralRegister):
     """Specific operation register implementation using the CompoWayF standard.
 
     Parameters
     ----------
-    component : `Laser`
-        Reference to the component.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -611,19 +545,15 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
         The name of the register.
     read_only : `bool`, optional
         Whether the register is read only or writable.
-    accepted_values : `list` [`str`] or `list` [`int`] or `None`, optional
-        If read_only is set to true then this parameter can be None. If not,
-        this parameter must contain a list of values accepted by this
-        register and can be of int or str.
+    accepted_values : iterable
+        Values accepted by this operation register.
     simulation_mode : `bool`
-        A bool representing whether the register is in simulation mode or not.
+        Whether the register is used with the simulator transport.
 
     Attributes
     ----------
     log : `logging.Logger`
         The log for this class.
-    commander : `TCPIPClient`
-        A TCP/IP client for communicating with the TunableLaser.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -632,15 +562,13 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
         The name of the register.
     read_only : `bool`
         Whether the register is read only or writable.
-    accepted_values : `list`
-        If read_only is set to true then this parameter can be None.
-        If not, this parameter must contain a list of values accepted by this
-        register and can be of int or str.
+    accepted_values : iterable
+        Values accepted by this operation register.
     simulation_mode : `bool`
-        A bool representing whether the register is in simulation mode or not.
-        Only needed to append '\r' to string for the tcpip.client
+        Whether the register is used with the simulator transport.
     register_value : `str`
-        The value of the register as gotten by :meth:`get_register_value`.
+        Cached value most recently read from or written through the owning
+        controller.
 
     Raises
     ----------
@@ -651,7 +579,6 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
 
     def __init__(
         self,
-        component,
         module_name,
         module_id,
         register_name,
@@ -664,7 +591,6 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
         read_only = False
 
         super().__init__(
-            component=component,
             module_name=module_name,
             module_id=module_id,
             register_name=register_name,
@@ -688,12 +614,12 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
         self.command_code = self.command_code_dict[register_name]
 
     def create_get_message(self):
-        """Generate the message that will get the register value.
+        """Raise because operation registers cannot be read.
 
-        Returns
-        -------
-        get_message: `bytes`
-
+        Raises
+        ------
+        Exception
+            Always raised because operation registers do not support reads.
         """
         # Operation registers dont have ability to get
         raise Exception("Operation registers cannot 'get'")
@@ -704,20 +630,19 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
 
         Parameters
         ----------
-        set_value : Any
+        set_value : `object`
+            Value to write.
 
         Raises
         ------
-        ReadOnlyException
-            Indicates that the register is read only.
         ValueError
             Indicates that the value received is not in the acceptable values
             for the register.
 
         Returns
         -------
-        set_message : `bytes`
-
+        set_message : `str`
+            Complete operation-message frame.
         """
         if set_value not in self.accepted_values:
             raise ValueError(f"{set_value} not in {self.accepted_values}")
@@ -734,72 +659,19 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
         self.log.debug(f"set_message={set_message}")
         return set_message
 
-    async def read_register_value(self):
-        """Read register value."""
-        # can't read operational registers
-        raise Exception("Can't read operational registers")
-
-    async def handle_set_response(self):
-        """Handle setting the response."""
-        async with self.component.lock:
-            try:
-                stx_node_subadd = await self.component.commander.readexactly(5)
-                stx_node_subadd = stx_node_subadd.decode()
-                expected_stx_node_subadd = "\x02"
-                if int(self.node) < 10:
-                    expected_stx_node_subadd += "\x30"
-                expected_stx_node_subadd += self.node + "\x30\x30"
-                if stx_node_subadd is not expected_stx_node_subadd:
-                    self.log.error(
-                        f"Received incorrect start of packet: {stx_node_subadd}, "
-                        f"expected: {expected_stx_node_subadd}"
-                    )
-                    self.register_value = ""
-                self.end_code = await self.component.commander.readexactly(2)
-                self.end_code = self.end_code.decode()
-                if self.end_code != "\x30\x30":
-                    self.log.error(
-                        f"Received bad end code: {self.end_code}: {self.end_code_dict[self.end_code]}"
-                    )
-
-                mrc_src = await self.component.commander.readexactly(4)
-                mrc_src = mrc_src.decode()
-                # write variable area request MRC is 30, SRC is 05
-                expected_mrc_src = "\x33\x30\x30\x35"
-                if mrc_src is not expected_mrc_src:
-                    self.log.error(
-                        f"Received incorrect Request Codes: {mrc_src}, expected: {expected_mrc_src}"
-                    )
-                self.response_code = await self.component.commander.readexactly(4)
-                self.response_code = self.response_code.decode()
-
-                if self.response_code != "\x30\x30\x30\x30":
-                    self.log.error(
-                        "Received bad response code: "
-                        f"{self.response_code}: {self.response_dict[self.response_code]}"
-                    )
-
-                etx = await self.component.commander.readuntil(b"\x03")
-                etx = etx.decode()
-
-                if etx != "\x03":
-                    self.log.error(f"Received bad ETX: {etx} expected: \x03")
-
-                self.bcc = await self.component.commander.readexactly(1)
-                self.bcc = self.bcc.decode()
-
-                # bcc should be calculated without STX, but with ETX byte
-                bcc_frame = (
-                    stx_node_subadd.split("\x02")[1] + self.end_code + mrc_src + self.response_code + "\x03"
-                )
-                expected_bcc = self.generate_bcc(bcc_frame)
-                if expected_bcc is not self.bcc:
-                    self.log.error(f"Incorrect BCC, got: {self.bcc}, expected: {expected_bcc}")
-            except Exception as e:
-                print(f"handle_set_response excepted: {e}")
-
     def get_related_info(self, set_value):
-        """Get related info."""
+        """Get the CompoWay-F related-info payload for an operation value.
+
+        Parameters
+        ----------
+        set_value : `object`
+            Operation value to encode.
+
+        Returns
+        -------
+        related_info : `str` or `None`
+            Encoded payload, or `None` if the value cannot be encoded.
+        """
         chosen_dict = None
         # RUN/STOP
         if self.command_code == "\x30\x31":
@@ -811,39 +683,3 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
         else:
             self.log.error(f"No set value ({set_value}) in chosen dict ({chosen_dict})")
             return None
-
-    async def set_register_value(self, set_value):
-        """Set the value of the register.
-
-        Parameters
-        ----------
-        set_value : Any
-
-        Raises
-        ------
-        PermissionError
-            This indicates that the register is read only and cannot be set.
-        TimeoutError
-            Response timed out.
-        ValueError
-            selected value not found in related info dictionary
-
-        Returns
-        -------
-        None
-
-        """
-        if self.read_only:
-            raise PermissionError("This register is read only.")
-        try:
-            async with self.component.lock:
-                message = self.create_set_message(set_value)
-                self.log.debug(f"sending message {message}.")
-                if self.simulation_mode:
-                    message += "\r"
-                await self.component.commander.write(message.encode(self.component.commander.encoding))
-            await self.handle_set_response()
-        except TimeoutError:
-            self.log.exception("Response timed out.")
-            raise TimeoutError
-        self.register_value = set_value

@@ -39,3 +39,7 @@ requirements:
     - ts-salobj
     - ts-xml
     - ts-tcpip
+    - uvicorn =0.40
+    - fastapi =0.128
+    - aiohttp =3.13
+    - beautifulsoup4 =4.14

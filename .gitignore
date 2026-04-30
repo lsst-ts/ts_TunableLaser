@@ -134,3 +134,6 @@ towncrier.toml
 .flake8
 .isort.cfg
 .ruff.toml
+
+*.CSV
+*.csv

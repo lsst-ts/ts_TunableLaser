@@ -26,15 +26,14 @@ spec used by Ekspla to communicate with the TunableLaser.
 
 Notes
 -----
-The most important classes are the `TCPIPClient` class and the `AsciiRegister`
-class as they contain the bulk of the functionality.
+The most important class in this module is `AsciiRegister`, which defines the
+ASCII messages used to read and write laser registers.
 
 """
 
 __all__ = ["AsciiRegister"]
 import logging
-
-from .wizardry import NUMBER_OF_RETRIES
+from typing import Any
 
 
 class AsciiRegister:
@@ -46,8 +45,6 @@ class AsciiRegister:
 
     Parameters
     ----------
-    component : `Laser`
-        Reference to the component.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -56,20 +53,14 @@ class AsciiRegister:
         The name of the register.
     read_only : `bool`, optional
         Whether the register is read only or writable.
-    accepted_values : `list` [`str`] or `list` [`int`] or `None`, optional
-        If read_only is set to true then this parameter can be None. If not,
-        this parameter must contain a list of values accepted by this
-        register and can be of int or str.
-    simulation_mode : `bool`, optional
-        A bool representing whether the register is in simulation mode or not.
-        Currently is not implemented.
+    accepted_values : iterable or `None`, optional
+        If ``read_only`` is `True` then this parameter can be `None`. If not,
+        this parameter must contain the values accepted by this register.
 
     Attributes
     ----------
     log : `logging.Logger`
         The log for this class.
-    commander : `TCPIPClient`
-        A TCP/IP client for communicating with the TunableLaser.
     module_name : `str`
         The name of the module that is the parent of the register.
     module_id : `int`
@@ -78,28 +69,28 @@ class AsciiRegister:
         The name of the register.
     read_only : `bool`
         Whether the register is read only or writable.
-    accepted_values : `list`
-        If read_only is set to true then this parameter can be None.
-        If not, this parameter must contain a list of values accepted by this
-        register and can be of int or str.
-    simulation_mode : `bool`
-        A bool representing whether the register is in simulation mode or not.
-        Currently has a basic implementation.
+    accepted_values : iterable or `None`
+        If ``read_only`` is `True` then this parameter can be `None`.
+        If not, this parameter must contain the values accepted by this
+        register.
     register_value : `str`
-        The value of the register as gotten by :meth:`get_register_value`.
+        Cached value most recently read from or written through the owning
+        controller.
 
+    Raises
+    ------
+    AttributeError
+        Raised when ``read_only`` is `False` but ``accepted_values`` is `None`.
     """
 
     def __init__(
         self,
-        component,
-        module_name,
-        module_id,
-        register_name,
-        read_only=True,
-        accepted_values=None,
+        module_name: str,
+        module_id: int,
+        register_name: str,
+        read_only: bool = True,
+        accepted_values: None | Any = None,
     ):
-        self.component = component
         self.log = logging.getLogger(f"{register_name.replace(' ', '')}Register")
         self.module_name = module_name
         self.module_id = module_id
@@ -108,16 +99,38 @@ class AsciiRegister:
         if not self.read_only and accepted_values is None:
             raise AttributeError("If read_only is false than accepted_values should not be None.")
         self.accepted_values = accepted_values
-        self.register_value = None
+        self._register_value = None
         self.log.debug(f"{self.register_name} Register initialized")
+
+    @property
+    def register_value(self):
+        """Most recently cached register value.
+
+        Returns
+        -------
+        register_value : `object`
+            Cached register value.
+        """
+        return self._register_value
+
+    @register_value.setter
+    def register_value(self, value):
+        """Set the cached register value.
+
+        Parameters
+        ----------
+        value : `object`
+            Value read from or written to the register.
+        """
+        self._register_value = value
 
     def create_get_message(self):
         """Generate the message that will get the register value.
 
         Returns
         -------
-        get_message: `bytes`
-
+        get_message: `str`
+            The generated get message.
         """
         get_message = f"/{self.module_name}/{self.module_id}/{self.register_name}\r"
         self.log.debug(f"get_message={get_message}")
@@ -130,10 +143,11 @@ class AsciiRegister:
         Parameters
         ----------
         set_value : Any
+            The value to be set.
 
         Raises
         ------
-        ReadOnlyException
+        PermissionError
             Indicates that the register is read only.
         ValueError
             Indicates that the value received is not in the acceptable values
@@ -141,8 +155,8 @@ class AsciiRegister:
 
         Returns
         -------
-        set_message : `bytes`
-
+        set_message : `str`
+            The generated message to write the value.
         """
         if not self.read_only:
             if set_value not in self.accepted_values:
@@ -153,43 +167,6 @@ class AsciiRegister:
         else:
             raise PermissionError("This register is read only.")
 
-    async def send_command(self, set_value=None):
-        """Read the value of the register.
-
-        Returns
-        -------
-        None
-        """
-        if not self.component.connected:
-            raise RuntimeError("Not connected.")
-        async with self.component.lock:
-            if set_value:
-                message = self.create_set_message(set_value=set_value)
-                await self.component.commander.write(message.encode(self.component.commander.encoding))
-                msg = await self.component.commander.read_str()
-                self.log.debug(f"{msg=}")
-                if msg.startswith("'''"):
-                    for _ in range(NUMBER_OF_RETRIES):
-                        await self.component.commander.write(
-                            message.encode(self.component.commander.encoding)
-                        )
-                        msg = await self.component.commander.read_str()
-                        if not msg.startswith("'''"):
-                            break
-            message = self.create_get_message()
-            await self.component.commander.write(message.encode(self.component.commander.encoding))
-            msg = await self.component.commander.read_str()
-            if msg.startswith("'''"):
-                for _ in range(NUMBER_OF_RETRIES):
-                    await self.component.commander.write(message.encode(self.component.commander.encoding))
-                    msg = await self.component.commander.read_str()
-                    self.log.debug(f"{msg=}")
-                    if not msg.startswith("'''"):
-                        break
-            self.register_value = msg
-            if self.register_value is None:
-                raise TimeoutError
-            self.register_value = self.register_value.rstrip("nmC\r\n")
-
     def __repr__(self):
+        """Return a concise register/value representation."""
         return "{}: {}".format(self.register_name, self.register_value)
