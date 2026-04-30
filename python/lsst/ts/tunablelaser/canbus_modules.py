@@ -61,6 +61,11 @@ class CPU8000(interfaces.CanbusModule):
     This module contains registers about the power state, fault code and the
     current.
 
+    Parameters
+    ----------
+    simulation_mode : `bool`, optional
+        Whether the module is used with simulator transports.
+
     Attributes
     ----------
     log : `logging.Logger`
@@ -79,7 +84,7 @@ class CPU8000(interfaces.CanbusModule):
 
     """
 
-    def __init__(self, simulation_mode=False, laser_id=1):
+    def __init__(self, simulation_mode=False):
         super().__init__()
         self.log = logging.getLogger("CPU8000")
         self.name = "CPU8000"
@@ -100,11 +105,14 @@ class CPU8000(interfaces.CanbusModule):
             register_name="Fault code",
         )
         self.log.debug(f"{self.name} Module initialized")
-        if laser_id == 2:
-            del self.fault_register
 
     async def update_register(self, read_register):
         """Publish the registers located inside of this module.
+
+        Parameters
+        ----------
+        read_register : callable
+            Coroutine function used to read each register.
 
         Returns
         -------
@@ -114,13 +122,24 @@ class CPU8000(interfaces.CanbusModule):
         await super().update_register(read_register)
 
     def __repr__(self):
-        """Represent the register in prettier format."""
+        """Represent the module and its registers.
+
+        Returns
+        -------
+        representation : `str`
+            Human-readable representation of the module.
+        """
         return f"CPU8000:\n {self.power_register}\n {self.display_current_register}\n {self.fault_register}\n"
 
 
 class MCPU800(interfaces.CanbusModule):
     """Implement the MCPU800 laser module which contains registers for
     controlling aspects of the propagation of the laser.
+
+    Parameters
+    ----------
+    simulation_mode : `bool`, optional
+        Whether the module is used with simulator transports.
 
     Attributes
     ----------
@@ -163,7 +182,7 @@ class MCPU800(interfaces.CanbusModule):
 
     """
 
-    def __init__(self, simulation_mode=False, laser_id=1):
+    def __init__(self, simulation_mode=False):
         super().__init__()
         self.name = "M_CPU800"
         self.id = 17
@@ -249,20 +268,16 @@ class MCPU800(interfaces.CanbusModule):
             read_only=False,
             accepted_values=range(1, 50001),
         )
-        if laser_id == 2:
-            del self.fault_register
-            del self.fault_register_2
-            del self.display_current_register_2
-            del self.burst_pulse_left_register
 
     def start_propagating(self):
         """Start the propagation of the laser.
 
-        If used while the laser is propagating, no discernable effect occurs.
+        If used while the laser is propagating, no discernible effect occurs.
 
         Returns
         -------
-        None
+        register_and_value : `tuple`
+            The propagation power register and the value used to enable it.
 
         """
         return self.power_register_2, Power.ON
@@ -270,12 +285,13 @@ class MCPU800(interfaces.CanbusModule):
     def stop_propagating(self):
         """Stop the propagation of the laser.
 
-        If used while the laser is not propagating, no discernable effect
+        If used while the laser is not propagating, no discernible effect
         occurs.
 
         Returns
         -------
-        None
+        register_and_value : `tuple`
+            The propagation power register and the value used to disable it.
 
         """
         return self.power_register_2, Power.OFF
@@ -289,19 +305,31 @@ class MCPU800(interfaces.CanbusModule):
 
         Returns
         -------
-        None
+        register_and_value : `tuple`
+            The output energy level register and requested value.
         """
         return self.output_energy_level_register, value
 
     def set_propagation_mode(self, value):
         """Set the propagation mode of the laser.
 
+        Parameters
+        ----------
         value : `str`, {Continuous, Burst, Trigger}
-            The mode to be set
-            Continuous: Continuous pulse
-            Burst: Pulses a set number of times at regular interval
-            Trigger: Trigger a pulse using an external device
-            Trigger has not been used as we have no source.
+            The propagation mode to set. Continuous produces continuous
+            pulses, Burst produces a configured number of pulses at a regular
+            interval, and Trigger uses an external trigger source.
+
+        Returns
+        -------
+        register_and_value : `tuple`
+            The propagation mode register and requested mode.
+
+        Raises
+        ------
+        ValueError
+            Raised if ``value`` is not a valid `Mode`.
+
         """
         return self.continous_burst_mode_trigger_burst_register, Mode(value)
 
@@ -313,11 +341,21 @@ class MCPU800(interfaces.CanbusModule):
         value : `int`
             The amount of pulses to perform.
             Accepts values between 1 and 50000
+
+        Returns
+        -------
+        register_and_value : `tuple`
+            The burst length register and requested burst count.
         """
         return self.burst_length_register, value
 
     async def update_register(self, read_register):
         """Publish the register values of the module.
+
+        Parameters
+        ----------
+        read_register : callable
+            Coroutine function used to read each register.
 
         Returns
         -------
@@ -327,7 +365,13 @@ class MCPU800(interfaces.CanbusModule):
         await super().update_register(read_register)
 
     def __repr__(self):
-        """Represent the register in prettier format."""
+        """Represent the module and its registers.
+
+        Returns
+        -------
+        representation : `str`
+            Human-readable representation of the module.
+        """
         return (
             f"M_CPU800:\n {self.power_register}\n {self.display_current_register}\n"
             f"{self.fault_register}\n {self.power_register_2}\n {self.display_current_register_2}\n"
@@ -341,6 +385,11 @@ class MCPU800(interfaces.CanbusModule):
 
 class LLPMKU(interfaces.CanbusModule):
     """Implement the LLPMKU laser module which contains a register for power.
+
+    Parameters
+    ----------
+    simulation_mode : `bool`, optional
+        Whether the module is used with simulator transports.
 
     Attributes
     ----------
@@ -366,6 +415,11 @@ class LLPMKU(interfaces.CanbusModule):
     async def update_register(self, read_register):
         """Publish the register values of the module.
 
+        Parameters
+        ----------
+        read_register : callable
+            Coroutine function used to read each register.
+
         Returns
         -------
         None
@@ -374,7 +428,13 @@ class LLPMKU(interfaces.CanbusModule):
         await super().update_register(read_register)
 
     def __repr__(self):
-        """Represent the register in prettier format."""
+        """Represent the module and its registers.
+
+        Returns
+        -------
+        representation : `str`
+            Human-readable representation of the module.
+        """
         return f"11PMKu:\n {self.power_register}"
 
 
@@ -410,15 +470,36 @@ class MidiOPG(interfaces.CanbusModule):
         ----------
         value : `float`
             The wavelength value.
+
+        Returns
+        -------
+        register_and_value : `tuple`
+            The wavelength register and requested value.
         """
         return self.wavelength_register, value
 
     async def update_register(self, read_register):
-        """Update all registers."""
+        """Update all registers.
+
+        Parameters
+        ----------
+        read_register : callable
+            Coroutine function used to read each register.
+
+        Returns
+        -------
+        None
+        """
         await super().update_register(read_register)
 
     def __repr__(self):
-        """Represent the register in prettier format."""
+        """Represent the module and its registers.
+
+        Returns
+        -------
+        representation : `str`
+            Human-readable representation of the module.
+        """
         return f"{self.name}:\n {self.wavelength_register}\n"
 
 
@@ -426,17 +507,10 @@ class MaxiOPG(interfaces.CanbusModule):
     """Implement the MaxiOPG laser module which contains registers for
     optical alignment and wavelength.
 
-
-
     Parameters
     ----------
-    simulation_mode : `bool`
-        False for normal operation, true for simulation operation.
-    configuration : `str`
-        Used for unit testing, changes the laser direction between the
-        spectral cleaning unit or not
-        Requires a physical change on the hardware which is why it's hardcoded
-        in the class.
+    simulation_mode : `bool`, optional
+        Whether the module is used with simulator transports.
 
     Attributes
     ----------
@@ -480,31 +554,30 @@ class MaxiOPG(interfaces.CanbusModule):
 
         Returns
         -------
-        None
+        register_and_value : `tuple`
+            The wavelength register and requested wavelength.
 
         """
         return self.wavelength_register, wavelength
 
     def set_configuration(self):
-        """Set the configuration of the output of the laser
-
-        Parameters
-        ----------
-        configuration : `str`, {Det,No SCU,SCU,F1 SCU,F2 SCU,F1 No SCU,
-        F2 No SCU}
-            These are the output points that can be chosen.
-            Note that if SCU/No SCU is set in the controller, then only those
-            options with the term can be chosen.
+        """Set the configuration of the output of the laser.
 
         Returns
         -------
-        None
+        register_and_value : `tuple`
+            The configuration register and current optical alignment value.
 
         """
         return self.configuration_register, f"{self.optical_alignment}"
 
     async def update_register(self, read_register):
         """Publish the register values of the modules.
+
+        Parameters
+        ----------
+        read_register : callable
+            Coroutine function used to read each register.
 
         Returns
         -------
@@ -514,12 +587,23 @@ class MaxiOPG(interfaces.CanbusModule):
         await super().update_register(read_register)
 
     def __repr__(self):
-        """Represent the register in prettier format."""
+        """Represent the module and its registers.
+
+        Returns
+        -------
+        representation : `str`
+            Human-readable representation of the module.
+        """
         return f"{self.name}:\n {self.wavelength_register}\n {self.configuration_register}\n"
 
 
 class MiniOPG(interfaces.CanbusModule):
     """Implement the MiniOPG laser module.
+
+    Parameters
+    ----------
+    simulation_mode : `bool`, optional
+        Whether the module is used with simulator transports.
 
     Attributes
     ----------
@@ -545,6 +629,11 @@ class MiniOPG(interfaces.CanbusModule):
     async def update_register(self, read_register):
         """Publish the register values of the module.
 
+        Parameters
+        ----------
+        read_register : callable
+            Coroutine function used to read each register.
+
         Returns
         -------
         None
@@ -553,12 +642,23 @@ class MiniOPG(interfaces.CanbusModule):
         await super().update_register(read_register)
 
     def __repr__(self):
-        """Represent the register in prettier format."""
+        """Represent the module and its registers.
+
+        Returns
+        -------
+        representation : `str`
+            Human-readable representation of the module.
+        """
         return f"{self.name}:\n {self.error_code_register}\n"
 
 
 class TK6(interfaces.CanbusModule):
     """Implement TK6 laser module which contains several temperature registers.
+
+    Parameters
+    ----------
+    simulation_mode : `bool`, optional
+        Whether the module is used with simulator transports.
 
     Attributes
     ----------
@@ -579,7 +679,7 @@ class TK6(interfaces.CanbusModule):
 
     """
 
-    def __init__(self, simulation_mode=False, laser_id=1):
+    def __init__(self, simulation_mode=False):
         super().__init__()
         self.name = "TK6"
         self.id = 44
@@ -604,12 +704,14 @@ class TK6(interfaces.CanbusModule):
             module_id=self.id_2,
             register_name="Set temperature",
         )
-        if laser_id == 2:
-            del self.display_temperature_register_2
-            del self.set_temperature_register_2
 
     async def update_register(self, read_register):
         """Publish the register values of the module.
+
+        Parameters
+        ----------
+        read_register : callable
+            Coroutine function used to read each register.
 
         Returns
         -------
@@ -619,7 +721,13 @@ class TK6(interfaces.CanbusModule):
         await super().update_register(read_register)
 
     def __repr__(self):
-        """Represent the register in prettier format."""
+        """Represent the module and its registers.
+
+        Returns
+        -------
+        representation : `str`
+            Human-readable representation of the module.
+        """
         return (
             f"{self.name}:\n {self.display_temperature_register}\n {self.set_temperature_register}\n"
             f"{self.display_temperature_register_2}\n {self.set_temperature_register_2}\n"
@@ -628,6 +736,11 @@ class TK6(interfaces.CanbusModule):
 
 class HV40W(interfaces.CanbusModule):
     """Implement HV40W laser module which contains voltage register.
+
+    Parameters
+    ----------
+    simulation_mode : `bool`, optional
+        Whether the module is used with simulator transports.
 
     Attributes
     ----------
@@ -640,21 +753,23 @@ class HV40W(interfaces.CanbusModule):
 
     """
 
-    def __init__(self, laser_id, simulation_mode=False):
+    def __init__(self, simulation_mode=False):
         super().__init__()
         self.name = "HV40W"
-        laser_ids = {1: 41, 2: 40}
-        self.id = laser_ids[laser_id]
+        self.id = 41
         self.hv_voltage_register = AsciiRegister(
             module_name=self.name,
             module_id=self.id,
             register_name="HV voltage",
         )
-        if laser_id == 2:
-            del self.hv_voltage_register
 
     async def update_register(self, read_register):
         """Publishes the register values of the module.
+
+        Parameters
+        ----------
+        read_register : callable
+            Coroutine function used to read each register.
 
         Returns
         -------
@@ -664,12 +779,23 @@ class HV40W(interfaces.CanbusModule):
         await super().update_register(read_register)
 
     def __repr__(self):
-        """Represent the register in prettier format."""
+        """Represent the module and its registers.
+
+        Returns
+        -------
+        representation : `str`
+            Human-readable representation of the module.
+        """
         return f"{self.name}:\n {self.hv_voltage_register}\n"
 
 
 class DelayLin(interfaces.CanbusModule):
     """Implement DelayLin laser module.
+
+    Parameters
+    ----------
+    simulation_mode : `bool`, optional
+        Whether the module is used with simulator transports.
 
     Attributes
     ----------
@@ -681,11 +807,10 @@ class DelayLin(interfaces.CanbusModule):
         Handles the "Error code" register.
     """
 
-    def __init__(self, laser_id, simulation_mode=False):
+    def __init__(self, simulation_mode=False):
         super().__init__()
         self.name = "DelayLin"
-        laser_ids = {1: 40, 2: 47}
-        self.id = laser_ids[laser_id]
+        self.id = 40
         self.error_code_register = AsciiRegister(
             module_name=self.name,
             module_id=self.id,
@@ -695,6 +820,11 @@ class DelayLin(interfaces.CanbusModule):
     async def update_register(self, read_register):
         """Publish the register values of the module.
 
+        Parameters
+        ----------
+        read_register : callable
+            Coroutine function used to read each register.
+
         Returns
         -------
         None
@@ -703,12 +833,23 @@ class DelayLin(interfaces.CanbusModule):
         await super().update_register(read_register)
 
     def __repr__(self):
-        """Represent the register in prettier format."""
+        """Represent the module and its registers.
+
+        Returns
+        -------
+        representation : `str`
+            Human-readable representation of the module.
+        """
         return f"{self.name}:\n {self.error_code_register}\n"
 
 
 class LDCO48BP(interfaces.CanbusModule):
     """A hardware module for the laser.
+
+    Parameters
+    ----------
+    simulation_mode : `bool`, optional
+        Whether the module is used with simulator transports.
 
     Attributes
     ----------
@@ -729,15 +870,10 @@ class LDCO48BP(interfaces.CanbusModule):
 
     """
 
-    def __init__(self, laser_id, simulation_mode=False):
+    def __init__(self, simulation_mode=False):
         super().__init__()
         self.name = "LDCO48BP"
-        laser_ids = {
-            1: [30, 29, 24, 24],
-            2: [50, 48, 29, 28],
-        }  # PF I really don't love this.
-
-        self.id, self.id_2, self.id_3, self.id_4 = laser_ids[laser_id]
+        self.id, self.id_2, self.id_3, self.id_4 = [30, 29, 24, 24]
 
         self.display_temperature_register = AsciiRegister(
             module_name=self.name,
@@ -759,12 +895,14 @@ class LDCO48BP(interfaces.CanbusModule):
             module_id=self.id_4,
             register_name="Display temperature",
         )
-        if laser_id == 2:
-            del self.display_temperature_register_3
-            del self.display_temperature_register_4
 
     async def update_register(self, read_register):
         """Publish the register values of the module.
+
+        Parameters
+        ----------
+        read_register : callable
+            Coroutine function used to read each register.
 
         Returns
         -------
@@ -773,7 +911,13 @@ class LDCO48BP(interfaces.CanbusModule):
         await super().update_register(read_register)
 
     def __repr__(self):
-        """Represent the register in prettier format."""
+        """Represent the module and its registers.
+
+        Returns
+        -------
+        representation : `str`
+            Human-readable representation of the module.
+        """
         return (
             f"{self.name}:\n {self.display_temperature_register}\n"
             f"{self.display_temperature_register_2}\n {self.display_temperature_register_3}\n"
@@ -783,6 +927,11 @@ class LDCO48BP(interfaces.CanbusModule):
 
 class MLDCO48(interfaces.CanbusModule):
     """Implement MLDCO48 laser module which contains temperature registers.
+
+    Parameters
+    ----------
+    simulation_mode : `bool`, optional
+        Whether the module is used with simulator transports.
 
     Attributes
     ----------
@@ -798,7 +947,7 @@ class MLDCO48(interfaces.CanbusModule):
         Handles the "Display temperature" register.
     """
 
-    def __init__(self, simulation_mode=False, laser_id=1):
+    def __init__(self, simulation_mode=False):
         super().__init__()
         self.name = "M_LDCO48"
         self.id = 33
@@ -813,12 +962,14 @@ class MLDCO48(interfaces.CanbusModule):
             module_id=self.id_2,
             register_name="Display temperature",
         )
-        if laser_id == 2:
-            del self.display_temperature_register
-            del self.display_temperature_register_2
 
     async def update_register(self, read_register):
         """Publish the register values of the module.
+
+        Parameters
+        ----------
+        read_register : callable
+            Coroutine function used to read each register.
 
         Returns
         -------
@@ -828,12 +979,23 @@ class MLDCO48(interfaces.CanbusModule):
         await super().update_register(read_register)
 
     def __repr__(self):
-        """Represent the register in prettier format."""
+        """Represent the module and its registers.
+
+        Returns
+        -------
+        representation : `str`
+            Human-readable representation of the module.
+        """
         return f"{self.name}:\n {self.display_temperature_register}\n {self.display_temperature_register_2}\n"
 
 
 class E5DCB(interfaces.CompoWayFRegisterModule):
     """The Omron Temperature sensor for the laser.
+
+    Parameters
+    ----------
+    simulation_mode : `bool`, optional
+        Whether the module is used with simulator transports.
 
     Attributes
     ----------
@@ -872,6 +1034,11 @@ class E5DCB(interfaces.CompoWayFRegisterModule):
     async def update_register(self, read_register):
         """Publish the register values of the module.
 
+        Parameters
+        ----------
+        read_register : callable
+            Coroutine function used to read each register.
+
         Returns
         -------
         None
@@ -879,5 +1046,11 @@ class E5DCB(interfaces.CompoWayFRegisterModule):
         await super().update_register(read_register)
 
     def __repr__(self):
-        """Represent the register in prettier format."""
+        """Represent the module and its registers.
+
+        Returns
+        -------
+        representation : `str`
+            Human-readable representation of the module.
+        """
         return f"{self.name}:\n {self.run_stop_register}\n{self.set_point_register}\n"

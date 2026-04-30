@@ -35,6 +35,7 @@ from . import __version__, component, mock_server
 from .config_schema import CONFIG_SCHEMA
 from .enums import ErrorCode, Mode, Output, SimulationMode
 from .fcu_server import RestHttpCmdServer
+from .wizardry import DEFAULT_TELEMETRY_RATE
 
 
 def run_tunablelaser() -> None:
@@ -43,6 +44,7 @@ def run_tunablelaser() -> None:
 
 
 def command_tunablelaser() -> None:
+    """Run the TunableLaser CSC commander command-line entry point."""
     asyncio.run(salobj.CscCommander.amain(name="TunableLaser", index=None))
 
 
@@ -57,8 +59,8 @@ class LaserCSC(salobj.ConfigurableCsc):
     config_dir : `pathlib.Path`, optional
         Path where the configuration files are located;
         typically used for unit tests.
-    simulation_mode : `bool`, optional
-        Is the laser being simulated?
+    simulation_mode : `int`, optional
+        Simulation mode value. Use `SimulationMode.OFF` for real hardware.
     override : `str`, optional
         The name of the override config file to use, if any.
 
@@ -70,8 +72,10 @@ class LaserCSC(salobj.ConfigurableCsc):
         The amount of time to wait for telemetry to publish.
     telemetry_task : `asyncio.Future`
         The task that tracks the state of the telemetry loop.
-    simulator : `MainLaserServer` or `StubbsLaserServer`
-        The mock simulator if in simulation mode.
+    simulator : `MainLaserServer` or `StubbsLaserServer` or `None`
+        Laser mock simulator if running in simulation mode.
+    thermal_ctrl_simulator : `TempCtrlServer` or `None`
+        Temperature-controller mock simulator if running in simulation mode.
 
     """
 
@@ -97,7 +101,7 @@ class LaserCSC(salobj.ConfigurableCsc):
         )
         self.model: None | component.MainLaser | component.StubbsLaser = None
         self.thermal_ctrl: None | component.TemperatureCtrl = None
-        self.telemetry_rate: int = 1
+        self.telemetry_rate: float = DEFAULT_TELEMETRY_RATE
         self.telemetry_task: asyncio.Future = utils.make_done_future()
         self.simulator: None | mock_server.MainLaserServer = None
         self.thermal_ctrl_simulator: None | mock_server.TempCtrlServer = None
@@ -112,21 +116,46 @@ class LaserCSC(salobj.ConfigurableCsc):
 
     @property
     def laser_connected(self) -> bool:
-        """Is the laser connected?"""
+        """Return whether the laser model is connected.
+
+        Returns
+        -------
+        connected : `bool`
+            `True` if the laser model exists and its client is connected.
+        """
         return self.model is not None and self.model.connected
 
     @property
     def omron_connected(self) -> bool:
-        """Is the omron connected?"""
+        """Return whether the Omron controller is connected.
+
+        Returns
+        -------
+        connected : `bool`
+            `True` if the temperature controller exists and its client is
+            connected.
+        """
         return self.thermal_ctrl is not None and self.thermal_ctrl.connected
 
     @property
     def detailed_state(self) -> TunableLaser.LaserDetailedState:
-        """Return the detailed state."""
+        """Return the detailed state.
+
+        Returns
+        -------
+        detailed_state : `lsst.ts.xml.enums.TunableLaser.LaserDetailedState`
+            Last published detailed state.
+        """
         return self.evt_detailedState.data.detailedState
 
     async def _cancel_task(self, task: asyncio.Task) -> None:
-        """Cancel a background task and wait for it to stop."""
+        """Cancel a background task and wait for it to stop.
+
+        Parameters
+        ----------
+        task : `asyncio.Task`
+            Task to cancel.
+        """
         if task is not None and not task.done():
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -165,18 +194,29 @@ class LaserCSC(salobj.ConfigurableCsc):
                     )
                     return
                 if self.laser_key_turned:
+                    (
+                        tk6_temperature,
+                        tk6_temperature_2,
+                        ldco48bp_temperature,
+                        ldco48bp_temperature_2,
+                        ldco48bp_temperature_3,
+                        m_ldco48_temperature,
+                        m_ldco48_temperature_2,
+                        *_unused_temperature_channels,
+                    ) = self.model.temperature
                     await self.tel_wavelength.set_write(wavelength=float(self.model.wavelength))
                     await self.tel_temperature.set_write(
-                        tk6_temperature=float(self.model.temperature[0]),
-                        tk6_temperature_2=float(self.model.temperature[1]),
-                        ldco48bp_temperature=float(self.model.temperature[2]),
-                        ldco48bp_temperature_2=float(self.model.temperature[3]),
-                        ldco48bp_temperature_3=float(self.model.temperature[4]),
-                        m_ldco48_temperature=float(self.model.temperature[5]),
-                        m_ldco48_temperature_2=float(self.model.temperature[6]),
+                        tk6_temperature=float(tk6_temperature),
+                        tk6_temperature_2=float(tk6_temperature_2),
+                        ldco48bp_temperature=float(ldco48bp_temperature),
+                        ldco48bp_temperature_2=float(ldco48bp_temperature_2),
+                        ldco48bp_temperature_3=float(ldco48bp_temperature_3),
+                        m_ldco48_temperature=float(m_ldco48_temperature),
+                        m_ldco48_temperature_2=float(m_ldco48_temperature_2),
                     )
+                (scanner_temperature,) = self.thermal_ctrl.temperature
                 await self.tel_scannerTemperature.set_write(
-                    scanner_temperature=float(self.thermal_ctrl.temperature[0]),
+                    scanner_temperature=float(scanner_temperature),
                 )
             except Exception:
                 self.log.exception("Telemetry loop failed.")
@@ -209,6 +249,19 @@ class LaserCSC(salobj.ConfigurableCsc):
             )
 
     def calculate_detailed_state(self) -> TunableLaser.LaserDetailedState:
+        """Calculate detailed state from propagation mode and power state.
+
+        Returns
+        -------
+        detailed_state : `lsst.ts.xml.enums.TunableLaser.LaserDetailedState`
+            Detailed state to publish.
+
+        Raises
+        ------
+        RuntimeWarning
+            Raised if the cached propagation mode and propagation power state
+            cannot be mapped to a detailed state.
+        """
         assert self.model is not None
         propagation_mode = self.model.propagation_mode
         try:
@@ -340,8 +393,13 @@ class LaserCSC(salobj.ConfigurableCsc):
 
         Parameters
         ----------
-        data : `DataType`
-            The command data.
+        data : `lsst.ts.salobj.BaseMsgType`
+            Command data with ``count``.
+
+        Raises
+        ------
+        salobj.ExpectedError
+            Raised if the CSC is not enabled or the laser is disconnected.
         """
         self.assert_enabled()
         if self.laser_connected:
@@ -358,8 +416,13 @@ class LaserCSC(salobj.ConfigurableCsc):
 
         Parameters
         ----------
-        data : `DataType`
-            The command data.
+        data : `lsst.ts.salobj.BaseMsgType`
+            Command data.
+
+        Raises
+        ------
+        salobj.ExpectedError
+            Raised if the CSC is not enabled or the laser is disconnected.
         """
         self.assert_enabled()
         if self.laser_connected:
@@ -373,7 +436,13 @@ class LaserCSC(salobj.ConfigurableCsc):
 
         Parameters
         ----------
-        data
+        data : `lsst.ts.salobj.BaseMsgType`
+            Command data with ``wavelength``.
+
+        Raises
+        ------
+        salobj.ExpectedError
+            Raised if the CSC is not enabled or the laser is disconnected.
         """
         self.assert_enabled()
         if self.laser_connected:
@@ -387,7 +456,14 @@ class LaserCSC(salobj.ConfigurableCsc):
 
         Parameters
         ----------
-        data
+        data : `lsst.ts.salobj.BaseMsgType`
+            Command data.
+
+        Raises
+        ------
+        salobj.ExpectedError
+            Raised if the CSC is not enabled, the detailed state does not allow
+            propagation, the key is off, or the laser is disconnected.
         """
         self.assert_enabled()
         self.assert_substate(
@@ -411,7 +487,14 @@ class LaserCSC(salobj.ConfigurableCsc):
 
         Parameters
         ----------
-        data
+        data : `lsst.ts.salobj.BaseMsgType`
+            Command data.
+
+        Raises
+        ------
+        salobj.ExpectedError
+            Raised if the CSC is not enabled, the detailed state does not allow
+            stopping propagation, or the laser is disconnected.
         """
         self.assert_enabled()
         self.assert_substate(
@@ -431,7 +514,13 @@ class LaserCSC(salobj.ConfigurableCsc):
 
         Parameters
         ----------
-        data
+        data : `lsst.ts.salobj.BaseMsgType`
+            Command data.
+
+        Raises
+        ------
+        salobj.ExpectedError
+            Raised if the CSC is not enabled or the laser is disconnected.
         """
         self.assert_enabled()
         if self.laser_connected:
@@ -440,7 +529,18 @@ class LaserCSC(salobj.ConfigurableCsc):
             raise salobj.ExpectedError("Not connected.")
 
     async def do_triggerBurst(self, data: salobj.BaseMsgType) -> None:
-        """Trigger a burst."""
+        """Trigger a burst.
+
+        Parameters
+        ----------
+        data : `lsst.ts.salobj.BaseMsgType`
+            Command data.
+
+        Raises
+        ------
+        salobj.ExpectedError
+            Raised if the CSC is not enabled or not in propagating burst mode.
+        """
         self.assert_enabled()
         self.assert_substate(
             [TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE],
@@ -448,7 +548,18 @@ class LaserCSC(salobj.ConfigurableCsc):
         await self.model.trigger_burst()
 
     async def do_changeTempCtrlSetpoint(self, data: salobj.BaseMsgType) -> None:
-        """Change the set point of the laser thermal reader."""
+        """Change the set point of the laser thermal reader.
+
+        Parameters
+        ----------
+        data : `lsst.ts.salobj.BaseMsgType`
+            Command data with ``setpoint``.
+
+        Raises
+        ------
+        salobj.ExpectedError
+            Raised if the CSC is not enabled or the controller is disconnected.
+        """
         self.assert_enabled()
         if self.omron_connected:
             await self.thermal_ctrl.laser_thermal_change_set_point(value=data.setpoint)
@@ -456,7 +567,18 @@ class LaserCSC(salobj.ConfigurableCsc):
             raise salobj.ExpectedError("Not connected.")
 
     async def do_turnOffTempCtrl(self, data: salobj.BaseMsgType) -> None:
-        """Turn off the run mode of the laser thermal reader."""
+        """Turn off the run mode of the laser thermal reader.
+
+        Parameters
+        ----------
+        data : `lsst.ts.salobj.BaseMsgType`
+            Command data.
+
+        Raises
+        ------
+        salobj.ExpectedError
+            Raised if the CSC is not enabled or the controller is disconnected.
+        """
         self.assert_enabled()
         if self.omron_connected:
             await self.thermal_ctrl.laser_thermal_turn_off()
@@ -464,7 +586,18 @@ class LaserCSC(salobj.ConfigurableCsc):
             raise salobj.ExpectedError("Not connected.")
 
     async def do_turnOnTempCtrl(self, data: salobj.BaseMsgType) -> None:
-        """Turn on the run mode of the laser thermal reader."""
+        """Turn on the run mode of the laser thermal reader.
+
+        Parameters
+        ----------
+        data : `lsst.ts.salobj.BaseMsgType`
+            Command data.
+
+        Raises
+        ------
+        salobj.ExpectedError
+            Raised if the CSC is not enabled or the controller is disconnected.
+        """
         self.assert_enabled()
         if self.omron_connected:
             await self.thermal_ctrl.laser_thermal_turn_on()
@@ -473,10 +606,16 @@ class LaserCSC(salobj.ConfigurableCsc):
 
     async def do_setOpticalConfiguration(self, data: salobj.BaseMsgType) -> None:
         """Change Optical Alignment of the laser.
+
         Parameters
         ----------
-        data - with property 'configuration' setting optical
-               alignment of the laser.
+        data : `lsst.ts.salobj.BaseMsgType`
+            Command data with ``configuration``.
+
+        Raises
+        ------
+        salobj.ExpectedError
+            Raised if the CSC is not enabled or the laser is disconnected.
         """
         self.assert_enabled()
         if self.laser_connected:
@@ -497,7 +636,13 @@ class LaserCSC(salobj.ConfigurableCsc):
         await self.evt_detailedState.set_write(detailedState=new_sub_state)
 
     async def configure(self, config: SimpleNamespace) -> None:
-        """Configure the CSC."""
+        """Configure the CSC.
+
+        Parameters
+        ----------
+        config : `types.SimpleNamespace`
+            Validated CSC configuration.
+        """
         self.log.debug(f"config={config}")
         self.log.debug(f"Connecting to laser {config.type}")
         self.laser_type = config.type
@@ -516,7 +661,13 @@ class LaserCSC(salobj.ConfigurableCsc):
 
     @staticmethod
     def get_config_pkg() -> str:
-        """Return the configuration package name."""
+        """Return the configuration package name.
+
+        Returns
+        -------
+        package_name : `str`
+            Configuration package name.
+        """
         return "ts_config_mtcalsys"
 
     async def close_tasks(self) -> None:

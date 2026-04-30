@@ -45,10 +45,9 @@ class CompoWayFGeneralRegister(AsciiRegister):
         The name of the register.
     read_only : `bool`, optional
         Whether the register is read only or writable.
-    accepted_values : `list` [`str`] or `list` [`int`] or `None`, optional
-        If read_only is set to true then this parameter can be None. If not,
-        this parameter must contain a list of values accepted by this
-        register and can be of int or str.
+    accepted_values : iterable or `None`, optional
+        If ``read_only`` is `True` then this parameter can be `None`. If not,
+        this parameter must contain the values accepted by this register.
 
     Attributes
     ----------
@@ -62,12 +61,13 @@ class CompoWayFGeneralRegister(AsciiRegister):
         The name of the register.
     read_only : `bool`
         Whether the register is read only or writable.
-    accepted_values : `list`
-        If read_only is set to true then this parameter can be None.
-        If not, this parameter must contain a list of values accepted by this
-        register and can be of int or str.
+    accepted_values : iterable or `None`
+        If ``read_only`` is `True` then this parameter can be `None`.
+        If not, this parameter must contain the values accepted by this
+        register.
     register_value : `str`
-        The value of the register as gotten by :meth:`get_register_value`.
+        Cached value most recently read from or written through the owning
+        controller.
 
     """
 
@@ -131,8 +131,13 @@ class CompoWayFGeneralRegister(AsciiRegister):
 
         Parameters
         ----------
-        frame : `bytes`
-            The frame.
+        frame : `str` or `bytes`
+            Frame text without STX and with ETX.
+
+        Returns
+        -------
+        bcc : `str`
+            Calculated block check character.
         """
         if isinstance(frame, bytes):
             self.log.error(f"bytes sent into generate_bcc, decoding... {frame}")
@@ -149,8 +154,18 @@ class CompoWayFGeneralRegister(AsciiRegister):
 
         Parameters
         ----------
-        pdu_structure
-            The structure of the pdu.
+        pdu_structure : `str`
+            PDU body to include in the CompoWay-F command frame.
+
+        Returns
+        -------
+        cmd_frame : `str`
+            Complete command frame, including STX, ETX, and BCC.
+
+        Raises
+        ------
+        ValueError
+            Raises when node length is incorrect.
         """
         if len(self.node) == 1:
             node = "0" + self.node
@@ -169,10 +184,19 @@ class CompoWayFGeneralRegister(AsciiRegister):
     def _create_get_message_generic(self, variable_code, read_address, read_elements):
         """Generate the message that will get the register value.
 
+        Parameters
+        ----------
+        variable_code : `str`
+            CompoWay-F variable area code.
+        read_address : `str`
+            Register address to read.
+        read_elements : `str`
+            Number of elements to read.
+
         Returns
         -------
-        get_message: `bytes`
-
+        get_message : `str`
+            Complete get-message frame.
         """
         MRC = "\x30\x31"
         SRC = "\x30\x31"
@@ -183,7 +207,24 @@ class CompoWayFGeneralRegister(AsciiRegister):
         return get_message
 
     def _create_set_message_generic(self, variable_code, write_address, write_elements, data):
-        """Create a set message."""
+        """Create a set message.
+
+        Parameters
+        ----------
+        variable_code : `str`
+            CompoWay-F variable area code.
+        write_address : `str`
+            Register address to write.
+        write_elements : `str`
+            Number of elements to write.
+        data : `str`
+            Encoded register payload.
+
+        Returns
+        -------
+        set_message : `str`
+            Complete set-message frame.
+        """
         MRC = "\x30\x31"
         SRC = "\x30\x32"
         bit_position = "\x30\x30"
@@ -191,24 +232,60 @@ class CompoWayFGeneralRegister(AsciiRegister):
         return self.compoway_cmd_frame(cmd_txt)
 
     def _create_operation_message_generic(self, command_code, related_info):
-        """Create operation message."""
+        """Create operation message.
+
+        Parameters
+        ----------
+        command_code : `str`
+            CompoWay-F operation command code.
+        related_info : `str`
+            Encoded operation payload.
+
+        Returns
+        -------
+        operation_message : `str`
+            Complete operation-message frame.
+        """
         MRC = "\x33\x30"
         SRC = "\x30\x35"
         cmd_txt = MRC + SRC + command_code + related_info
         return self.compoway_cmd_frame(cmd_txt)
 
     def create_get_message(self):
-        """Create get message."""
+        """Create get message.
+
+        Raises
+        ------
+        Exception
+            Always raised.
+        """
         # need to override the ascii register
         raise Exception("Function not implemented, you shouldn't be using the generic class")
 
     def create_set_message(self, set_value):
-        """Create set message."""
+        """Create set message.
+
+        Parameters
+        ----------
+        set_value : `object`
+            Value to write.
+
+        Raises
+        ------
+        Exception
+            Always raised.
+        """
         # need to override the ascii register
         raise Exception("Function not implemented, you shouldn't be using the generic class")
 
     def get_response(self):
-        """Get response."""
+        """Get response.
+
+        Returns
+        -------
+        `str`
+            The translated response.
+        """
         translated_response = self.response_code
         if isinstance(self.response_code, bytes):
             translated_response = translated_response.decode()
@@ -218,7 +295,13 @@ class CompoWayFGeneralRegister(AsciiRegister):
             return "Invalid response code"
 
     def get_end_code(self):
-        """Get end code."""
+        """Get end code.
+
+        Returns
+        -------
+        `str`
+            The translated end code.
+        """
         translated_end_code = self.end_code
         if isinstance(self.end_code, bytes):
             translated_end_code = translated_end_code.decode()
@@ -228,7 +311,13 @@ class CompoWayFGeneralRegister(AsciiRegister):
             return "Invalid end code"
 
     def get_data(self):
-        """Get data."""
+        """Get data.
+
+        Returns
+        -------
+        data : `str`
+            Last command text payload parsed from a response.
+        """
         return self.cmd_txt
 
 
@@ -245,12 +334,12 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
         The name of the register.
     read_only : `bool`, optional
         Whether the register is read only or writable.
-    accepted_values : `list` [`str`] or `list` [`int`] or `None`, optional
-        If read_only is set to true then this parameter can be None. If not,
-        this parameter must contain a list of values accepted by this
-        register and can be of int or str.
+    accepted_values : `range` or `None`, optional
+        If ``read_only`` is `True` then this parameter can be `None`. If not,
+        this parameter must contain the numeric range accepted by this
+        register.
     simulation_mode : `bool`
-        A bool representing whether the register is in simulation mode or not.
+        Whether the register is used with the simulator transport.
 
     Attributes
     ----------
@@ -264,15 +353,15 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
         The name of the register.
     read_only : `bool`
         Whether the register is read only or writable.
-    accepted_values : `list`
-        If read_only is set to true then this parameter can be None.
-        If not, this parameter must contain a list of values accepted by this
-        register and can be of int or str.
+    accepted_values : `range` or `None`
+        If ``read_only`` is `True` then this parameter can be `None`.
+        If not, this parameter must contain the numeric range accepted by this
+        register.
     simulation_mode : `bool`
-        A bool representing whether the register is in simulation mode or not.
-        Only needed to append '\r' to string for the tcpip.client
+        Whether the register is used with the simulator transport.
     register_value : `str`
-        The value of the register as gotten by :meth:`get_register_value`.
+        Cached value most recently read from or written through the owning
+        controller.
 
     Raises
     --------
@@ -281,6 +370,8 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
         If the register is selected to be writeable,
                 but no accepted_values is given.
 
+    TypeError
+        If the accepted_values is not the expected type.
     """
 
     def __init__(
@@ -349,11 +440,33 @@ class CompoWayFDataRegister(CompoWayFGeneralRegister):
         return get_message
 
     def encode_register_value(self, value):
-        """Convert engineering units to the raw 16-bit controller value."""
+        """Convert engineering units to the raw 16-bit controller value.
+
+        Parameters
+        ----------
+        value : `float`
+            Engineering-unit value.
+
+        Returns
+        -------
+        raw_value : `int`
+            Encoded raw controller value.
+        """
         return int(value * 10)
 
     def decode_register_value(self, raw_value):
-        """Convert the raw 16-bit controller value to engineering units."""
+        """Convert the raw 16-bit controller value to engineering units.
+
+        Parameters
+        ----------
+        raw_value : `int`
+            Raw unsigned 16-bit controller value.
+
+        Returns
+        -------
+        value : `float`
+            Decoded engineering-unit value.
+        """
         if raw_value & 0x8000:
             raw_value -= 0x10000
         return raw_value / 10
@@ -432,12 +545,10 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
         The name of the register.
     read_only : `bool`, optional
         Whether the register is read only or writable.
-    accepted_values : `list` [`str`] or `list` [`int`] or `None`, optional
-        If read_only is set to true then this parameter can be None. If not,
-        this parameter must contain a list of values accepted by this
-        register and can be of int or str.
+    accepted_values : iterable
+        Values accepted by this operation register.
     simulation_mode : `bool`
-        A bool representing whether the register is in simulation mode or not.
+        Whether the register is used with the simulator transport.
 
     Attributes
     ----------
@@ -451,15 +562,13 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
         The name of the register.
     read_only : `bool`
         Whether the register is read only or writable.
-    accepted_values : `list`
-        If read_only is set to true then this parameter can be None.
-        If not, this parameter must contain a list of values accepted by this
-        register and can be of int or str.
+    accepted_values : iterable
+        Values accepted by this operation register.
     simulation_mode : `bool`
-        A bool representing whether the register is in simulation mode or not.
-        Only needed to append '\r' to string for the tcpip.client
+        Whether the register is used with the simulator transport.
     register_value : `str`
-        The value of the register as gotten by :meth:`get_register_value`.
+        Cached value most recently read from or written through the owning
+        controller.
 
     Raises
     ----------
@@ -505,12 +614,12 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
         self.command_code = self.command_code_dict[register_name]
 
     def create_get_message(self):
-        """Generate the message that will get the register value.
+        """Raise because operation registers cannot be read.
 
-        Returns
-        -------
-        get_message: `bytes`
-
+        Raises
+        ------
+        Exception
+            Always raised because operation registers do not support reads.
         """
         # Operation registers dont have ability to get
         raise Exception("Operation registers cannot 'get'")
@@ -521,20 +630,19 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
 
         Parameters
         ----------
-        set_value : Any
+        set_value : `object`
+            Value to write.
 
         Raises
         ------
-        ReadOnlyException
-            Indicates that the register is read only.
         ValueError
             Indicates that the value received is not in the acceptable values
             for the register.
 
         Returns
         -------
-        set_message : `bytes`
-
+        set_message : `str`
+            Complete operation-message frame.
         """
         if set_value not in self.accepted_values:
             raise ValueError(f"{set_value} not in {self.accepted_values}")
@@ -552,7 +660,18 @@ class CompoWayFOperationRegister(CompoWayFGeneralRegister):
         return set_message
 
     def get_related_info(self, set_value):
-        """Get related info."""
+        """Get the CompoWay-F related-info payload for an operation value.
+
+        Parameters
+        ----------
+        set_value : `object`
+            Operation value to encode.
+
+        Returns
+        -------
+        related_info : `str` or `None`
+            Encoded payload, or `None` if the value cannot be encoded.
+        """
         chosen_dict = None
         # RUN/STOP
         if self.command_code == "\x30\x31":

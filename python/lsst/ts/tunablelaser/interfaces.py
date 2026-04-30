@@ -29,17 +29,24 @@ from abc import ABC, abstractmethod
 
 from lsst.ts import tcpip
 from lsst.ts.tunablelaser.wizardry import (
+    BCC_LEN,
+    COMMAND_TIMEOUT,
+    DEFAULT_CONNECT_TIMEOUT,
     DEFAULT_SLEEP,
+    DEVICE_TIMEOUT_READ_DELAY,
+    DEVICE_TIMEOUT_READ_RETRIES,
+    END_CODE_LEN,
+    MRC_SRC_LEN,
     NUMBER_OF_CONNECTION_RETRIES,
     NUMBER_OF_RETRIES,
+    RESPONSE_CODE_LENGTH,
     SLEEP_BETWEEN_REGISTERS,
+    STX_NODE_SUBADDRESS_LEN,
 )
 
 from .compoway_register import CompoWayFDataRegister, CompoWayFGeneralRegister, CompoWayFOperationRegister
 from .register import AsciiRegister
 
-DEVICE_TIMEOUT_READ_RETRIES = 1
-DEVICE_TIMEOUT_READ_DELAY = 0.1
 ERRORS = [
     "(8) Timeout waiting for device answer",
     "(6) No such register name",
@@ -55,8 +62,8 @@ class Laser(ABC):
 
     Parameters
     ----------
-    csc : `LaserCSC`
-        The CSC object.
+    log : `logging.Logger`
+        Logger for this component.
     terminator : `bytes`
         The characters that terminate sent/received messages.
     encoding : `str`
@@ -66,8 +73,6 @@ class Laser(ABC):
 
     Attributes
     ----------
-    csc : `LaserCSC`
-        The CSC object.
     terminator : `bytes`
         The characters that terminate sent/received messages.
     encoding : `str`
@@ -90,50 +95,103 @@ class Laser(ABC):
         self.commander = tcpip.Client(host="", port=0, log=self.log)
         self.lock = asyncio.Lock()
         self.connect_lock = asyncio.Lock()
-        self.connect_timeout = 5
+        self.connect_timeout = DEFAULT_CONNECT_TIMEOUT
         self.skipped_modules = set()
         self.skipped_registers = set()
 
     @property
     @abstractmethod
     def is_faulting(self) -> bool:
+        """Return whether the laser reports a fault condition.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def is_propagating(self) -> None:
-        """Is the laser propagating?"""
+        """Return whether the laser is propagating.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
+        """
         raise NotImplementedError
 
     @property
     def connected(self) -> bool:
-        """Is the laser connected?"""
+        """Return whether the laser is connected.
+
+        Returns
+        -------
+        connected : `bool`
+            `True` if the TCP/IP client is connected, else `False`.
+        """
         return self.commander.connected
 
     @property
     def should_be_connected(self) -> bool:
+        """Return whether the TCP/IP client expects to remain connected.
+
+        Returns
+        -------
+        should_be_connected : `bool`
+            `True` if the TCP/IP client expects to remain connected, else
+            `False`.
+        """
         return self.commander.should_be_connected
 
     @property
     @abstractmethod
     def wavelength(self) -> float:
-        """The wavelength of the laser."""
+        """The wavelength of the laser.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def temperature(self) -> float:
-        """The temperature sensors."""
+        """The temperature sensors.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def propagation_mode(self) -> str:
+        """The laser propagation mode.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
+        """
         raise NotImplementedError
 
     @property
     @abstractmethod
     def optical_configuration(self) -> str:
+        """The selected optical output configuration.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -144,6 +202,11 @@ class Laser(ABC):
         ----------
         wavelength: `float`
             The value to change the wavelength.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
         """
         raise NotImplementedError
 
@@ -153,39 +216,90 @@ class Laser(ABC):
 
         Parameters
         ----------
-        output_energy_level:
+        output_energy_level : `str`
             The laser's energy level.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
         """
         raise NotImplementedError
 
     @abstractmethod
     def trigger_burst(self) -> str:
-        """Trigger burst."""
+        """Trigger burst.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def set_burst_mode(self, count: int) -> str:
-        """Set the burst mode and count."""
+        """Set the burst mode and count.
+
+        Parameters
+        ----------
+        count : `int`
+            Number of pulses to emit in burst mode.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def start_propagating(self) -> str:
-        """Start propagating the laser."""
+        """Start propagating the laser.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def stop_propagating(self) -> str:
-        """Stop propagating the laser."""
+        """Stop propagating the laser.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def clear_fault(self) -> str:
-        """Clear the fault state of the laser."""
+        """Clear the fault state of the laser.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def configure(self, config) -> None:
-        """Configure the laser."""
+        """Configure the laser.
+
+        Parameters
+        ----------
+        config : `types.SimpleNamespace`
+            Runtime configuration for this laser.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
+        """
         raise NotImplementedError
 
     async def disconnect(self) -> None:
@@ -194,11 +308,32 @@ class Laser(ABC):
         self.commander = tcpip.Client(host="", port=0, log=self.log)
 
     async def send_command(self, message) -> str:
+        """Send one ASCII command and return the decoded response.
+
+        Parameters
+        ----------
+        message : `str`
+            ASCII command frame, including its terminator.
+
+        Returns
+        -------
+        response : `str`
+            Response with common unit suffixes and line terminators stripped.
+
+        Raises
+        ------
+        DeviceTimeoutError
+            Raised when the laser reports a transient downstream device error.
+        RuntimeError
+            Raised when the laser reports a non-retryable ASCII error.
+        ConnectionError
+            Raised when retries are exhausted without a usable response.
+        """
         last_error = None
         for attempt in range(NUMBER_OF_RETRIES):
             try:
                 async with self.lock:
-                    async with asyncio.timeout(5):
+                    async with asyncio.timeout(COMMAND_TIMEOUT):
                         await self.commander.write(message.encode(self.commander.encoding))
                         resp = await self.commander.read_str()
                     if resp:
@@ -219,23 +354,87 @@ class Laser(ABC):
         raise ConnectionError("Response not received after retry exhaustion.") from last_error
 
     def _iter_canbus_modules(self) -> Iterator["CanbusModule"]:
+        """Iterate over CAN bus module attributes attached to this laser.
+
+        Yields
+        ------
+        module : `CanbusModule`
+            A CAN bus module stored on this instance.
+        """
         for value in vars(self).values():
             if isinstance(value, CanbusModule):
                 yield value
 
     def should_poll_module(self, module) -> bool:
+        """Return whether a CAN bus module should be polled.
+
+        Parameters
+        ----------
+        module : `CanbusModule`
+            Module being considered for telemetry polling.
+
+        Returns
+        -------
+        should_poll : `bool`
+            `True` if the module is not in ``skipped_modules``.
+        """
         return module.name not in self.skipped_modules
 
     def register_poll_key(self, module, register) -> str:
+        """Build the skip-list key for a register.
+
+        Parameters
+        ----------
+        module : `CanbusModule`
+            Module containing the register.
+        register : `AsciiRegister`
+            Register to identify.
+
+        Returns
+        -------
+        key : `str`
+            Key in ``"<module name>.<register name>"`` form.
+        """
         return f"{module.name}.{register.register_name}"
 
     def should_poll_register(self, module, register) -> bool:
+        """Return whether a register should be polled for telemetry.
+
+        Parameters
+        ----------
+        module : `CanbusModule`
+            Module containing the register.
+        register : `AsciiRegister`
+            Register being considered for telemetry polling.
+
+        Returns
+        -------
+        should_poll : `bool`
+            `True` if neither the module nor register is skipped.
+        """
         return (
             self.should_poll_module(module)
             and self.register_poll_key(module, register) not in self.skipped_registers
         )
 
     async def read_register(self, register) -> str:
+        """Read an ASCII register with device-timeout retries.
+
+        Parameters
+        ----------
+        register : `AsciiRegister`
+            Register to read.
+
+        Returns
+        -------
+        value : `str`
+            Decoded register value.
+
+        Raises
+        ------
+        DeviceTimeoutError
+            Raised when retry attempts are exhausted.
+        """
         last_error = None
         for attempt in range(DEVICE_TIMEOUT_READ_RETRIES + 1):
             try:
@@ -253,6 +452,20 @@ class Laser(ABC):
         raise last_error
 
     async def write_register(self, register, value) -> str:
+        """Write an ASCII register and read it back.
+
+        Parameters
+        ----------
+        register : `AsciiRegister`
+            Register to write.
+        value : `object`
+            Value accepted by the register.
+
+        Returns
+        -------
+        value : `str`
+            Register value read after the write completes.
+        """
         await self.send_command(register.create_set_message(value))
         return await self.read_register(register)
 
@@ -272,7 +485,13 @@ class Laser(ABC):
         self.log.debug(f"Refresh all registers took {refresh_time_dt:.3f}s")
 
     async def connect(self) -> None:
-        """Connect to the laser."""
+        """Connect to the laser.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if all connection attempts fail.
+        """
         for _ in range(NUMBER_OF_CONNECTION_RETRIES):
             try:
                 self.commander = tcpip.Client(
@@ -296,11 +515,24 @@ class CanbusModule(ABC):
     """Implement a register container for the laser."""
 
     async def update_register(self, read_register) -> None:
-        """Update the registers located in the canbus module."""
+        """Update the registers located in the canbus module.
+
+        Parameters
+        ----------
+        read_register : callable
+            Coroutine function used to read each register.
+        """
         for register in self.iter_ascii_registers():
             await read_register(register)
 
     def iter_ascii_registers(self) -> Iterator[AsciiRegister]:
+        """Iterate over ASCII registers attached to this module.
+
+        Yields
+        ------
+        register : `AsciiRegister`
+            An ASCII register stored on this module.
+        """
         for value in vars(self).values():
             if isinstance(value, AsciiRegister):
                 yield value
@@ -311,8 +543,8 @@ class CompoWayFModule(ABC):
 
     Parameters
     ----------
-    csc : `LaserCSC`
-        The CSC object.
+    log : `logging.Logger`
+        Logger for this component.
     terminator : `bytes`
         The characters that terminate sent/received messages.
     encoding : `str`
@@ -322,8 +554,6 @@ class CompoWayFModule(ABC):
 
     Attributes
     ----------
-    csc : `LaserCSC`
-        The CSC object.
     terminator : `bytes`
         The characters that terminate sent/received messages.
     encoding : `str`
@@ -346,18 +576,41 @@ class CompoWayFModule(ABC):
 
     @property
     def connected(self):
-        """Is the module connected?"""
+        """Return whether the module is connected.
+
+        Returns
+        -------
+        connected : `bool`
+            `True` if the TCP/IP client is connected, else `False`.
+        """
         return self.commander.connected
 
     @property
     @abstractmethod
     def temperature(self):
-        """The temperature sensors."""
+        """The temperature sensors.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def configure(self, config):
-        """Configure the module."""
+        """Configure the module.
+
+        Parameters
+        ----------
+        config : `types.SimpleNamespace`
+            Runtime configuration for this module.
+
+        Raises
+        ------
+        NotImplementedError
+            Raised by the abstract base implementation.
+        """
         raise NotImplementedError
 
     async def disconnect(self):
@@ -366,6 +619,9 @@ class CompoWayFModule(ABC):
         self.commander = tcpip.Client(host="", port=0, log=self.log)
 
     def _iter_compoway_modules(self):
+        """Iterate over CompoWay-F register modules attached to this
+        controller.
+        """
         for value in vars(self).values():
             if isinstance(value, CompoWayFRegisterModule):
                 yield value
@@ -378,6 +634,18 @@ class CompoWayFModule(ABC):
                     await self.read_register(register)
 
     def _expected_node_subaddress(self, register):
+        """Build the expected CompoWay-F STX/node/subaddress prefix.
+
+        Parameters
+        ----------
+        register : `CompoWayFGeneralRegister`
+            Register whose node address is expected in the response.
+
+        Returns
+        -------
+        prefix : `str`
+            Expected start-of-frame, node, and subaddress text.
+        """
         expected = "\x02"
         if int(register.node) < 10:
             expected += "\x30"
@@ -385,12 +653,37 @@ class CompoWayFModule(ABC):
         return expected
 
     async def _write_frame(self, frame, simulation_mode=False):
+        """Write one CompoWay-F frame.
+
+        Parameters
+        ----------
+        frame : `str`
+            Encoded CompoWay-F frame text.
+        simulation_mode : `bool`, optional
+            If `True`, append a carriage return for the simulator transport.
+        """
         if simulation_mode:
             frame += "\r"
         await self.commander.write(frame.encode(self.commander.encoding))
 
     async def _read_common_response_header(self, register, expected_mrc_src):
-        stx_node_subadd = await self.commander.readexactly(5)
+        """Read and validate the common CompoWay-F response header.
+
+        Parameters
+        ----------
+        register : `CompoWayFGeneralRegister`
+            Register receiving parsed response fields.
+        expected_mrc_src : `str`
+            Expected MRC/SRC response code text.
+
+        Returns
+        -------
+        stx_node_subadd : `str`
+            Start-of-frame, node, and subaddress text read from the response.
+        mrc_src : `str`
+            MRC/SRC response code text read from the response.
+        """
+        stx_node_subadd = await self.commander.readexactly(STX_NODE_SUBADDRESS_LEN)
         stx_node_subadd = stx_node_subadd.decode()
         expected_stx_node_subadd = self._expected_node_subaddress(register)
         if stx_node_subadd != expected_stx_node_subadd:
@@ -398,20 +691,33 @@ class CompoWayFModule(ABC):
                 f"Received incorrect start of packet: {stx_node_subadd}, expected: {expected_stx_node_subadd}"
             )
 
-        register.end_code = await self.commander.readexactly(2)
+        register.end_code = await self.commander.readexactly(END_CODE_LEN)
         register.end_code = register.end_code.decode()
 
-        mrc_src = await self.commander.readexactly(4)
+        mrc_src = await self.commander.readexactly(MRC_SRC_LEN)
         mrc_src = mrc_src.decode()
         if mrc_src != expected_mrc_src:
             self.log.error(f"Received incorrect Request Codes: {mrc_src}, expected: {expected_mrc_src}")
 
-        register.response_code = await self.commander.readexactly(4)
+        register.response_code = await self.commander.readexactly(RESPONSE_CODE_LENGTH)
         register.response_code = register.response_code.decode()
 
         return stx_node_subadd, mrc_src
 
     async def _handle_data_read_response(self, register):
+        """Read, decode, and validate a CompoWay-F data-read response.
+
+        Parameters
+        ----------
+        register : `CompoWayFDataRegister`
+            Register to update from the response.
+
+        Returns
+        -------
+        value : `object`
+            Decoded register value, or ``-1`` if payload or BCC validation
+            fails.
+        """
         stx_node_subadd, mrc_src = await self._read_common_response_header(register, "\x30\x31\x30\x31")
 
         register.cmd_txt = await self.commander.readuntil(b"\x03")
@@ -423,7 +729,7 @@ class CompoWayFModule(ABC):
             self.log.error(f"Received no valid register value! {register.cmd_txt} {str(e)}")
             register.register_value = -1
 
-        register.bcc = await self.commander.readexactly(1)
+        register.bcc = await self.commander.readexactly(BCC_LEN)
         register.bcc = register.bcc.decode()
 
         bcc_frame = (
@@ -442,6 +748,15 @@ class CompoWayFModule(ABC):
         return register.register_value
 
     async def _handle_write_response(self, register, expected_mrc_src):
+        """Read and validate a CompoWay-F write response.
+
+        Parameters
+        ----------
+        register : `CompoWayFGeneralRegister`
+            Register receiving parsed response fields.
+        expected_mrc_src : `str`
+            Expected MRC/SRC response code text for the write operation.
+        """
         stx_node_subadd, mrc_src = await self._read_common_response_header(register, expected_mrc_src)
 
         if register.end_code != "\x30\x30":
@@ -456,7 +771,7 @@ class CompoWayFModule(ABC):
         if etx != "\x03":
             self.log.error(f"Received bad ETX: {etx} expected: \x03")
 
-        register.bcc = await self.commander.readexactly(1)
+        register.bcc = await self.commander.readexactly(BCC_LEN)
         register.bcc = register.bcc.decode()
 
         bcc_frame = (
@@ -467,6 +782,19 @@ class CompoWayFModule(ABC):
             self.log.error(f"Incorrect BCC, got: {register.bcc}, expected: {expected_bcc}")
 
     async def read_register(self, register):
+        """Read a CompoWay-F register.
+
+        Parameters
+        ----------
+        register : `CompoWayFDataRegister`
+            Register to read.
+
+        Returns
+        -------
+        value : `object`
+            Decoded register value, or the cached value if the response cannot
+            be parsed.
+        """
         async with self.lock:
             await self._write_frame(register.create_get_message(), simulation_mode=register.simulation_mode)
             try:
@@ -476,6 +804,26 @@ class CompoWayFModule(ABC):
                 return register.register_value
 
     async def write_register(self, register, value):
+        """Write a CompoWay-F register.
+
+        Parameters
+        ----------
+        register : `CompoWayFDataRegister` or `CompoWayFOperationRegister`
+            Register to write.
+        value : `object`
+            Value to write.
+
+        Returns
+        -------
+        value : `object`
+            Cached or read-back register value.
+
+        Raises
+        ------
+        TypeError
+            Raised if ``register`` is not a supported CompoWay-F register
+            type.
+        """
         if isinstance(register, CompoWayFOperationRegister):
             async with self.lock:
                 await self._write_frame(
@@ -512,11 +860,25 @@ class CompoWayFRegisterModule(ABC):
     """Container for CompoWay registers attached to temperature controller."""
 
     def iter_compoway_registers(self):
+        """Iterate over CompoWay-F registers attached to this module.
+
+        Yields
+        ------
+        register : `CompoWayFGeneralRegister`
+            A CompoWay-F register stored on this module.
+        """
         for value in vars(self).values():
             if isinstance(value, CompoWayFGeneralRegister):
                 yield value
 
     async def update_register(self, read_register):
+        """Refresh data registers attached to this module.
+
+        Parameters
+        ----------
+        read_register : callable
+            Coroutine function used to read each data register.
+        """
         for register in self.iter_compoway_registers():
             if isinstance(register, CompoWayFDataRegister):
                 await read_register(register)

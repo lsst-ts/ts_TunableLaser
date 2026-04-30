@@ -53,7 +53,29 @@ class CsvFormatError(RuntimeError):
 
 @dataclass(frozen=True)
 class RegisterRow:
-    """Structured representation of one register row from the vendor CSV."""
+    """Structured representation of one register row from the vendor CSV.
+
+    Attributes
+    ----------
+    module_name : `str`
+        Vendor module name.
+    module_id : `int`
+        Numeric module identifier.
+    register_id : `int`
+        Numeric register identifier.
+    data_type : `str`
+        Vendor data type token.
+    user_rights : `str`
+        Vendor access-rights token.
+    min_value : `str`
+        Raw minimum value field.
+    max_value : `str`
+        Raw maximum value field.
+    print_format : `str`
+        Raw print-format field.
+    register_name : `str`
+        Vendor register name.
+    """
 
     module_name: str
     module_id: int
@@ -67,6 +89,13 @@ class RegisterRow:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments.
+
+    Returns
+    -------
+    args : `argparse.Namespace`
+        Parsed command-line arguments.
+    """
     parser = argparse.ArgumentParser(
         description="Generate canbus module classes from a REMOTECONTROL CSV export."
     )
@@ -88,6 +117,23 @@ def parse_args() -> argparse.Namespace:
 
 
 def parse_device_name(header_line: str) -> str:
+    """Parse the device name from the CSV header line.
+
+    Parameters
+    ----------
+    header_line : `str`
+        The header line from the CSV file.
+
+    Returns
+    -------
+    device_name : `str`
+        Device name from the header line.
+
+    Raises
+    ------
+    CsvFormatError
+        Raised if the header line does not match the expected vendor format.
+    """
     match = DEVICE_LINE_PATTERN.match(header_line.strip())
     if not match:
         raise CsvFormatError("First line must look like 'Device: <laser name>,  Date: <date>'.")
@@ -95,6 +141,23 @@ def parse_device_name(header_line: str) -> str:
 
 
 def parse_hex_value(value: str) -> int:
+    """Parse a vendor hexadecimal field.
+
+    Parameters
+    ----------
+    value : `str`
+        Raw hexadecimal value. Values may be prefixed with ``$``.
+
+    Returns
+    -------
+    parsed : `int`
+        Parsed integer value.
+
+    Raises
+    ------
+    CsvFormatError
+        Raised if ``value`` is empty.
+    """
     cleaned = value.strip()
     if not cleaned:
         raise CsvFormatError("Expected a hexadecimal value but found an empty field.")
@@ -104,6 +167,18 @@ def parse_hex_value(value: str) -> int:
 
 
 def sanitize_identifier(text: str) -> str:
+    """Convert text into a valid Python identifier fragment.
+
+    Parameters
+    ----------
+    text : `str`
+        Raw text to sanitize.
+
+    Returns
+    -------
+    identifier : `str`
+        Identifier-safe text.
+    """
     identifier = re.sub(r"[^0-9a-zA-Z_]+", "_", text.strip())
     identifier = re.sub(r"_+", "_", identifier).strip("_")
     if not identifier:
@@ -116,15 +191,50 @@ def sanitize_identifier(text: str) -> str:
 
 
 def encode_register_name(register_name: str) -> str:
-    """Percent-encode path separators that would split an ASCII command."""
+    """Percent-encode path separators that would split an ASCII command.
+
+    Parameters
+    ----------
+    register_name : `str`
+        The register name to encode.
+
+    Returns
+    -------
+    encoded : `str`
+        Register name with literal ``/`` characters encoded as ``%2f``.
+    """
     return register_name.replace("/", "%2f")
 
 
 def to_module_name(device_name: str) -> str:
+    """Return the Python module name for a vendor device.
+
+    Parameters
+    ----------
+    device_name : `str`
+        The device name to sanitize.
+
+    Returns
+    -------
+    module_name : `str`
+        Lowercase sanitized module name.
+    """
     return sanitize_identifier(device_name).lower()
 
 
 def to_class_name(module_name: str) -> str:
+    """Convert a vendor module name to a Python class name.
+
+    Parameters
+    ----------
+    module_name : `str`
+        The module name to convert.
+
+    Returns
+    -------
+    class_name : `str`
+        Valid Python class name.
+    """
     parts = re.findall(r"[0-9A-Za-z]+", module_name)
     if not parts:
         return "GeneratedModule"
@@ -141,6 +251,24 @@ def to_class_name(module_name: str) -> str:
 
 
 def to_attr_name(register_name: str, module_id: int, register_id: int, seen: set[str]) -> str:
+    """Convert a register identity into a unique Python attribute name.
+
+    Parameters
+    ----------
+    register_name : `str`
+        The register name.
+    module_id : `int`
+        The module ID.
+    register_id : `int`
+        The register ID.
+    seen : `set` [`str`]
+        Attribute names already assigned within the generated class.
+
+    Returns
+    -------
+    attr_name : `str`
+        Unique register attribute name.
+    """
     base = sanitize_identifier(register_name).lower()
     attr_name = f"{base}_id_0x{module_id:02x}_register"
     if attr_name in seen:
@@ -160,6 +288,16 @@ def is_writable(user_rights: str) -> bool:
     The vendor CSV uses tokens such as ``ArUrSr`` for read-only access and
     values such as ``AUS`` or ``AUrS`` when at least one privilege level can
     write. A bare ``A``, ``U`` or ``S`` token therefore indicates write access.
+
+    Parameters
+    ----------
+    user_rights : `str`
+        The raw user rights string.
+
+    Returns
+    -------
+    writable : `bool`
+        `True` if any user class has write access.
     """
 
     tokens = re.findall(r"A[r]?|U[r]?|S[r]?", user_rights.strip())
@@ -167,6 +305,20 @@ def is_writable(user_rights: str) -> bool:
 
 
 def parse_numeric_bound(value: str, data_type: str) -> int | None:
+    """Parse a numeric CSV bound.
+
+    Parameters
+    ----------
+    value : `str`
+        Raw bound value.
+    data_type : `str`
+        Vendor data type token.
+
+    Returns
+    -------
+    bound : `int` or `None`
+        Parsed integer bound, or `None` if the field is empty.
+    """
     cleaned = value.strip()
     if not cleaned:
         return None
@@ -176,6 +328,25 @@ def parse_numeric_bound(value: str, data_type: str) -> int | None:
 
 
 def accepted_values_expression(row: RegisterRow) -> str | None:
+    """Build source code for an ``accepted_values`` argument.
+
+    Parameters
+    ----------
+    row : `RegisterRow`
+        The register row object.
+
+    Returns
+    -------
+    expression : `str` or `None`
+        Python source expression for accepted values, or `None` if the row has
+        no usable bounds.
+
+    Raises
+    ------
+    CsvFormatError
+        Raised if print-format choices cannot be reconciled with numeric
+        bounds.
+    """
     print_values = parse_print_format_values(row.print_format)
     if print_values is not None:
         min_value = parse_numeric_bound(row.min_value, row.data_type)
@@ -197,6 +368,18 @@ def accepted_values_expression(row: RegisterRow) -> str | None:
 
 
 def parse_print_format_values(print_format: str) -> list[str] | None:
+    """Parse bracketed vendor print-format choices.
+
+    Parameters
+    ----------
+    print_format : `str`
+        Raw print-format field.
+
+    Returns
+    -------
+    values : `list` [`str`] or `None`
+        Parsed values when ``print_format`` is bracketed, otherwise `None`.
+    """
     cleaned = print_format.strip()
     if not (cleaned.startswith("[") and cleaned.endswith("]")):
         return None
@@ -206,6 +389,25 @@ def parse_print_format_values(print_format: str) -> list[str] | None:
 
 
 def load_rows(csv_file: Path) -> tuple[str, list[RegisterRow]]:
+    """Load register rows from a vendor REMOTECONTROL CSV file.
+
+    Parameters
+    ----------
+    csv_file : `pathlib.Path`
+        CSV file to parse.
+
+    Returns
+    -------
+    device_name : `str`
+        Device name parsed from the CSV header.
+    rows : `list` [`RegisterRow`]
+        Parsed register rows.
+
+    Raises
+    ------
+    CsvFormatError
+        Raised if the file does not match the expected vendor layout.
+    """
     with csv_file.open(newline="", encoding="utf-8") as handle:
         reader = csv.reader(handle, delimiter=";")
         header_line = next(reader, None)
@@ -254,6 +456,18 @@ def load_rows(csv_file: Path) -> tuple[str, list[RegisterRow]]:
 
 
 def group_rows_by_module(rows: list[RegisterRow]) -> dict[str, list[RegisterRow]]:
+    """Group register rows by vendor module name.
+
+    Parameters
+    ----------
+    rows : `list` [`RegisterRow`]
+        Register rows to group.
+
+    Returns
+    -------
+    grouped : `dict` [`str`, `list` [`RegisterRow`]]
+        Mapping from module name to rows for that module.
+    """
     grouped: dict[str, list[RegisterRow]] = {}
     for row in rows:
         grouped.setdefault(row.module_name, []).append(row)
@@ -261,14 +475,54 @@ def group_rows_by_module(rows: list[RegisterRow]) -> dict[str, list[RegisterRow]
 
 
 def parse_statement(source: str) -> cst.BaseStatement:
+    """Parse a Python statement into a LibCST node.
+
+    Parameters
+    ----------
+    source : `str`
+        Python statement source.
+
+    Returns
+    -------
+    statement : `libcst.BaseStatement`
+        Parsed statement node.
+    """
     return cst.parse_statement(textwrap.dedent(source).strip() + "\n")
 
 
 def make_assign_statement(target: str, expression: str) -> cst.BaseStatement:
+    """Build an assignment statement.
+
+    Parameters
+    ----------
+    target : `str`
+        Assignment target source.
+    expression : `str`
+        Assignment expression source.
+
+    Returns
+    -------
+    statement : `libcst.BaseStatement`
+        Parsed assignment statement.
+    """
     return parse_statement(f"{target} = {expression}")
 
 
 def build_init_method(module_name: str, rows: list[RegisterRow]) -> cst.FunctionDef:
+    """Build a generated module class ``__init__`` method.
+
+    Parameters
+    ----------
+    module_name : `str`
+        Vendor module name.
+    rows : `list` [`RegisterRow`]
+        Register rows for this module.
+
+    Returns
+    -------
+    method : `libcst.FunctionDef`
+        Generated ``__init__`` method.
+    """
     unique_module_ids = list(dict.fromkeys(row.module_id for row in rows))
     body: list[cst.BaseStatement] = [parse_statement("super().__init__()")]
     body.append(make_assign_statement("self.name", repr(module_name)))
@@ -332,7 +586,21 @@ def build_init_method(module_name: str, rows: list[RegisterRow]) -> cst.Function
 
 
 def build_class_definition(module_name: str, rows: list[RegisterRow]) -> cst.ClassDef:
-    docstring = f"Auto-generated canbus register container for the vendor module {module_name!r}."
+    """Build a generated CAN bus module class.
+
+    Parameters
+    ----------
+    module_name : `str`
+        Vendor module name.
+    rows : `list` [`RegisterRow`]
+        Register rows for this module.
+
+    Returns
+    -------
+    class_def : `libcst.ClassDef`
+        Generated class definition.
+    """
+    docstring = f'"""Auto-generated canbus register container.\n\nVendor module: {module_name!r}.\n"""'
     return cst.ClassDef(
         name=cst.Name(to_class_name(module_name)),
         bases=[
@@ -345,7 +613,7 @@ def build_class_definition(module_name: str, rows: list[RegisterRow]) -> cst.Cla
         ],
         body=cst.IndentedBlock(
             body=[
-                parse_statement(f'"""{docstring}"""'),
+                parse_statement(docstring),
                 build_init_method(module_name=module_name, rows=rows),
             ]
         ),
@@ -353,6 +621,22 @@ def build_class_definition(module_name: str, rows: list[RegisterRow]) -> cst.Cla
 
 
 def render_module(device_name: str, source_csv: Path, rows: list[RegisterRow]) -> str:
+    """Render a complete generated Python module.
+
+    Parameters
+    ----------
+    device_name : `str`
+        Vendor device name.
+    source_csv : `pathlib.Path`
+        Source CSV path used for generated-file metadata.
+    rows : `list` [`RegisterRow`]
+        Register rows to render.
+
+    Returns
+    -------
+    source : `str`
+        Formatted Python source for the generated module.
+    """
     grouped_rows = group_rows_by_module(rows)
     class_names = [to_class_name(module_name) for module_name in grouped_rows]
 
@@ -381,6 +665,13 @@ def render_module(device_name: str, source_csv: Path, rows: list[RegisterRow]) -
 
 
 def ensure_package_dir(output_dir: Path) -> None:
+    """Create the output package directory if needed.
+
+    Parameters
+    ----------
+    output_dir : `pathlib.Path`
+        Directory that will contain generated modules.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     init_file = output_dir / "__init__.py"
     if not init_file.exists():
@@ -388,6 +679,13 @@ def ensure_package_dir(output_dir: Path) -> None:
 
 
 def main() -> int:
+    """Run the generator command-line program.
+
+    Returns
+    -------
+    status : `int`
+        Process exit status.
+    """
     args = parse_args()
     device_name, rows = load_rows(args.csv_file)
     output_dir = args.output_dir.resolve()

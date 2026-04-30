@@ -40,8 +40,13 @@ from lsst.ts import tcpip, utils
 
 from .compoway_register import CompoWayFGeneralRegister
 from .enums import Mode, OpticalConfiguration, Output, Power
-
-TERMINATOR = b"\r\n\x03"
+from .wizardry import (
+    MOCK_COMPOWAY_READ_CAP,
+    MOCK_SERVER_TERMINATOR,
+    MOCK_STABLE_REPLY_WEIGHT,
+    MOCK_STATUS_PUBLISH_INTERVAL,
+    MOCK_UNSTABLE_REPLY_WEIGHT,
+)
 
 
 class StubbsLaserServer(tcpip.OneClientReadLoopServer):
@@ -61,10 +66,18 @@ class StubbsLaserServer(tcpip.OneClientReadLoopServer):
             log=logging.getLogger(__name__),
             name="Stubbs Mock Laser",
             encoding="ascii",
-            terminator=TERMINATOR,
+            terminator=MOCK_SERVER_TERMINATOR,
         )
 
     async def read_and_dispatch(self):
+        """Read one ASCII command and write the mock Stubbs response.
+
+        Raises
+        ------
+        asyncio.IncompleteReadError
+            Raised by the underlying stream if the client disconnects before a
+            complete command is read.
+        """
         reply = await self.readuntil(b"\r")
         reply = reply.strip(self.terminator).decode(self.encoding)
         reply = self.device.parse_message(reply)
@@ -90,14 +103,24 @@ class MainLaserServer(tcpip.OneClientReadLoopServer):
             host=tcpip.LOCAL_HOST,
             port=port,
             log=self.log,
-            terminator=TERMINATOR,
+            terminator=MOCK_SERVER_TERMINATOR,
             encoding="ascii",
         )
 
     async def read_and_dispatch(self):
-        """Return reply based on messaged received."""
+        """Read one ASCII command and write the simulated laser response.
+
+        Raises
+        ------
+        asyncio.IncompleteReadError
+            Raised by the underlying stream if the client disconnects before a
+            complete command is read.
+        """
         if self.simulate_connection_unstability:
-            unstable = random.choices([True, False], [0.3, 0.7])
+            unstable = random.choices(
+                [True, False],
+                [MOCK_UNSTABLE_REPLY_WEIGHT, MOCK_STABLE_REPLY_WEIGHT],
+            )
         else:
             unstable = [False]
         reply = await self.readuntil(b"\r")
@@ -111,6 +134,16 @@ class MainLaserServer(tcpip.OneClientReadLoopServer):
 
 
 class MockFanControlServer(tcpip.OneClientServer):
+    """Simulate the fan-control status side-channel server.
+
+    Attributes
+    ----------
+    send_messages_task : `asyncio.Future` or `asyncio.Task`
+        Background publisher task.
+    status : `bool`
+        Current simulated fan-control status.
+    """
+
     def __init__(self):
         self.send_messages_task = utils.make_done_future()
         self._status = False
@@ -119,22 +152,62 @@ class MockFanControlServer(tcpip.OneClientServer):
 
     @property
     def status(self):
+        """Current fan-control status.
+
+        Returns
+        -------
+        status : `bool`
+            Current simulated fan-control status.
+        """
         return self._status
 
     @status.setter
     def status(self, status):
+        """Set fan-control status and mark it for publication.
+
+        Parameters
+        ----------
+        status : `bool`
+            New simulated status value.
+        """
         self._status = status
         self._did_change = True
 
     async def start(self, **kwargs):
+        """Start the server and its status publishing task.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments forwarded to the superclass ``start`` method.
+
+        Returns
+        -------
+        result : `object`
+            Result returned by the superclass ``start`` method.
+        """
         self.send_messages_task = asyncio.create_task(self.send_messages())
         return await super().start(**kwargs)
 
     async def close(self):
+        """Close the server and cancel its status publishing task.
+
+        Returns
+        -------
+        result : `object`
+            Result returned by the superclass ``close`` method.
+        """
         self.send_messages_task.cancel()
         return await super().close()
 
     async def send_messages(self):
+        """Publish status messages when the simulated status changes.
+
+        Raises
+        ------
+        asyncio.CancelledError
+            Raised when the background task is cancelled during server close.
+        """
         self.status = False
         while True:
             if self.connected:
@@ -142,10 +215,20 @@ class MockFanControlServer(tcpip.OneClientServer):
                 if self._did_change:
                     await self.write_json(msg)
                     self._did_change = False
-            await asyncio.sleep(1)
+            await asyncio.sleep(MOCK_STATUS_PUBLISH_INTERVAL)
 
 
 class MockLaserAlignmentServer(tcpip.OneClientServer):
+    """Simulate the laser-alignment status side-channel server.
+
+    Attributes
+    ----------
+    send_messages_task : `asyncio.Future` or `asyncio.Task`
+        Background publisher task.
+    status : `bool`
+        Current simulated laser-alignment status.
+    """
+
     def __init__(self):
         self.send_messages_task = utils.make_done_future()
         self._status = False
@@ -154,22 +237,62 @@ class MockLaserAlignmentServer(tcpip.OneClientServer):
 
     @property
     def status(self):
+        """Current laser-alignment status.
+
+        Returns
+        -------
+        status : `bool`
+            Current simulated laser-alignment status.
+        """
         return self._status
 
     @status.setter
     def status(self, status):
+        """Set laser-alignment status and mark it for publication.
+
+        Parameters
+        ----------
+        status : `bool`
+            New simulated status value.
+        """
         self._status = status
         self._did_change = True
 
     async def start(self, **kwargs):
+        """Start the server and its status publishing task.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments forwarded to the superclass ``start`` method.
+
+        Returns
+        -------
+        result : `object`
+            Result returned by the superclass ``start`` method.
+        """
         self.send_messages_task = asyncio.create_task(self.send_messages())
         return await super().start(**kwargs)
 
     async def close(self):
+        """Close the server and cancel its status publishing task.
+
+        Returns
+        -------
+        result : `object`
+            Result returned by the superclass ``close`` method.
+        """
         self.send_messages_task.cancel()
         return await super().close()
 
     async def send_messages(self):
+        """Publish status messages when the simulated status changes.
+
+        Raises
+        ------
+        asyncio.CancelledError
+            Raised when the background task is cancelled during server close.
+        """
         self.status = False
         while True:
             if self.connected:
@@ -177,7 +300,7 @@ class MockLaserAlignmentServer(tcpip.OneClientServer):
                 if self._did_change:
                     await self.write_json(msg)
                     self._did_change = False
-            await asyncio.sleep(1)
+            await asyncio.sleep(MOCK_STATUS_PUBLISH_INTERVAL)
 
 
 class TempCtrlServer(tcpip.OneClientReadLoopServer):
@@ -185,6 +308,8 @@ class TempCtrlServer(tcpip.OneClientReadLoopServer):
 
     Parameters
     ----------
+    host : `str`, optional
+        The host interface that the server will bind.
     port : `int`, optional
         The port that the server will start on.
     """
@@ -203,8 +328,15 @@ class TempCtrlServer(tcpip.OneClientReadLoopServer):
         )
 
     async def read_and_dispatch(self):
+        """Read one CompoWay-F command and write the temperature response.
+
+        Raises
+        ------
+        asyncio.IncompleteReadError
+            Raised by the underlying stream if the client disconnects before a
+            complete command is read.
+        """
         if self.device is not None:
-            """Return reply based on messaged received."""
             reply = await self.readuntil(b"\r")
             reply = reply.strip(self.terminator)
             reply = self.device.parse_message(reply)
@@ -246,6 +378,13 @@ class MockMessage:
             raise Exception("Message malformed")
 
     def __repr__(self):
+        """Return a multiline representation of the parsed ASCII message.
+
+        Returns
+        -------
+        representation : `str`
+            Multiline summary of the parsed register name, ID, and field.
+        """
         return f"{self.register_name}\n{self.register_id}\n{self.register_field}\n"
 
 
@@ -292,7 +431,7 @@ class MockCompoWayFMessage:
                 # is to make a dictionary like its done for register add
                 # Doing range 64 for comfort, should only be 4 + 1 for ETX
                 self.cmd_txt = ""
-                for _ in range(64):
+                for _ in range(MOCK_COMPOWAY_READ_CAP):
                     byte = f.read(1).decode()
                     # ETX byte
                     if byte == "\x03":
@@ -332,6 +471,13 @@ class MockCompoWayFMessage:
             raise Exception("Message malformed")
 
     def __repr__(self):
+        """Return a multiline representation of the parsed CompoWay-F message.
+
+        Returns
+        -------
+        representation : `str`
+            Multiline summary of parsed node, command, payload, and BCC.
+        """
         return f"{self.node}\n{self.MRC}\n{self.SRC}\n{self.cmd_txt}\n{self.bcc}"
 
 
@@ -340,8 +486,10 @@ class MockNP5450:
 
     Attributes
     ----------
-    temperature : `float`
-        The temperature of the laser.
+    e5dcb_setpoint_temperature : `str` or `int`
+        Simulated E5DCB setpoint payload.
+    run_stop : `bool`
+        Simulated run/stop state.
     log : `logging.Logger`
         The log for this class.
     """
@@ -357,7 +505,7 @@ class MockNP5450:
 
         Parameters
         ----------
-        value : `int`
+        value : `int` or `str`
             The value to check.
         min : `int`
             The minimum value.
@@ -367,9 +515,7 @@ class MockNP5450:
         Returns
         -------
         reply : `str`
-            if too low: return error
-            if too high: return error
-            if successful: return empty message
+            Empty string for success, or a vendor-style range error.
         """
         if int(value) < min:
             reply = "'''Error: (12) Violating bottom value limit"
@@ -391,8 +537,13 @@ class MockNP5450:
 
         Returns
         -------
-        reply : `bytes`
+        reply : `str`
             The reply of the command parsed.
+
+        Raises
+        ------
+        Exception
+            Raised if the command cannot be parsed or dispatched.
         """
         try:
             self.log.info(msg)
@@ -450,6 +601,18 @@ class MockNP5450:
             pass
 
     def do_set_01_sp(self, data):
+        """Set the simulated Omron setpoint.
+
+        Parameters
+        ----------
+        data : `str`
+            Encoded setpoint payload.
+
+        Returns
+        -------
+        reply : `str`
+            CompoWay-F write acknowledgement.
+        """
         self.e5dcb_setpoint_temperature = data
         returnmsg = "\x30\x31" + "\x30\x30"  # node and subaddress
         returnmsg += "\x30\x30"  # end code
@@ -462,6 +625,13 @@ class MockNP5450:
         return returnmsg
 
     def do_get_01_sp(self):
+        """Return the simulated Omron setpoint response.
+
+        Returns
+        -------
+        reply : `str`
+            CompoWay-F data-read response containing the setpoint payload.
+        """
         returnmsg = "\x30\x31" + "\x30\x30"
         returnmsg += "\x30\x30"  # end code
         returnmsg += "\x30\x31\x30\x31"  # mrc/src
@@ -474,6 +644,18 @@ class MockNP5450:
         return returnmsg
 
     def do_set_op_01_runstop(self, data):
+        """Set the simulated Omron run/stop state.
+
+        Parameters
+        ----------
+        data : `str`
+            Encoded operation-register related-info payload.
+
+        Returns
+        -------
+        reply : `str`
+            CompoWay-F operation acknowledgement.
+        """
         run_stop_related_info = {
             "\x30\x30": True,  # on
             "\x30\x31": False,  # off
@@ -498,13 +680,24 @@ class MockNP5450:
 
         Returns
         -------
-        `str`
+        temperature : `str`
+            Temperature setpoint formatted with a ``C`` suffix.
         """
         return f"{self.e5dcb_setpoint_temperature}C"
 
 
 class BaseMockEksplaLaser:
-    """Shared ASCII command handling for Ekspla laser mocks."""
+    """Shared ASCII command handling for Ekspla laser mocks.
+
+    Attributes
+    ----------
+    wavelength : `int`
+        Simulated wavelength in nanometers.
+    propagation_mode : `Mode`
+        Simulated propagation mode.
+    output_energy_level : `Output`
+        Simulated output energy setting.
+    """
 
     def __init__(self):
         self.log = logging.getLogger(__name__)
@@ -531,6 +724,18 @@ class BaseMockEksplaLaser:
         self.tk6_45_temperature = "50.12"
 
     def _normalize_token(self, token):
+        """Normalize an ASCII command path token into a Python identifier part.
+
+        Parameters
+        ----------
+        token : `str`
+            Raw module or register path token.
+
+        Returns
+        -------
+        normalized : `str`
+            Lowercase identifier-safe token.
+        """
         token = token.strip().lower()
         token = token.replace("%2f", "_").replace("/", "_").replace(" ", "_")
         token = re.sub(r"[^0-9a-z_]+", "_", token)
@@ -538,6 +743,24 @@ class BaseMockEksplaLaser:
         return token
 
     def _make_command_name(self, register_name, register_id, register_field, has_parameter):
+        """Build the mock handler name for an ASCII command.
+
+        Parameters
+        ----------
+        register_name : `str`
+            Module name token from the command path.
+        register_id : `str`
+            Numeric module ID token from the command path.
+        register_field : `str`
+            Register name token from the command path.
+        has_parameter : `bool`
+            Whether the command includes a value to write.
+
+        Returns
+        -------
+        command_name : `str`
+            Handler method name to look up on the mock device.
+        """
         prefix = "do_set_" if has_parameter else "do_"
         return (
             f"{prefix}{self._normalize_token(register_name)}_"
@@ -545,7 +768,25 @@ class BaseMockEksplaLaser:
         )
 
     def parse_message(self, msg):
-        """Parse a laser ASCII message and dispatch to a mock handler."""
+        """Parse a laser ASCII message and dispatch to a mock handler.
+
+        Parameters
+        ----------
+        msg : `str`
+            The raw message decoded.
+
+        Returns
+        -------
+        reply : `str`
+            The reply received from the mock device.
+
+        Raises
+        ------
+        ValueError
+            Raised if the message path is malformed.
+        Exception
+            Re-raised if a handler fails unexpectedly.
+        """
         try:
             self.log.info(msg)
             parts = msg.strip().split("/")
@@ -583,6 +824,22 @@ class BaseMockEksplaLaser:
             raise
 
     def check_limits(self, value, min, max):
+        """Check whether a numeric value is inside inclusive limits.
+
+        Parameters
+        ----------
+        value : `str` or `float`
+            Value to validate.
+        min : `int`
+            Inclusive lower bound.
+        max : `int`
+            Inclusive upper bound.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style error string.
+        """
         if int(float(value)) < min:
             return "'''Error: (12) Violating bottom value limit"
         if int(float(value)) > max:
@@ -590,9 +847,32 @@ class BaseMockEksplaLaser:
         return ""
 
     def _wrong_value_error(self):
+        """Return the wrong value error message.
+
+        Returns
+        -------
+        reply : `str`
+            Vendor-style wrong-value error response.
+        """
         return "'''Error: (13) Wrong value, not included in allowed values list"
 
     def _set_enum(self, attribute_name, enum_type, raw_value):
+        """Set a mock enum-valued register.
+
+        Parameters
+        ----------
+        attribute_name : `str`
+            Mock device attribute to update.
+        enum_type : `type`
+            Enum class that defines accepted values.
+        raw_value : `object`
+            Value received from the ASCII command.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style wrong-value error.
+        """
         try:
             if isinstance(raw_value, enum_type):
                 value = raw_value
@@ -610,91 +890,348 @@ class BaseMockEksplaLaser:
             return self._wrong_value_error()
 
     def _set_int_range(self, attribute_name, raw_value, min_value, max_value):
+        """Set a mock integer register after range validation.
+
+        Parameters
+        ----------
+        attribute_name : `str`
+            Mock device attribute to update.
+        raw_value : `str`
+            Value received from the ASCII command.
+        min_value : `int`
+            Inclusive lower bound.
+        max_value : `int`
+            Inclusive upper bound.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style range error.
+        """
         reply = self.check_limits(raw_value, min_value, max_value)
         if not reply.startswith("'''"):
             setattr(self, attribute_name, int(float(raw_value)))
         return reply
 
     def do_cpu8000_16_power(self):
+        """Return the simulated CPU8000 power state.
+
+        Returns
+        -------
+        reply : `str`
+            Current CPU8000 power state.
+        """
         return f"{self.cpu8000_power}"
 
     def do_set_cpu8000_16_power(self, state):
+        """Set the simulated CPU8000 power state.
+
+        Parameters
+        ----------
+        state : `str`
+            Requested power state.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style wrong-value error.
+        """
         return self._set_enum("cpu8000_power", Power, state)
 
     def do_m_cpu800_17_power(self):
+        """Return the simulated M_CPU800 controller power state.
+
+        Returns
+        -------
+        reply : `str`
+            Current M_CPU800 controller power state.
+        """
         return f"{self.m_cpu800_power}"
 
     def do_set_m_cpu800_17_power(self, state):
+        """Set the simulated M_CPU800 controller power state.
+
+        Parameters
+        ----------
+        state : `str`
+            Requested power state.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style wrong-value error.
+        """
         return self._set_enum("m_cpu800_power", Power, state)
 
     def do_m_cpu800_17_fault_code(self):
+        """Return the simulated M_CPU800 controller fault code.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated fault code.
+        """
         return "0"
 
     def do_m_cpu800_17_display_current(self):
+        """Return the simulated M_CPU800 controller current.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated controller current.
+        """
         return f"{self.m_cpu800_current}"
 
     def do_m_cpu800_18_power(self):
+        """Return the simulated propagation power state.
+
+        Returns
+        -------
+        reply : `str`
+            Current propagation power state.
+        """
         return f"{self.propagating}"
 
     def do_set_m_cpu800_18_power(self, state):
+        """Set the simulated propagation power state.
+
+        Parameters
+        ----------
+        state : `str`
+            Requested power state.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style wrong-value error.
+        """
         return self._set_enum("propagating", Power, state)
 
     def do_m_cpu800_18_fault_code(self):
+        """Return the simulated propagation fault code.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated fault code.
+        """
         return "0"
 
     def do_m_cpu800_18_display_current(self):
+        """Return the simulated propagation current.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated propagation current.
+        """
         return f"{self.m_cpu800_current}"
 
     def do_cpu8000_16_display_current(self):
+        """Return the simulated CPU8000 current.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated CPU8000 current.
+        """
         return f"{self.cpu8000_current}"
 
     def do_cpu8000_16_fault_code(self):
+        """Return the simulated CPU8000 fault code.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated fault code.
+        """
         return "0"
 
     def do_m_cpu800_18_diode_current_on(self):
+        """Return the simulated diode-current state.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated diode-current state.
+        """
         return f"{self.diode_current_on}"
 
     def do_set_m_cpu800_18_diode_current_on(self, state):
+        """Set the simulated diode-current state.
+
+        Parameters
+        ----------
+        state : `str`
+            Requested diode-current state.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success.
+        """
         self.diode_current_on = state
         return ""
 
     def do_m_cpu800_18_continuous_burst_mode_trigger_burst(self):
+        """Return the simulated propagation mode.
+
+        Returns
+        -------
+        reply : `str`
+            Current propagation mode.
+        """
         return f"{self.propagation_mode}"
 
     def do_set_m_cpu800_18_continuous_burst_mode_trigger_burst(self, mode):
+        """Set the simulated propagation mode.
+
+        Parameters
+        ----------
+        mode : `str`
+            Requested propagation mode.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style wrong-value error.
+        """
         return self._set_enum("propagation_mode", Mode, mode)
 
     def do_m_cpu800_18_output_energy_level(self):
+        """Return the simulated output energy level.
+
+        Returns
+        -------
+        reply : `str`
+            Current output energy level.
+        """
         return f"{self.output_energy_level}"
 
     def do_set_m_cpu800_18_output_energy_level(self, energy_level):
+        """Set the simulated output energy level.
+
+        Parameters
+        ----------
+        energy_level : `str`
+            Requested output energy level.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style wrong-value error.
+        """
         return self._set_enum("output_energy_level", Output, energy_level)
 
     def do_m_cpu800_18_frequency_divider(self):
+        """Return the simulated frequency divider.
+
+        Returns
+        -------
+        reply : `str`
+            Current frequency divider.
+        """
         return f"{self.frequency_divider}"
 
     def do_set_m_cpu800_18_frequency_divider(self, value):
+        """Set the simulated frequency divider.
+
+        Parameters
+        ----------
+        value : `str`
+            Requested frequency divider.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style range error.
+        """
         return self._set_int_range("frequency_divider", value, 1, 5000)
 
     def do_m_cpu800_18_burst_pulses_to_go(self):
+        """Return the simulated remaining burst-pulse count.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated remaining burst-pulse count.
+        """
         return "0"
 
     def do_m_cpu800_18_qsw_adjustment_output_delay(self):
+        """Return the simulated QSW adjustment output delay.
+
+        Returns
+        -------
+        reply : `str`
+            Current QSW adjustment output delay.
+        """
         return f"{self.qsw_adjustment_output_delay}"
 
     def do_set_m_cpu800_18_qsw_adjustment_output_delay(self, value):
+        """Set the simulated QSW adjustment output delay.
+
+        Parameters
+        ----------
+        value : `str`
+            Requested output delay.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style range error.
+        """
         return self._set_int_range("qsw_adjustment_output_delay", value, 50, 1000)
 
     def do_m_cpu800_18_repetition_rate(self):
+        """Return the simulated repetition rate.
+
+        Returns
+        -------
+        reply : `str`
+            Current repetition rate.
+        """
         return f"{self.repetition_rate}"
 
     def do_set_m_cpu800_18_repetition_rate(self, value):
+        """Set the simulated repetition rate.
+
+        Parameters
+        ----------
+        value : `str`
+            Requested repetition rate.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style range error.
+        """
         return self._set_int_range("repetition_rate", value, 1, 11000)
 
     def do_m_cpu800_18_synchronization_mode(self):
+        """Return the simulated synchronization mode.
+
+        Returns
+        -------
+        reply : `str`
+            Current synchronization mode.
+        """
         return f"{self.synchronization_mode}"
 
     def do_set_m_cpu800_18_synchronization_mode(self, value):
+        """Set the simulated synchronization mode.
+
+        Parameters
+        ----------
+        value : `str`
+            Requested synchronization mode.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style wrong-value error.
+        """
         accepted_values = ["Internal", "External"]
         if value not in accepted_values:
             self.log.error(f"{value} not in {accepted_values}")
@@ -703,33 +1240,111 @@ class BaseMockEksplaLaser:
         return ""
 
     def do_m_cpu800_18_burst_length(self):
+        """Return the simulated burst length.
+
+        Returns
+        -------
+        reply : `str`
+            Current burst length.
+        """
         return f"{self.burst_length}"
 
     def do_set_m_cpu800_18_burst_length(self, count):
+        """Set the simulated burst length.
+
+        Parameters
+        ----------
+        count : `str`
+            Requested burst length.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style range error.
+        """
         return self._set_int_range("burst_length", count, 1, 50000)
 
     def do_m_cpu800_18_external_interlock_state(self):
+        """Return the simulated external interlock state.
+
+        Returns
+        -------
+        reply : `str`
+            Current external interlock state.
+        """
         return f"{self.external_interlock_state}"
 
     def do_tk6_44_display_temperature(self):
+        """Return the simulated TK6 module 44 display temperature.
+
+        Returns
+        -------
+        reply : `str`
+            Current TK6 module 44 display temperature.
+        """
         return f"{self.tk6_44_temperature}"
 
     def do_tk6_44_set_temperature(self):
+        """Return the simulated TK6 module 44 set temperature.
+
+        Returns
+        -------
+        reply : `str`
+            Current TK6 module 44 set temperature.
+        """
         return f"{self.tk6_44_temperature}"
 
     def do_set_tk6_44_set_temperature(self, value):
+        """Set the simulated TK6 module 44 temperature setpoint.
+
+        Parameters
+        ----------
+        value : `str`
+            Requested setpoint.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style range error.
+        """
         reply = self.check_limits(value, -2300, 26600)
         if not reply.startswith("'''"):
             self.tk6_44_temperature = value
         return reply
 
     def do_tk6_45_display_temperature(self):
+        """Return the simulated TK6 module 45 display temperature.
+
+        Returns
+        -------
+        reply : `str`
+            Current TK6 module 45 display temperature.
+        """
         return f"{self.tk6_45_temperature}"
 
     def do_tk6_45_set_temperature(self):
+        """Return the simulated TK6 module 45 set temperature.
+
+        Returns
+        -------
+        reply : `str`
+            Current TK6 module 45 set temperature.
+        """
         return f"{self.tk6_45_temperature}"
 
     def do_set_tk6_45_set_temperature(self, value):
+        """Set the simulated TK6 module 45 temperature setpoint.
+
+        Parameters
+        ----------
+        value : `str`
+            Requested setpoint.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style range error.
+        """
         reply = self.check_limits(value, -2300, 26600)
         if not reply.startswith("'''"):
             self.tk6_45_temperature = value
@@ -737,78 +1352,241 @@ class BaseMockEksplaLaser:
 
 
 class MockNT252(BaseMockEksplaLaser):
-    """Implement the mock NT252 device."""
+    """Implement the mock NT252 device.
+
+    Notes
+    -----
+    Handler methods return string payloads that emulate the laser ASCII API.
+    Writable handlers return an empty string on success or a vendor-style
+    error string on failure.
+    """
 
     def __init__(self) -> None:
         super().__init__()
         self.log.debug("MockNT252 initialized")
 
     def do_ph_532_55_power(self):
+        """Return the simulated PH_532 power.
+
+        Returns
+        -------
+        reply : `str`
+            Current PH_532 power value.
+        """
         return f"{self.ph532_power}"
 
     def do_midiopg_31_wavelength(self):
+        """Return the simulated MidiOPG wavelength.
+
+        Returns
+        -------
+        reply : `str`
+            Current wavelength with ``nm`` suffix.
+        """
         return f"{self.wavelength}nm"
 
     def do_set_midiopg_31_wavelength(self, wavelength):
+        """Set the simulated MidiOPG wavelength.
+
+        Parameters
+        ----------
+        wavelength : `str`
+            Requested wavelength in nanometers.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style range error.
+        """
         return self._set_int_range("wavelength", wavelength, 1, 2600)
 
     def do_midiopg_31_status(self):
+        """Return the simulated MidiOPG status.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated status string.
+        """
         return "Ok."
 
     def do_ldco48bp_48_set_temperature(self):
+        """Return the simulated LDCO48BP module 48 set temperature.
+
+        Returns
+        -------
+        reply : `str`
+            Current module 48 temperature setpoint.
+        """
         return f"{self.ldco48bp_48_temperature}"
 
     def do_set_ldco48bp_48_set_temperature(self, value):
+        """Set the simulated LDCO48BP module 48 temperature setpoint.
+
+        Parameters
+        ----------
+        value : `str`
+            Requested setpoint.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style range error.
+        """
         reply = self.check_limits(value, -200, 4600)
         if not reply.startswith("'''"):
             self.ldco48bp_48_temperature = value
         return reply
 
     def do_ldco48bp_50_set_temperature(self):
+        """Return the simulated LDCO48BP module 50 set temperature.
+
+        Returns
+        -------
+        reply : `str`
+            Current module 50 temperature setpoint.
+        """
         return f"{self.ldco48bp_50_temperature}"
 
     def do_set_ldco48bp_50_set_temperature(self, value):
+        """Set the simulated LDCO48BP module 50 temperature setpoint.
+
+        Parameters
+        ----------
+        value : `str`
+            Requested setpoint.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style range error.
+        """
         reply = self.check_limits(value, -200, 4600)
         if not reply.startswith("'''"):
             self.ldco48bp_50_temperature = value
         return reply
 
     def do_ldco48bp_48_display_temperature(self):
+        """Return the simulated LDCO48BP module 48 display temperature.
+
+        Returns
+        -------
+        reply : `str`
+            Current module 48 display temperature.
+        """
         return f"{self.ldco48bp_48_temperature}"
 
     def do_ldco48bp_50_display_temperature(self):
+        """Return the simulated LDCO48BP module 50 display temperature.
+
+        Returns
+        -------
+        reply : `str`
+            Current module 50 display temperature.
+        """
         return f"{self.ldco48bp_50_temperature}"
 
     def do_ldco48bp_28_error_code(self):
+        """Return the simulated LDCO48BP module 28 error code.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated error code.
+        """
         return "0"
 
     def do_ldco48bp_29_error_code(self):
+        """Return the simulated LDCO48BP module 29 error code.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated error code.
+        """
         return "0"
 
     def do_m_ldco48_33_error_code(self):
+        """Return the simulated M_LDCO48 module 33 error code.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated error code.
+        """
         return "0"
 
     def do_m_ldco48_34_error_code(self):
+        """Return the simulated M_LDCO48 module 34 error code.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated error code.
+        """
         return "0"
 
     def do_hv40w_40_error_code(self):
+        """Return the simulated HV40W error code.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated error code.
+        """
         return "0"
 
     def do_fopo_51_error_code(self):
+        """Return the simulated FOPO error code.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated error code.
+        """
         return "0"
 
     def do_sopo_52_error_code(self):
+        """Return the simulated SOPO error code.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated error code.
+        """
         return "0"
 
     def do_sh1_53_error_code(self):
+        """Return the simulated SH1 error code.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated error code.
+        """
         return "0"
 
     def do_c1_54_error_code(self):
+        """Return the simulated C1 error code.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated error code.
+        """
         return "0"
 
 
 class MockNT900(BaseMockEksplaLaser):
-    """Implements a mock NT900 laser."""
+    """Implements a mock NT900 laser.
+
+    Attributes
+    ----------
+    scu : `bool`
+        Whether the simulated spectral cleaning unit path is active.
+    configuration : `OpticalConfiguration`
+        Simulated optical configuration.
+    """
 
     def __init__(self):
         super().__init__()
@@ -820,18 +1598,63 @@ class MockNT900(BaseMockEksplaLaser):
         self.log.debug("MockNT900 initialized")
 
     def do_maxiopg_31_wavelength(self):
+        """Return the simulated MaxiOPG wavelength.
+
+        Returns
+        -------
+        reply : `str`
+            Current wavelength with ``nm`` suffix.
+        """
         return f"{self.wavelength}nm"
 
     def do_set_maxiopg_31_wavelength(self, wavelength):
+        """Set the simulated MaxiOPG wavelength.
+
+        Parameters
+        ----------
+        wavelength : `str`
+            Requested wavelength in nanometers.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style range error.
+        """
         return self._set_int_range("wavelength", wavelength, 300, 1100)
 
     def do_11pmku_54_power(self):
+        """Return the simulated 11PMKU power.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated 11PMKU power value.
+        """
         return "19A"
 
     def do_maxiopg_31_configuration(self):
+        """Return the simulated MaxiOPG optical configuration.
+
+        Returns
+        -------
+        reply : `str`
+            Current optical configuration.
+        """
         return f"{self.configuration}"
 
     def do_set_maxiopg_31_configuration(self, configuration):
+        """Set the simulated MaxiOPG optical configuration.
+
+        Parameters
+        ----------
+        configuration : `str`
+            Requested optical configuration.
+
+        Returns
+        -------
+        reply : `str`
+            Empty string for success, or a vendor-style wrong-value error.
+        """
         try:
             self.configuration = OpticalConfiguration(configuration)
             return ""
@@ -840,28 +1663,91 @@ class MockNT900(BaseMockEksplaLaser):
             return self._wrong_value_error()
 
     def do_miniopg_56_error_code(self):
+        """Return the simulated MiniOPG error code.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated error code.
+        """
         return "0"
 
     def do_set_temperature(self):
+        """Return the simulated NT900 temperature.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated temperature with ``C`` suffix.
+        """
         return f"{self.temperature}C"
 
     def do_hv40w_41_hv_voltage(self):
+        """Return the simulated HV40W voltage.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated HV40W voltage.
+        """
         return "10"
 
     def do_delaylin_40_error_code(self):
+        """Return the simulated DelayLin error code.
+
+        Returns
+        -------
+        reply : `str`
+            Simulated error code.
+        """
         return "0"
 
     def do_ldco48bp_30_display_temperature(self):
+        """Return the simulated LDCO48BP module 30 display temperature.
+
+        Returns
+        -------
+        reply : `str`
+            Current module 30 display temperature.
+        """
         return f"{self.temperature}"
 
     def do_ldco48bp_29_display_temperature(self):
+        """Return the simulated LDCO48BP module 29 display temperature.
+
+        Returns
+        -------
+        reply : `str`
+            Current module 29 display temperature.
+        """
         return f"{self.temperature}"
 
     def do_ldco48bp_24_display_temperature(self):
+        """Return the simulated LDCO48BP module 24 display temperature.
+
+        Returns
+        -------
+        reply : `str`
+            Current module 24 display temperature.
+        """
         return f"{self.temperature}"
 
     def do_m_ldco48_33_display_temperature(self):
+        """Return the simulated M_LDCO48 module 33 display temperature.
+
+        Returns
+        -------
+        reply : `str`
+            Current module 33 display temperature.
+        """
         return f"{self.temperature}"
 
     def do_m_ldco48_34_display_temperature(self):
+        """Return the simulated M_LDCO48 module 34 display temperature.
+
+        Returns
+        -------
+        reply : `str`
+            Current module 34 display temperature.
+        """
         return f"{self.temperature}"

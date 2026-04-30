@@ -24,7 +24,10 @@ from lsst.ts.tunablelaser.register import AsciiRegister
 
 
 class MCPU800(interfaces.CanbusModule):
-    """Auto-generated canbus register container for the vendor module 'M_CPU800'."""
+    """Auto-generated canbus register container.
+
+    Vendor module: 'M_CPU800'.
+    """
 
     def __init__(self):
         super().__init__()
@@ -114,7 +117,10 @@ class MCPU800(interfaces.CanbusModule):
 
 
 class PH532(interfaces.CanbusModule):
-    """Auto-generated canbus register container for the vendor module 'PH_532'."""
+    """Auto-generated canbus register container.
+
+    Vendor module: 'PH_532'.
+    """
 
     def __init__(self):
         super().__init__()
@@ -128,7 +134,10 @@ class PH532(interfaces.CanbusModule):
 
 
 class MidiOPG(interfaces.CanbusModule):
-    """Auto-generated canbus register container for the vendor module 'MidiOPG'."""
+    """Auto-generated canbus register container.
+
+    Vendor module: 'MidiOPG'.
+    """
 
     def __init__(self):
         super().__init__()
@@ -149,7 +158,10 @@ class MidiOPG(interfaces.CanbusModule):
 
 
 class LDCO48BP(interfaces.CanbusModule):
-    """Auto-generated canbus register container for the vendor module 'LDCO48BP'."""
+    """Auto-generated canbus register container.
+
+    Vendor module: 'LDCO48BP'.
+    """
 
     def __init__(self):
         super().__init__()
@@ -195,7 +207,10 @@ class LDCO48BP(interfaces.CanbusModule):
 
 
 class TK6(interfaces.CanbusModule):
-    """Auto-generated canbus register container for the vendor module 'TK6'."""
+    """Auto-generated canbus register container.
+
+    Vendor module: 'TK6'.
+    """
 
     def __init__(self):
         super().__init__()
@@ -216,7 +231,10 @@ class TK6(interfaces.CanbusModule):
 
 
 class CPU8000(interfaces.CanbusModule):
-    """Auto-generated canbus register container for the vendor module 'CPU8000'."""
+    """Auto-generated canbus register container.
+
+    Vendor module: 'CPU8000'.
+    """
 
     def __init__(self):
         super().__init__()
@@ -237,7 +255,10 @@ class CPU8000(interfaces.CanbusModule):
 
 
 class MLDCO48(interfaces.CanbusModule):
-    """Auto-generated canbus register container for the vendor module 'M_LDCO48'."""
+    """Auto-generated canbus register container.
+
+    Vendor module: 'M_LDCO48'.
+    """
 
     def __init__(self):
         super().__init__()
@@ -257,7 +278,10 @@ class MLDCO48(interfaces.CanbusModule):
 
 
 class HV40W(interfaces.CanbusModule):
-    """Auto-generated canbus register container for the vendor module 'HV40W'."""
+    """Auto-generated canbus register container.
+
+    Vendor module: 'HV40W'.
+    """
 
     def __init__(self):
         super().__init__()
@@ -271,7 +295,10 @@ class HV40W(interfaces.CanbusModule):
 
 
 class FOPO(interfaces.CanbusModule):
-    """Auto-generated canbus register container for the vendor module 'FOPO'."""
+    """Auto-generated canbus register container.
+
+    Vendor module: 'FOPO'.
+    """
 
     def __init__(self):
         super().__init__()
@@ -285,7 +312,10 @@ class FOPO(interfaces.CanbusModule):
 
 
 class SOPO(interfaces.CanbusModule):
-    """Auto-generated canbus register container for the vendor module 'SOPO'."""
+    """Auto-generated canbus register container.
+
+    Vendor module: 'SOPO'.
+    """
 
     def __init__(self):
         super().__init__()
@@ -299,7 +329,10 @@ class SOPO(interfaces.CanbusModule):
 
 
 class SH1(interfaces.CanbusModule):
-    """Auto-generated canbus register container for the vendor module 'SH1'."""
+    """Auto-generated canbus register container.
+
+    Vendor module: 'SH1'.
+    """
 
     def __init__(self):
         super().__init__()
@@ -313,7 +346,10 @@ class SH1(interfaces.CanbusModule):
 
 
 class C1(interfaces.CanbusModule):
-    """Auto-generated canbus register container for the vendor module 'C1'."""
+    """Auto-generated canbus register container.
+
+    Vendor module: 'C1'.
+    """
 
     def __init__(self):
         super().__init__()

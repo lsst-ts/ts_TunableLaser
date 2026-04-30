@@ -53,10 +53,10 @@ class AsciiRegister:
         The name of the register.
     read_only : `bool`, optional
         Whether the register is read only or writable.
-    accepted_values : `list` [`str`] or `list` [`int`] or `None`, optional
-        If read_only is set to true then this parameter can be None. If not,
-        this parameter must contain a list of values accepted by this
-        register and can be of int or str.
+    accepted_values : iterable or `None`, optional
+        If ``read_only`` is `True` then this parameter can be `None`. If not,
+        this parameter must contain the values accepted by this register.
+
     Attributes
     ----------
     log : `logging.Logger`
@@ -69,14 +69,18 @@ class AsciiRegister:
         The name of the register.
     read_only : `bool`
         Whether the register is read only or writable.
-    accepted_values : `list`
-        If read_only is set to true then this parameter can be None.
-        If not, this parameter must contain a list of values accepted by this
-        register and can be of int or str.
+    accepted_values : iterable or `None`
+        If ``read_only`` is `True` then this parameter can be `None`.
+        If not, this parameter must contain the values accepted by this
+        register.
     register_value : `str`
         Cached value most recently read from or written through the owning
         controller.
 
+    Raises
+    ------
+    AttributeError
+        Raised when ``read_only`` is `False` but ``accepted_values`` is `None`.
     """
 
     def __init__(
@@ -100,10 +104,24 @@ class AsciiRegister:
 
     @property
     def register_value(self):
+        """Most recently cached register value.
+
+        Returns
+        -------
+        register_value : `object`
+            Cached register value.
+        """
         return self._register_value
 
     @register_value.setter
     def register_value(self, value):
+        """Set the cached register value.
+
+        Parameters
+        ----------
+        value : `object`
+            Value read from or written to the register.
+        """
         self._register_value = value
 
     def create_get_message(self):
@@ -111,8 +129,8 @@ class AsciiRegister:
 
         Returns
         -------
-        get_message: `bytes`
-
+        get_message: `str`
+            The generated get message.
         """
         get_message = f"/{self.module_name}/{self.module_id}/{self.register_name}\r"
         self.log.debug(f"get_message={get_message}")
@@ -125,10 +143,11 @@ class AsciiRegister:
         Parameters
         ----------
         set_value : Any
+            The value to be set.
 
         Raises
         ------
-        ReadOnlyException
+        PermissionError
             Indicates that the register is read only.
         ValueError
             Indicates that the value received is not in the acceptable values
@@ -136,8 +155,8 @@ class AsciiRegister:
 
         Returns
         -------
-        set_message : `bytes`
-
+        set_message : `str`
+            The generated message to write the value.
         """
         if not self.read_only:
             if set_value not in self.accepted_values:
@@ -149,4 +168,5 @@ class AsciiRegister:
             raise PermissionError("This register is read only.")
 
     def __repr__(self):
+        """Return a concise register/value representation."""
         return "{}: {}".format(self.register_name, self.register_value)

@@ -30,12 +30,31 @@ from . import canbus_modules, interfaces
 from .canbus import pgd217_nt252
 from .enums import Mode, OpticalConfiguration, Power
 from .fcu_client import FCUClient, Output
-
-DOESNT_EXIST = 0
+from .wizardry import (
+    DEFAULT_LASER_WARMUP_DELAY,
+    DEFAULT_TEMPERATURE_CTRL_PORT,
+    MISSING_TEMPERATURE_VALUE,
+    SIDE_CHANNEL_CLIENT_SLEEP,
+    SIDE_CHANNEL_CLIENT_TIMEOUT,
+)
 
 
 def _coerce_enum(value, enum_type):
-    """Best-effort conversion of cached ASCII values to an enum."""
+    """Best-effort conversion of cached ASCII values to an enum.
+
+    Parameters
+    ----------
+    value : `object`
+        Cached register value to convert.
+    enum_type : `type`
+        Enum class to convert ``value`` into.
+
+    Returns
+    -------
+    `enum.Enum` or `object`
+        The converted enum member, ``None`` if ``value`` is ``None``, or the
+        original value if no conversion is possible.
+    """
     if isinstance(value, enum_type):
         return value
     if value is None:
@@ -52,6 +71,20 @@ def _coerce_enum(value, enum_type):
 
 
 def _matches_enum(value, enum_value):
+    """Return whether a cached register value matches an enum member.
+
+    Parameters
+    ----------
+    value : `object`
+        Cached register value to compare.
+    enum_value : `enum.Enum`
+        Enum member expected by the caller.
+
+    Returns
+    -------
+    `bool`
+        `True` if ``value`` can be coerced to ``enum_value``.
+    """
     return _coerce_enum(value, type(enum_value)) == enum_value
 
 
@@ -60,8 +93,8 @@ class MainLaser(interfaces.Laser):
 
     Parameters
     ----------
-    csc : `LaserCSC`
-        The CSC object.
+    log : `logging.Logger`
+        Logger for this component.
     simulation_mode : `bool`
         A flag which tells the component to initialize into simulation mode or
         not.
@@ -72,10 +105,6 @@ class MainLaser(interfaces.Laser):
 
     Attributes
     ----------
-    laser_id : `int`
-        The ID of the laser
-    csc : `LaserCSC`
-        Reference to the CSC object.
     cpu8000 : `CPU8000`
         Controls the CPU8000 laser :term:`module`.
     m_cpu800 : `MCPU800`
@@ -94,9 +123,9 @@ class MainLaser(interfaces.Laser):
         Controls the MiniOPG laser module.
     ldco48bp : `LDCO48BP`
         Controls the LDCO48BP laser module.
-    m_ldco48 : `MLDCO48`
+    m_ldcO48 : `MLDCO48`
         Controls the LDCO48 laser module.
-    laser_warmup_delay : `int`
+    laser_warmup_delay : `float`
         The warmup delay before stating that the laser is propagating.
     lock : `asyncio.Lock`
         Lock the read/write operation.
@@ -111,22 +140,28 @@ class MainLaser(interfaces.Laser):
             encoding=encoding,
             simulation_mode=simulation_mode,
         )
-        self.laser_id = 1
         self.cpu8000 = canbus_modules.CPU8000()
         self.m_cpu800 = canbus_modules.MCPU800()
         self.llpmku = canbus_modules.LLPMKU()
         self.maxi_opg = canbus_modules.MaxiOPG()
         self.tk6 = canbus_modules.TK6()
-        self.hv40w = canbus_modules.HV40W(laser_id=self.laser_id)
-        self.delay_lin = canbus_modules.DelayLin(laser_id=self.laser_id)
+        self.hv40w = canbus_modules.HV40W()
+        self.delay_lin = canbus_modules.DelayLin()
         self.mini_opg = canbus_modules.MiniOPG()
-        self.ldco48bp = canbus_modules.LDCO48BP(laser_id=self.laser_id)
+        self.ldco48bp = canbus_modules.LDCO48BP()
         self.m_ldcO48 = canbus_modules.MLDCO48()
-        self.laser_warmup_delay = 10
+        self.laser_warmup_delay = DEFAULT_LASER_WARMUP_DELAY
         self.lock = asyncio.Lock()
 
     @property
     def is_faulting(self):
+        """Return whether any main-laser power register reports a fault.
+
+        Returns
+        -------
+        is_faulting : `bool`
+            `True` if any main-laser power register is in fault.
+        """
         return (
             _matches_enum(self.cpu8000.power_register.register_value, Power.FAULT)
             or _matches_enum(self.m_cpu800.power_register.register_value, Power.FAULT)
@@ -135,22 +170,57 @@ class MainLaser(interfaces.Laser):
 
     @property
     def optical_configuration(self):
+        """Return the cached optical configuration.
+
+        Returns
+        -------
+        optical_configuration : `object`
+            Cached optical configuration register value.
+        """
         return self.maxi_opg.configuration_register.register_value
 
     @property
     def propagation_mode(self):
+        """Return the cached laser propagation mode.
+
+        Returns
+        -------
+        propagation_mode : `Mode` or `object`
+            Cached propagation mode, coerced to `Mode` when possible.
+        """
         return _coerce_enum(self.m_cpu800.continous_burst_mode_trigger_burst_register.register_value, Mode)
 
     @property
     def is_propagating(self):
+        """Return whether the propagation power register is on.
+
+        Returns
+        -------
+        is_propagating : `bool`
+            `True` if the propagation power register is on.
+        """
         return _matches_enum(self.m_cpu800.power_register_2.register_value, Power.ON)
 
     @property
     def wavelength(self):
+        """Return the cached wavelength.
+
+        Returns
+        -------
+        wavelength : `object`
+            Cached wavelength register value.
+        """
         return self.maxi_opg.wavelength_register.register_value
 
     @property
     def temperature(self):
+        """Return the cached laser temperature telemetry values.
+
+        Returns
+        -------
+        temperatures : `tuple`
+            Cached temperature register values.
+        """
         return (
             self.tk6.display_temperature_register.register_value,
             self.tk6.display_temperature_register_2.register_value,
@@ -268,7 +338,13 @@ class MainLaser(interfaces.Laser):
         await self.refresh_all_ascii_registers()
 
     async def configure(self, config):
-        """Set the configuration for the TunableLaser."""
+        """Set the configuration for the TunableLaser.
+
+        Parameters
+        ----------
+        config : `types.SimpleNamespace`
+            Configuration namespace supplied by the CSC.
+        """
         self.log.debug("Setting config.")
         self.host = config.host
         self.port = config.port
@@ -285,6 +361,7 @@ class MainLaser(interfaces.Laser):
         )
 
     def __str__(self):
+        """Return a compact string representation of the main laser modules."""
         return (
             f"{self.cpu8000} {self.m_cpu800} {self.llpmku} {self.maxi_opg} {self.mini_opg} {self.tk6}"
             f"{self.hv40w} {self.delay_lin} {self.ldco48bp} {self.m_ldcO48}"
@@ -296,6 +373,8 @@ class StubbsLaser(interfaces.Laser):
 
     Parameters
     ----------
+    log : `logging.Logger`
+        Logger for this component.
     terminator : `bytes`
         The terminating characters for sent/received messages.
     encoding : `str`
@@ -317,7 +396,6 @@ class StubbsLaser(interfaces.Laser):
             encoding=encoding,
             simulation_mode=simulation_mode,
         )
-        self.laser_id = 2
         self.midiopg = pgd217_nt252.MidiOPG()
         self.ph532 = pgd217_nt252.PH532()
         self.fopo = pgd217_nt252.FOPO()
@@ -331,7 +409,7 @@ class StubbsLaser(interfaces.Laser):
         self.ldco48bp = pgd217_nt252.LDCO48BP()
         self.m_ldcO48 = pgd217_nt252.MLDCO48()
         self.fcu_client = FCUClient(simulation_mode=simulation_mode)
-        self.laser_warmup_delay = 10
+        self.laser_warmup_delay = DEFAULT_LASER_WARMUP_DELAY
         self.lock = asyncio.Lock()
         self.output_lut = {
             Output.out1: OpticalConfiguration.NO_SCU,
@@ -357,6 +435,13 @@ class StubbsLaser(interfaces.Laser):
 
     @property
     def is_faulting(self) -> bool:
+        """Return whether any Stubbs power register reports a fault.
+
+        Returns
+        -------
+        is_faulting : `bool`
+            `True` if any Stubbs power register is in fault.
+        """
         return (
             _matches_enum(self.m_cpu800.power_id_0x11_register.register_value, Power.FAULT)
             or _matches_enum(self.m_cpu800.power_id_0x12_register.register_value, Power.FAULT)
@@ -365,10 +450,24 @@ class StubbsLaser(interfaces.Laser):
 
     @property
     def optical_configuration(self) -> None | OpticalConfiguration:
+        """Return the optical configuration implied by the FCU output.
+
+        Returns
+        -------
+        optical_configuration : `OpticalConfiguration` or `None`
+            Optical configuration selected by the FCU output.
+        """
         return self.output_lut[self.fcu_client.output]
 
     @property
     def propagation_mode(self) -> Mode:
+        """Return the cached Stubbs propagation mode.
+
+        Returns
+        -------
+        propagation_mode : `Mode`
+            Cached propagation mode.
+        """
         return _coerce_enum(
             self.m_cpu800.continuous_burst_mode_trigger_burst_id_0x12_register.register_value,
             Mode,
@@ -376,23 +475,44 @@ class StubbsLaser(interfaces.Laser):
 
     @property
     def is_propagating(self) -> Power:
+        """Return whether the Stubbs propagation power register is on.
+
+        Returns
+        -------
+        is_propagating : `bool`
+            `True` if the Stubbs propagation power register is on.
+        """
         return _matches_enum(self.m_cpu800.power_id_0x12_register.register_value, Power.ON)
 
     @property
     def wavelength(self) -> float:
+        """Return the cached Stubbs wavelength.
+
+        Returns
+        -------
+        wavelength : `float`
+            Cached wavelength register value.
+        """
         return self.midiopg.wavelength_id_0x1f_register.register_value
 
     @property
     def temperature(self) -> tuple[float, ...]:
+        """Return cached Stubbs temperature telemetry values.
+
+        Returns
+        -------
+        temperatures : `tuple` [`float`, ...]
+            Cached Stubbs temperature telemetry values.
+        """
         return (
             self.tk6.display_temperature_id_0x2c_register.register_value,
-            DOESNT_EXIST,
+            MISSING_TEMPERATURE_VALUE,
             self.ldco48bp.display_temperature_id_0x30_register.register_value,
             self.ldco48bp.display_temperature_id_0x32_register.register_value,
-            DOESNT_EXIST,
-            DOESNT_EXIST,
-            DOESNT_EXIST,
-            DOESNT_EXIST,
+            MISSING_TEMPERATURE_VALUE,
+            MISSING_TEMPERATURE_VALUE,
+            MISSING_TEMPERATURE_VALUE,
+            MISSING_TEMPERATURE_VALUE,
         )
 
     async def set_optical_configuration(self, optical_configuration: OpticalConfiguration):
@@ -402,6 +522,11 @@ class StubbsLaser(interfaces.Laser):
         ----------
         optical_configuration : str
             The value to be set.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if ``optical_configuration`` is not accepted.
         """
         match optical_configuration:
             case OpticalConfiguration.NO_SCU:
@@ -506,6 +631,13 @@ class StubbsLaser(interfaces.Laser):
             await self.write_register(self.m_cpu800.power_id_0x12_register, Power.OFF)
 
     async def configure(self, config):
+        """Configure host, port, and writable wavelength range.
+
+        Parameters
+        ----------
+        config : `types.SimpleNamespace`
+            Configuration namespace supplied by the CSC.
+        """
         self.log.debug("Setting config.")
         self.host = config.host
         self.port = config.port
@@ -523,6 +655,7 @@ class StubbsLaser(interfaces.Laser):
         # ) PF: Not sure about this either
 
     async def read_all_registers(self):
+        """Refresh Stubbs laser registers and FCU output state."""
         await self.refresh_all_ascii_registers()
         await self.fcu_client.get_output()
 
@@ -532,32 +665,32 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
 
     Parameters
     ----------
-    csc : `LaserCSC`
-    The CSC object.
+    log : `logging.Logger`
+        Logger for this component.
     host : `string`
-    The IP address of the temp controller
+        The IP address of the temp controller.
     port : `int`
-    The port of the temp controller
+        The port of the temp controller.
     terminator : `bytes`
-    The terminating characters for sent/received messages.
+        The terminating characters for sent/received messages.
     encoding : `str`
-    The type of encoding to use.
+        The type of encoding to use.
     simulation_mode : `bool`
-    Is the interface in simulation mode?
+        Is the interface in simulation mode?
 
     Attributes
     ----------
     lock : `asyncio.Lock`
-    A lock for writing/reading messages.
+        A lock for writing/reading messages.
     host : `string`
-    The host for the temp controller to connect to during simulation mode
+        The host for the temp controller.
     """
 
     def __init__(
         self,
         log,
         host="127.0.0.1",
-        port=50000,
+        port=DEFAULT_TEMPERATURE_CTRL_PORT,
         terminator=b"\x03",
         encoding="ascii",
         simulation_mode=False,
@@ -581,7 +714,14 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
 
     @property
     def temperature(self):
-        """Return temperature value."""
+        """Return the cached temperature-controller setpoint.
+
+        Returns
+        -------
+        temperature : `tuple` [`float`]
+            One-item tuple containing the setpoint register value, or ``-1``
+            if the temperature controller is disconnected.
+        """
         if self.e5dc_b is not None:
             return (self.e5dc_b.set_point_register.register_value,)
         else:
@@ -602,14 +742,26 @@ class TemperatureCtrl(interfaces.CompoWayFModule):
             self.log.error("Tried to laser_thermal_turn_off but thermal ctrler is unconnected.")
 
     async def laser_thermal_change_set_point(self, value):
-        """Change the temperature set point value."""
+        """Change the temperature set point value.
+
+        Parameters
+        ----------
+        value : `float`
+            New temperature setpoint.
+        """
         if self.e5dc_b is not None:
             await self.write_register(self.e5dc_b.set_point_register, value)
         else:
             self.log.error("Tried to laser_thermal_change_set_point but thermal ctrler is unconnected.")
 
     async def configure(self, config):
-        """Configure the thermal controller."""
+        """Configure the thermal controller.
+
+        Parameters
+        ----------
+        config : `types.SimpleNamespace`
+            Configuration namespace with ``host`` and ``port`` attributes.
+        """
         self.log.debug("Setting config.")
         self.host = config.host
         self.port = config.port
@@ -656,7 +808,13 @@ class FanControlClient:
 
     @property
     def connected(self) -> bool:
-        """Is the client connected."""
+        """Return whether the client is connected.
+
+        Returns
+        -------
+        connected : `bool`
+            `True` if the TCP/IP client is connected.
+        """
         return self.client.connected
 
     async def connect(self) -> None:
@@ -672,10 +830,10 @@ class FanControlClient:
         self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
 
     async def get_messages(self) -> None:
-        """Get messages recieved from the service."""
+        """Get messages received from the service."""
         while self.connected:
             try:
-                async with asyncio.timeout(10):
+                async with asyncio.timeout(SIDE_CHANNEL_CLIENT_TIMEOUT):
                     response = await self.client.read_json()
                 self.response = response
                 self.response_queue.put_nowait(response)
@@ -684,7 +842,7 @@ class FanControlClient:
             except (asyncio.IncompleteReadError, ConnectionError):
                 break
             finally:
-                await asyncio.sleep(1)
+                await asyncio.sleep(SIDE_CHANNEL_CLIENT_SLEEP)
 
 
 class LaserAlignmentClient:
@@ -716,7 +874,13 @@ class LaserAlignmentClient:
 
     @property
     def connected(self):
-        """Is the client connected."""
+        """Return whether the client is connected.
+
+        Returns
+        -------
+        connected : `bool`
+            `True` if the TCP/IP client is connected.
+        """
         return self.client.connected
 
     async def connect(self):
@@ -732,10 +896,10 @@ class LaserAlignmentClient:
         self.client = tcpip.Client(host=self.host, port=self.port, log=self.log)
 
     async def get_messages(self):
-        """Get messages recieved from the service."""
+        """Get messages received from the service."""
         while self.connected:
             try:
-                async with asyncio.timeout(10):
+                async with asyncio.timeout(SIDE_CHANNEL_CLIENT_TIMEOUT):
                     response = await self.client.read_json()
                 self.response = response
                 self.response_queue.put_nowait(response)
@@ -744,4 +908,4 @@ class LaserAlignmentClient:
             except (asyncio.IncompleteReadError, ConnectionError):
                 break
             finally:
-                await asyncio.sleep(1)
+                await asyncio.sleep(SIDE_CHANNEL_CLIENT_SLEEP)
