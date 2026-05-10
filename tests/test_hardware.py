@@ -27,7 +27,6 @@ import unittest.mock
 from lsst.ts.tunablelaser.canbus_modules import CPU8000, MaxiOPG
 from lsst.ts.tunablelaser.component import FanControlClient, LaserAlignmentClient, TemperatureCtrl
 from lsst.ts.tunablelaser.interfaces import DeviceTimeoutError, Laser
-from lsst.ts.tunablelaser.wizardry import NUMBER_OF_RETRIES
 
 
 class FakeLaser(Laser):
@@ -217,17 +216,94 @@ class TestLaserRegisterRefresh(unittest.IsolatedAsyncioTestCase):
 
     async def test_send_command_retries_timeout_until_exhaustion(self):
         laser = FakeLaser()
-        laser.commander = unittest.mock.AsyncMock()
-        laser.commander.encoding = "ascii"
-        laser.commander.write = unittest.mock.AsyncMock(side_effect=asyncio.TimeoutError())
-        laser.commander.read_str = unittest.mock.AsyncMock()
+        commander = unittest.mock.AsyncMock()
+        commander.encoding = "ascii"
+        commander.write = unittest.mock.AsyncMock(side_effect=asyncio.TimeoutError())
+        commander.read_str = unittest.mock.AsyncMock()
+        laser.commander = commander
 
         with self.assertRaisesRegex(ConnectionError, "retry exhaustion"):
             await laser.read_register(laser.cpu8000.power_register)
 
-        self.assertEqual(laser.commander.write.await_count, NUMBER_OF_RETRIES)
-        laser.commander.read_str.assert_not_awaited()
+        commander.close.assert_awaited_once()
+        commander.write.assert_awaited_once()
+        commander.read_str.assert_not_awaited()
         self.assertIsNone(laser.cpu8000.power_register.register_value)
+
+    async def test_send_command_reconnects_before_retry_after_timeout(self):
+        class TimeoutCommander:
+            encoding = "ascii"
+            connected = False
+
+            def __init__(self):
+                self.close = unittest.mock.AsyncMock()
+                self.write = unittest.mock.AsyncMock(side_effect=asyncio.TimeoutError())
+                self.read_str = unittest.mock.AsyncMock()
+
+        class HealthyCommander:
+            encoding = "ascii"
+            connected = True
+
+            def __init__(self):
+                self.close = unittest.mock.AsyncMock()
+                self.write = unittest.mock.AsyncMock()
+                self.read_str = unittest.mock.AsyncMock(return_value="ON")
+
+        laser = FakeLaser()
+        first_commander = TimeoutCommander()
+        second_commander = HealthyCommander()
+        laser.commander = first_commander
+        laser.host = "127.0.0.1"
+        laser.port = 12345
+
+        async def connect():
+            laser.commander = second_commander
+
+        laser.connect = unittest.mock.AsyncMock(side_effect=connect)
+
+        with unittest.mock.patch("lsst.ts.tunablelaser.interfaces.DEFAULT_SLEEP", 0):
+            await laser.read_register(laser.cpu8000.power_register)
+
+        first_commander.close.assert_awaited_once()
+        laser.connect.assert_awaited_once()
+        second_commander.write.assert_awaited_once()
+        second_commander.read_str.assert_awaited_once()
+        self.assertEqual(laser.cpu8000.power_register.register_value, "ON")
+
+    async def test_connect_replaces_connected_commander_without_deadlock(self):
+        class Commander:
+            encoding = "ascii"
+
+            def __init__(self, connected):
+                self.connected = connected
+                self.close = unittest.mock.AsyncMock()
+                self.start_task = asyncio.Future()
+                self.start_task.set_result(None)
+
+        laser = FakeLaser()
+        laser.host = "127.0.0.1"
+        laser.port = 12345
+        old_commander = Commander(connected=True)
+        empty_commander = Commander(connected=False)
+        new_commander = Commander(connected=True)
+        laser.commander = old_commander
+        laser.create_empty_client = unittest.mock.Mock(return_value=empty_commander)
+
+        with unittest.mock.patch(
+            "lsst.ts.tunablelaser.interfaces.tcpip.Client",
+            return_value=new_commander,
+        ) as client_factory:
+            await asyncio.wait_for(laser.connect(), timeout=1)
+
+        old_commander.close.assert_awaited_once()
+        self.assertIs(laser.commander, new_commander)
+        client_factory.assert_called_once_with(
+            host=laser.host,
+            port=laser.port,
+            log=laser.log,
+            terminator=bytes(laser.terminator),
+            encoding=laser.encoding,
+        )
 
     async def test_simulated_tempctrl_write_register_updates_authoritative_mock(self):
         controller = TemperatureCtrl(log=logging.getLogger(__name__), simulation_mode=True)
