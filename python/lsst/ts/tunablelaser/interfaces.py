@@ -33,8 +33,6 @@ from lsst.ts.tunablelaser.wizardry import (
     COMMAND_TIMEOUT,
     DEFAULT_CONNECT_TIMEOUT,
     DEFAULT_SLEEP,
-    DEVICE_TIMEOUT_READ_DELAY,
-    DEVICE_TIMEOUT_READ_RETRIES,
     END_CODE_LEN,
     MRC_SRC_LEN,
     NUMBER_OF_CONNECTION_RETRIES,
@@ -47,14 +45,14 @@ from lsst.ts.tunablelaser.wizardry import (
 from .compoway_register import CompoWayFDataRegister, CompoWayFGeneralRegister, CompoWayFOperationRegister
 from .register import AsciiRegister
 
-ERRORS = [
+RETRYABLE_DEVICE_ERRORS = [
     "(8) Timeout waiting for device answer",
     "(6) No such register name",
 ]
 
 
-class DeviceTimeoutError(Exception):
-    """The controller replied that a downstream device timed out."""
+class RetryableDeviceError(Exception):
+    """The controller replied with a retryable device error."""
 
 
 class Laser(ABC):
@@ -354,8 +352,6 @@ class Laser(ABC):
 
         Raises
         ------
-        DeviceTimeoutError
-            Raised when the laser reports a transient downstream device error.
         RuntimeError
             Raised when the laser reports a non-retryable ASCII error.
         ConnectionError
@@ -371,11 +367,11 @@ class Laser(ABC):
                     if resp:
                         if resp.startswith("'''"):
                             self.log.error(f"{message} failed. Received {resp}.")
-                            if any(error in resp for error in ERRORS):
-                                raise DeviceTimeoutError(resp)
+                            if any(error in resp for error in RETRYABLE_DEVICE_ERRORS):
+                                raise RetryableDeviceError(resp)
                             raise RuntimeError(f"{message} failed.")
                         return resp.rstrip("nmC\r\n")
-            except asyncio.TimeoutError as err:
+            except (asyncio.TimeoutError, RetryableDeviceError) as err:
                 last_error = err
                 self.log.warning(
                     f"Command failed on attempt {attempt + 1}/{NUMBER_OF_RETRIES} for {message!r}: {err!r}"
@@ -452,7 +448,7 @@ class Laser(ABC):
         )
 
     async def read_register(self, register) -> str:
-        """Read an ASCII register with device-timeout retries.
+        """Read an ASCII register.
 
         Parameters
         ----------
@@ -463,27 +459,9 @@ class Laser(ABC):
         -------
         value : `str`
             Decoded register value.
-
-        Raises
-        ------
-        DeviceTimeoutError
-            Raised when retry attempts are exhausted.
         """
-        last_error = None
-        for attempt in range(DEVICE_TIMEOUT_READ_RETRIES + 1):
-            try:
-                register.register_value = await self.send_command(register.create_get_message())
-                return register.register_value
-            except DeviceTimeoutError as err:
-                last_error = err
-                self.log.warning(
-                    f"Device timeout reading {register.module_name}.{register.register_name} "
-                    f"attempt {attempt + 1}/{DEVICE_TIMEOUT_READ_RETRIES + 1}: {err}"
-                )
-                if attempt == DEVICE_TIMEOUT_READ_RETRIES:
-                    break
-                await asyncio.sleep(DEVICE_TIMEOUT_READ_DELAY)
-        raise last_error
+        register.register_value = await self.send_command(register.create_get_message())
+        return register.register_value
 
     async def write_register(self, register, value) -> str:
         """Write an ASCII register and read it back.

@@ -26,7 +26,7 @@ import unittest.mock
 
 from lsst.ts.tunablelaser.canbus_modules import CPU8000, MaxiOPG
 from lsst.ts.tunablelaser.component import FanControlClient, LaserAlignmentClient, TemperatureCtrl
-from lsst.ts.tunablelaser.interfaces import DeviceTimeoutError, Laser
+from lsst.ts.tunablelaser.interfaces import Laser
 
 
 class FakeLaser(Laser):
@@ -186,7 +186,7 @@ class TestLaserRegisterRefresh(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    async def test_read_register_raises_on_triple_quote_error_response(self):
+    async def test_read_register_raises_connection_error_on_retryable_device_error(self):
         laser = FakeLaser()
         laser.commander = unittest.mock.AsyncMock()
         laser.commander.encoding = "ascii"
@@ -195,7 +195,7 @@ class TestLaserRegisterRefresh(unittest.IsolatedAsyncioTestCase):
             return_value="'''Error: (8) Timeout waiting for device answer"
         )
 
-        with self.assertRaisesRegex(DeviceTimeoutError, "Timeout waiting for device answer"):
+        with self.assertRaisesRegex(ConnectionError, "retry exhaustion"):
             await laser.read_register(laser.cpu8000.power_register)
 
         self.assertIsNone(laser.cpu8000.power_register.register_value)
@@ -251,6 +251,46 @@ class TestLaserRegisterRefresh(unittest.IsolatedAsyncioTestCase):
 
         laser = FakeLaser()
         first_commander = TimeoutCommander()
+        second_commander = HealthyCommander()
+        laser.commander = first_commander
+        laser.host = "127.0.0.1"
+        laser.port = 12345
+
+        async def connect():
+            laser.commander = second_commander
+
+        laser.connect = unittest.mock.AsyncMock(side_effect=connect)
+
+        with unittest.mock.patch("lsst.ts.tunablelaser.interfaces.DEFAULT_SLEEP", 0):
+            await laser.read_register(laser.cpu8000.power_register)
+
+        first_commander.close.assert_awaited_once()
+        laser.connect.assert_awaited_once()
+        second_commander.write.assert_awaited_once()
+        second_commander.read_str.assert_awaited_once()
+        self.assertEqual(laser.cpu8000.power_register.register_value, "ON")
+
+    async def test_send_command_reconnects_before_retry_after_retryable_device_error(self):
+        class RetryableErrorCommander:
+            encoding = "ascii"
+            connected = True
+
+            def __init__(self):
+                self.close = unittest.mock.AsyncMock()
+                self.write = unittest.mock.AsyncMock()
+                self.read_str = unittest.mock.AsyncMock(return_value="'''Error: (6) No such register name")
+
+        class HealthyCommander:
+            encoding = "ascii"
+            connected = True
+
+            def __init__(self):
+                self.close = unittest.mock.AsyncMock()
+                self.write = unittest.mock.AsyncMock()
+                self.read_str = unittest.mock.AsyncMock(return_value="ON")
+
+        laser = FakeLaser()
+        first_commander = RetryableErrorCommander()
         second_commander = HealthyCommander()
         laser.commander = first_commander
         laser.host = "127.0.0.1"
