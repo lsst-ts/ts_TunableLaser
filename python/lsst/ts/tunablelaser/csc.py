@@ -284,6 +284,8 @@ class LaserCSC(salobj.ConfigurableCsc):
                 return TunableLaser.LaserDetailedState.NONPROPAGATING_CONTINUOUS_MODE
             case Mode.CONTINUOUS, True:
                 return TunableLaser.LaserDetailedState.PROPAGATING_CONTINUOUS_MODE
+            case Mode.TRIGGER, False:
+                return TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE
             case Mode.TRIGGER, True:
                 return TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE
             case _:

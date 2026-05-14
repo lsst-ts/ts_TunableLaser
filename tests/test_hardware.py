@@ -25,7 +25,7 @@ import unittest
 import unittest.mock
 
 from lsst.ts.tunablelaser.canbus_modules import CPU8000, MaxiOPG
-from lsst.ts.tunablelaser.component import FanControlClient, LaserAlignmentClient, TemperatureCtrl
+from lsst.ts.tunablelaser.component import FanControlClient, LaserAlignmentClient, MainLaser, TemperatureCtrl
 from lsst.ts.tunablelaser.interfaces import Laser
 
 
@@ -344,6 +344,16 @@ class TestLaserRegisterRefresh(unittest.IsolatedAsyncioTestCase):
             terminator=bytes(laser.terminator),
             encoding=laser.encoding,
         )
+
+    async def test_main_laser_trigger_burst_reuses_cached_burst_length_as_int(self):
+        laser = MainLaser(log=logging.getLogger(__name__))
+        laser.m_cpu800.burst_length_register.register_value = "1"
+        laser.write_register = unittest.mock.AsyncMock()
+        laser.set_burst_mode = unittest.mock.AsyncMock()
+
+        await laser.trigger_burst()
+
+        laser.set_burst_mode.assert_awaited_once_with(count=1)
 
     async def test_simulated_tempctrl_write_register_updates_authoritative_mock(self):
         controller = TemperatureCtrl(log=logging.getLogger(__name__), simulation_mode=True)
