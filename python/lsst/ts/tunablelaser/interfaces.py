@@ -358,9 +358,9 @@ class Laser(ABC):
             Raised when retries are exhausted without a usable response.
         """
         last_error = None
-        for attempt in range(NUMBER_OF_RETRIES):
-            try:
-                async with self.lock:
+        async with self.lock:
+            for attempt in range(NUMBER_OF_RETRIES):
+                try:
                     async with asyncio.timeout(COMMAND_TIMEOUT):
                         await self.commander.write(message.encode(self.commander.encoding))
                         resp = await self.commander.read_str()
@@ -371,16 +371,17 @@ class Laser(ABC):
                                 raise RetryableDeviceError(resp)
                             raise RuntimeError(f"{message} failed.")
                         return resp.rstrip("nmC\r\n")
-            except (asyncio.TimeoutError, RetryableDeviceError) as err:
-                last_error = err
-                self.log.warning(
-                    f"Command failed on attempt {attempt + 1}/{NUMBER_OF_RETRIES} for {message!r}: {err!r}"
-                )
-                if attempt == NUMBER_OF_RETRIES - 1:
-                    break
-                if not await self._reconnect_after_timeout():
-                    break
-                await asyncio.sleep(DEFAULT_SLEEP)
+                except (asyncio.TimeoutError, RetryableDeviceError) as err:
+                    last_error = err
+                    self.log.warning(
+                        f"Command failed on attempt {attempt + 1}/{NUMBER_OF_RETRIES} for "
+                        f"{message!r}: {err!r}"
+                    )
+                    if attempt == NUMBER_OF_RETRIES - 1:
+                        break
+                    if not await self._reconnect_after_timeout():
+                        break
+                    await asyncio.sleep(DEFAULT_SLEEP)
         raise ConnectionError("Response not received after retry exhaustion.") from last_error
 
     def _iter_canbus_modules(self) -> Iterator["CanbusModule"]:

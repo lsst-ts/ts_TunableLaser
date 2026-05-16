@@ -310,6 +310,67 @@ class TestLaserRegisterRefresh(unittest.IsolatedAsyncioTestCase):
         second_commander.read_str.assert_awaited_once()
         self.assertEqual(laser.cpu8000.power_register.register_value, "ON")
 
+    async def test_command_waits_for_retry_reconnect_to_complete(self):
+        class RetryableErrorCommander:
+            encoding = "ascii"
+            connected = True
+
+            def __init__(self):
+                self.close = unittest.mock.AsyncMock()
+                self.write = unittest.mock.AsyncMock()
+                self.read_str = unittest.mock.AsyncMock(
+                    return_value="'''Error: (8) Timeout waiting for device answer"
+                )
+
+        class EmptyCommander:
+            encoding = "ascii"
+            connected = False
+
+            def __init__(self):
+                self.close = unittest.mock.AsyncMock()
+                self.write = unittest.mock.AsyncMock(
+                    side_effect=AssertionError("Command used reconnect placeholder client.")
+                )
+                self.read_str = unittest.mock.AsyncMock()
+
+        class HealthyCommander:
+            encoding = "ascii"
+            connected = True
+
+            def __init__(self):
+                self.close = unittest.mock.AsyncMock()
+                self.write = unittest.mock.AsyncMock()
+                self.read_str = unittest.mock.AsyncMock(side_effect=["ON", "19A"])
+
+        laser = FakeLaser()
+        first_commander = RetryableErrorCommander()
+        empty_commander = EmptyCommander()
+        healthy_commander = HealthyCommander()
+        reconnect_started = asyncio.Event()
+        laser.commander = first_commander
+        laser.host = "127.0.0.1"
+        laser.port = 12345
+        laser.create_empty_client = unittest.mock.Mock(return_value=empty_commander)
+
+        async def connect():
+            reconnect_started.set()
+            await asyncio.sleep(0.01)
+            laser.commander = healthy_commander
+
+        laser.connect = unittest.mock.AsyncMock(side_effect=connect)
+
+        with unittest.mock.patch("lsst.ts.tunablelaser.interfaces.DEFAULT_SLEEP", 0):
+            first_read_task = asyncio.create_task(laser.read_register(laser.cpu8000.power_register))
+            await reconnect_started.wait()
+            second_read_task = asyncio.create_task(
+                laser.read_register(laser.cpu8000.display_current_register)
+            )
+            await asyncio.gather(first_read_task, second_read_task)
+
+        empty_commander.write.assert_not_awaited()
+        self.assertEqual(laser.cpu8000.power_register.register_value, "ON")
+        self.assertEqual(laser.cpu8000.display_current_register.register_value, "19A")
+
     async def test_connect_replaces_connected_commander_without_deadlock(self):
         class Commander:
             encoding = "ascii"
