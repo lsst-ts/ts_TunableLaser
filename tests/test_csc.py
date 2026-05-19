@@ -28,6 +28,7 @@ import pytest
 from parameterized import parameterized
 
 from lsst.ts import salobj, tunablelaser
+from lsst.ts.tunablelaser.enums import Mode
 from lsst.ts.xml.enums import TunableLaser
 
 STD_TIMEOUT = 5
@@ -285,6 +286,30 @@ class TunableLaserCscTestCase(salobj.BaseCscTestCase, unittest.IsolatedAsyncioTe
                 detailedState=TunableLaser.LaserDetailedState.PROPAGATING_BURST_MODE,
             )
             await self.remote.cmd_triggerBurst.set_start(timeout=STD_TIMEOUT)
+            await self.remote.cmd_stopPropagateLaser.set_start(timeout=STD_TIMEOUT)
+            await self.assert_next_sample(
+                topic=self.remote.evt_detailedState,
+                detailedState=TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE,
+            )
+
+    @parameterized.expand([(""), ("stubbs.yaml")])
+    async def test_trigger_mode_not_propagating_calculates_burst_mode(self, config):
+        async with self.make_csc(initial_state=salobj.State.ENABLED, simulation_mode=1, override=config):
+            assert self.csc.model is not None
+            if config == "stubbs.yaml":
+                power_register = self.csc.model.m_cpu800.power_id_0x12_register
+                mode_register = self.csc.model.m_cpu800.continuous_burst_mode_trigger_burst_id_0x12_register
+            else:
+                power_register = self.csc.model.m_cpu800.power_register_2
+                mode_register = self.csc.model.m_cpu800.continous_burst_mode_trigger_burst_register
+
+            power_register.register_value = "OFF"
+            mode_register.register_value = Mode.TRIGGER
+
+            self.assertEqual(
+                self.csc.calculate_detailed_state(),
+                TunableLaser.LaserDetailedState.NONPROPAGATING_BURST_MODE,
+            )
 
     @parameterized.expand([(""), ("stubbs.yaml")])
     async def test_tempctrl(self, config):

@@ -1,0 +1,1 @@
+Prevented ASCII laser command retries from desynchronizing request and response messages by reconnecting before retrying timeout and retryable device-error responses, serializing retry recovery with other commands, and handling trigger-mode state after burst propagation stops.

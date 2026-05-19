@@ -286,6 +286,7 @@ class MainLaser(interfaces.Laser):
             Raised when mode parameter is not in list of accepted values.
         """
         await self.write_register(*self.m_cpu800.set_propagation_mode(Mode.TRIGGER))
+        await self.set_burst_mode(count=int(self.m_cpu800.burst_length_register.register_value))
 
     async def set_burst_mode(self, count):
         """Set the propagation mode to pulse the laser at regular intervals.

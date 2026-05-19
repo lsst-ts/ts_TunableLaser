@@ -33,8 +33,6 @@ from lsst.ts.tunablelaser.wizardry import (
     COMMAND_TIMEOUT,
     DEFAULT_CONNECT_TIMEOUT,
     DEFAULT_SLEEP,
-    DEVICE_TIMEOUT_READ_DELAY,
-    DEVICE_TIMEOUT_READ_RETRIES,
     END_CODE_LEN,
     MRC_SRC_LEN,
     NUMBER_OF_CONNECTION_RETRIES,
@@ -47,14 +45,14 @@ from lsst.ts.tunablelaser.wizardry import (
 from .compoway_register import CompoWayFDataRegister, CompoWayFGeneralRegister, CompoWayFOperationRegister
 from .register import AsciiRegister
 
-ERRORS = [
+RETRYABLE_DEVICE_ERRORS = [
     "(8) Timeout waiting for device answer",
     "(6) No such register name",
 ]
 
 
-class DeviceTimeoutError(Exception):
-    """The controller replied that a downstream device timed out."""
+class RetryableDeviceError(Exception):
+    """The controller replied with a retryable device error."""
 
 
 class Laser(ABC):
@@ -302,10 +300,42 @@ class Laser(ABC):
         """
         raise NotImplementedError
 
+    async def _disconnect(self) -> None:
+        # Public disconnect acquires connect_lock before calling this.
+        # connect calls this directly because it already holds connect_lock,
+        # avoiding re-entry into the non-reentrant asyncio.Lock.
+        await self.commander.close()
+        self.commander = self.create_empty_client()
+
     async def disconnect(self) -> None:
         """Disconnect from the laser."""
-        await self.commander.close()
-        self.commander = tcpip.Client(host="", port=0, log=self.log)
+        async with self.connect_lock:
+            await self._disconnect()
+
+    async def _reconnect_after_timeout(self) -> bool:
+        """Reconnect after a command timeout.
+
+        A command timeout can leave a late response in the TCP stream. Reusing
+        the same client for a retry can then pair the retry with stale bytes
+        from the previous command.
+        """
+        try:
+            await self.disconnect()
+        except Exception:
+            self.log.exception("Failed to close commander after command timeout.")
+            return False
+
+        if not hasattr(self, "host") or not hasattr(self, "port"):
+            self.log.error("Cannot reconnect after timeout because host/port are not configured.")
+            return False
+
+        try:
+            await self.connect()
+        except Exception:
+            self.log.exception("Failed to reconnect after command timeout.")
+            return False
+
+        return self.commander.connected
 
     async def send_command(self, message) -> str:
         """Send one ASCII command and return the decoded response.
@@ -322,35 +352,36 @@ class Laser(ABC):
 
         Raises
         ------
-        DeviceTimeoutError
-            Raised when the laser reports a transient downstream device error.
         RuntimeError
             Raised when the laser reports a non-retryable ASCII error.
         ConnectionError
             Raised when retries are exhausted without a usable response.
         """
         last_error = None
-        for attempt in range(NUMBER_OF_RETRIES):
-            try:
-                async with self.lock:
+        async with self.lock:
+            for attempt in range(NUMBER_OF_RETRIES):
+                try:
                     async with asyncio.timeout(COMMAND_TIMEOUT):
                         await self.commander.write(message.encode(self.commander.encoding))
                         resp = await self.commander.read_str()
                     if resp:
                         if resp.startswith("'''"):
                             self.log.error(f"{message} failed. Received {resp}.")
-                            if any(error in resp for error in ERRORS):
-                                raise DeviceTimeoutError(resp)
+                            if any(error in resp for error in RETRYABLE_DEVICE_ERRORS):
+                                raise RetryableDeviceError(resp)
                             raise RuntimeError(f"{message} failed.")
                         return resp.rstrip("nmC\r\n")
-            except asyncio.TimeoutError as err:
-                last_error = err
-                self.log.warning(
-                    f"Command failed on attempt {attempt + 1}/{NUMBER_OF_RETRIES} for {message!r}: {err!r}"
-                )
-                if attempt == NUMBER_OF_RETRIES - 1:
-                    break
-                await asyncio.sleep(DEFAULT_SLEEP)
+                except (asyncio.TimeoutError, RetryableDeviceError) as err:
+                    last_error = err
+                    self.log.warning(
+                        f"Command failed on attempt {attempt + 1}/{NUMBER_OF_RETRIES} for "
+                        f"{message!r}: {err!r}"
+                    )
+                    if attempt == NUMBER_OF_RETRIES - 1:
+                        break
+                    if not await self._reconnect_after_timeout():
+                        break
+                    await asyncio.sleep(DEFAULT_SLEEP)
         raise ConnectionError("Response not received after retry exhaustion.") from last_error
 
     def _iter_canbus_modules(self) -> Iterator["CanbusModule"]:
@@ -418,7 +449,7 @@ class Laser(ABC):
         )
 
     async def read_register(self, register) -> str:
-        """Read an ASCII register with device-timeout retries.
+        """Read an ASCII register.
 
         Parameters
         ----------
@@ -429,27 +460,9 @@ class Laser(ABC):
         -------
         value : `str`
             Decoded register value.
-
-        Raises
-        ------
-        DeviceTimeoutError
-            Raised when retry attempts are exhausted.
         """
-        last_error = None
-        for attempt in range(DEVICE_TIMEOUT_READ_RETRIES + 1):
-            try:
-                register.register_value = await self.send_command(register.create_get_message())
-                return register.register_value
-            except DeviceTimeoutError as err:
-                last_error = err
-                self.log.warning(
-                    f"Device timeout reading {register.module_name}.{register.register_name} "
-                    f"attempt {attempt + 1}/{DEVICE_TIMEOUT_READ_RETRIES + 1}: {err}"
-                )
-                if attempt == DEVICE_TIMEOUT_READ_RETRIES:
-                    break
-                await asyncio.sleep(DEVICE_TIMEOUT_READ_DELAY)
-        raise last_error
+        register.register_value = await self.send_command(register.create_get_message())
+        return register.register_value
 
     async def write_register(self, register, value) -> str:
         """Write an ASCII register and read it back.
@@ -484,6 +497,9 @@ class Laser(ABC):
         refresh_time_dt = loop.time() - refresh_time_start
         self.log.debug(f"Refresh all registers took {refresh_time_dt:.3f}s")
 
+    def create_empty_client(self) -> tcpip.Client:
+        return tcpip.Client(host="", port=0, log=self.log)
+
     async def connect(self) -> None:
         """Connect to the laser.
 
@@ -492,23 +508,33 @@ class Laser(ABC):
         RuntimeError
             Raised if all connection attempts fail.
         """
-        for _ in range(NUMBER_OF_CONNECTION_RETRIES):
-            try:
-                self.commander = tcpip.Client(
-                    host=self.host,
-                    port=self.port,
-                    log=self.log,
-                    terminator=bytes(self.terminator),
-                    encoding=self.encoding,
-                )
-                async with asyncio.timeout(self.connect_timeout):
-                    await self.commander.start_task
-            except Exception:
-                self.log.exception("Connection failed.")
+        async with self.connect_lock:
+            last_error = None
             if self.commander.connected:
-                break
-        if not self.commander.connected:
-            raise RuntimeError("Connect call failed.")
+                await self._disconnect()
+            for _ in range(NUMBER_OF_CONNECTION_RETRIES):
+                commander = self.create_empty_client()
+                try:
+                    commander = tcpip.Client(
+                        host=self.host,
+                        port=self.port,
+                        log=self.log,
+                        terminator=bytes(self.terminator),
+                        encoding=self.encoding,
+                    )
+                    async with asyncio.timeout(self.connect_timeout):
+                        await commander.start_task
+                    if commander.connected:
+                        self.commander = commander
+                        return
+                except Exception as e:
+                    last_error = e
+                    self.log.exception("Connection failed.")
+                finally:
+                    if not commander.connected:
+                        await commander.close()
+                await asyncio.sleep(DEFAULT_SLEEP)
+        raise RuntimeError("Connect call failed.") from last_error
 
 
 class CanbusModule(ABC):
