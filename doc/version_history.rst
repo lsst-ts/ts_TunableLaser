@@ -6,6 +6,27 @@ Version History
 
 .. towncrier release notes start
 
+v2.5.1 (2026-07-15)
+===================
+
+New Features
+------------
+
+- Added changing optical configuration support to Stubbs laser. (`OSW-1838 <https://rubinobs.atlassian.net//browse/OSW-1838>`_)
+
+
+Bug Fixes
+---------
+
+- Prevented ASCII laser command retries from desynchronizing request and response messages by reconnecting before retrying timeout and retryable device-error responses, serializing retry recovery with other commands, and handling trigger-mode state after burst propagation stops. (`OSW-2284 <https://rubinobs.atlassian.net//browse/OSW-2284>`_)
+
+
+Performance Enhancement
+-----------------------
+
+- Added generator for canbus modules to be created and used to communicate with laser. (`OSW-1838 <https://rubinobs.atlassian.net//browse/OSW-1838>`_)
+
+
 ts_tunablelaser v2.4.0 (2026-01-23)
 ===================================
 
